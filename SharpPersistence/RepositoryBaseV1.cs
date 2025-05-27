@@ -20,13 +20,14 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
     public async Task<TEntity?> GetOneAsync(Expression<Func<TEntity, bool>> condition,
         CancellationToken cancellationToken = default)
     {
-        return await GetOneAsync(condition, false, cancellationToken).ConfigureAwait(false);
+        return await GetOneAsync(condition, enableTracking: false, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<TEntity?> GetOneAsync(Expression<Func<TEntity, bool>> condition, bool enableTracking,
         CancellationToken cancellationToken = default)
     {
         var query = EntityDbSet.Where(condition);
+
         if (!enableTracking)
         {
             query = query.AsNoTracking();
@@ -41,7 +42,11 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
         CancellationToken cancellationToken = default)
     {
         var query = EntityDbSet.Where(condition);
-        query = sorter.desc ? query.OrderByDescending(sorter.orderBy) : query.OrderBy(sorter.orderBy);
+
+        query = sorter.desc
+            ? query.OrderByDescending(sorter.orderBy)
+            : query.OrderBy(sorter.orderBy);
+
         if (!enableTracking)
         {
             query = query.AsNoTracking();
@@ -54,25 +59,30 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
         (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
         CancellationToken cancellationToken = default)
     {
-        return await GetOneSortedAsync(condition, sorter, false, cancellationToken).ConfigureAwait(false);
+        return await GetOneSortedAsync(condition, sorter, enableTracking: false, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<TResult?> GetOneSubsetAsync<TResult>(Expression<Func<TEntity, TResult>> subsetSelector,
         Expression<Func<TEntity, bool>> condition, bool enableTracking, CancellationToken cancellationToken = default)
     {
         var query = EntityDbSet.Where(condition);
+
         if (!enableTracking)
         {
             query = query.AsNoTracking();
         }
 
-        return await query.Select(subsetSelector).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        return await query
+            .Select(subsetSelector)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public Task<TResult?> GetOneSubsetAsync<TResult>(Expression<Func<TEntity, TResult>> subsetSelector,
         Expression<Func<TEntity, bool>> condition, CancellationToken cancellationToken = default)
     {
-        return GetOneSubsetAsync(subsetSelector, condition, false, cancellationToken);
+        return GetOneSubsetAsync(subsetSelector, condition, enableTracking: false, cancellationToken);
     }
 
     public async Task<ICollection<TResult>> GetAllSortedAndPaginatedSubsetAsync<TResult, TSorter>(int page, int limit,
@@ -81,60 +91,82 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
         where TSorter : IComparable<TSorter>
     {
         var query = EntityDbSet.AsQueryable();
-        query = sorter.desc ? query.OrderByDescending(sorter.orderBy) : query.OrderBy(sorter.orderBy);
+
+        query = sorter.desc
+            ? query.OrderByDescending(sorter.orderBy)
+            : query.OrderBy(sorter.orderBy);
+
         query = query.AsNoTracking();
-        var safePageLimit = AvoidNegativeOrZeroPagination(page, limit);
-        return await query.Skip((safePageLimit.page - 1) * safePageLimit.limit).Take(safePageLimit.limit)
-            .Select(subsetSelector).ToListAsync(cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task<ICollection<TResult>> GetAllSortedAndPaginatedSubsetAsync<TResult, TSorter>(int page, int limit,
-        Expression<Func<TEntity, TResult>> subsetSelector,
-        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter, Expression<Func<TEntity, bool>> condition,
-        CancellationToken cancellationToken = default) where TSorter : IComparable<TSorter>
-    {
-        return await GetAllSortedAndPaginatedSubsetAsync(page, limit, subsetSelector, sorter, condition, false,
-            cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task<ICollection<TResult>> GetAllSortedAndPaginatedSubsetAsync<TResult, TSorter>(int page, int limit,
-        Expression<Func<TEntity, TResult>> subsetSelector,
-        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter, bool enableTracking,
-        CancellationToken cancellationToken = default) where TSorter : IComparable<TSorter>
-    {
-        var query = EntityDbSet.AsQueryable();
-        query = sorter.desc ? query.OrderByDescending(sorter.orderBy) : query.OrderBy(sorter.orderBy);
-        if (!enableTracking)
-        {
-            query = query.AsNoTracking();
-        }
 
         var safePageLimit = AvoidNegativeOrZeroPagination(page, limit);
-        return await query.Skip((safePageLimit.page - 1) * safePageLimit.limit).Take(safePageLimit.limit)
-            .Select(subsetSelector).ToListAsync(cancellationToken).ConfigureAwait(false);
-    }
 
-    public async Task<ICollection<TResult>> GetAllSortedAndPaginatedSubsetAsync<TResult, TSorter>(int page, int limit,
-        Expression<Func<TEntity, TResult>> subsetSelector,
-        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter, Expression<Func<TEntity, bool>> condition,
-        bool enableTracking, CancellationToken cancellationToken = default) where TSorter : IComparable<TSorter>
-    {
-        var query = EntityDbSet.Where(condition);
-
-        query = sorter.desc ? query.OrderByDescending(sorter.orderBy) : query.OrderBy(sorter.orderBy);
-        if (!enableTracking)
-        {
-            query = query.AsNoTracking();
-        }
-
-        var safePageLimit = AvoidNegativeOrZeroPagination(page, limit);
-        
         return await query
-        .Skip((safePageLimit.page - 1) * safePageLimit.limit)
-        .Take(safePageLimit.limit)
-        .Select(subsetSelector)
-        .ToListAsync(cancellationToken)
-        .ConfigureAwait(false);
+            .Skip((safePageLimit.page - 1) * safePageLimit.limit)
+            .Take(safePageLimit.limit)
+            .Select(subsetSelector)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<ICollection<TResult>> GetAllSortedAndPaginatedSubsetAsync<TResult, TSorter>(int page, int limit,
+        Expression<Func<TEntity, TResult>> subsetSelector,
+        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter, Expression<Func<TEntity, bool>> condition,
+        CancellationToken cancellationToken = default) where TSorter : IComparable<TSorter>
+    {
+        return await GetAllSortedAndPaginatedSubsetAsync(page, limit, subsetSelector, sorter, condition,
+                enableTracking: false, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<ICollection<TResult>> GetAllSortedAndPaginatedSubsetAsync<TResult, TSorter>(int page, int limit,
+        Expression<Func<TEntity, TResult>> subsetSelector,
+        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter, bool enableTracking,
+        CancellationToken cancellationToken = default) where TSorter : IComparable<TSorter>
+    {
+        var query = EntityDbSet.AsQueryable();
+
+        query = sorter.desc
+            ? query.OrderByDescending(sorter.orderBy)
+            : query.OrderBy(sorter.orderBy);
+
+        if (!enableTracking)
+        {
+            query = query.AsNoTracking();
+        }
+
+        var safePageLimit = AvoidNegativeOrZeroPagination(page, limit);
+
+        return await query
+            .Skip((safePageLimit.page - 1) * safePageLimit.limit)
+            .Take(safePageLimit.limit)
+            .Select(subsetSelector)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<ICollection<TResult>> GetAllSortedAndPaginatedSubsetAsync<TResult, TSorter>(int page, int limit,
+        Expression<Func<TEntity, TResult>> subsetSelector,
+        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter, Expression<Func<TEntity, bool>> condition,
+        bool enableTracking, CancellationToken cancellationToken = default) where TSorter : IComparable<TSorter>
+    {
+        var query = EntityDbSet.Where(condition);
+
+        query = sorter.desc
+            ? query.OrderByDescending(sorter.orderBy)
+            : query.OrderBy(sorter.orderBy);
+
+        if (!enableTracking)
+        {
+            query = query.AsNoTracking();
+        }
+
+        var safePageLimit = AvoidNegativeOrZeroPagination(page, limit);
+
+        return await query
+            .Skip((safePageLimit.page - 1) * safePageLimit.limit)
+            .Take(safePageLimit.limit)
+            .Select(subsetSelector)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<ICollection<TEntity>> GetAllSortedAndPaginatedAsync<TSorter>(int page, int limit,
@@ -142,18 +174,28 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
         where TSorter : IComparable<TSorter>
     {
         var query = EntityDbSet.AsQueryable();
-        query = sorter.desc ? query.OrderByDescending(sorter.orderBy) : query.OrderBy(sorter.orderBy);
+
+        query = sorter.desc
+            ? query.OrderByDescending(sorter.orderBy)
+            : query.OrderBy(sorter.orderBy);
+
         query = query.AsNoTracking();
+
         var safePageLimit = AvoidNegativeOrZeroPagination(page, limit);
-        return await query.Skip((safePageLimit.page - 1) * safePageLimit.limit).Take(safePageLimit.limit)
-            .ToListAsync(cancellationToken).ConfigureAwait(false);
+
+        return await query
+            .Skip((safePageLimit.page - 1) * safePageLimit.limit)
+            .Take(safePageLimit.limit)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<ICollection<TEntity>> GetAllSortedAndPaginatedAsync<TSorter>(int page, int limit,
         (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter, Expression<Func<TEntity, bool>> condition,
         CancellationToken cancellationToken = default) where TSorter : IComparable<TSorter>
     {
-        return await GetAllSortedAndPaginatedAsync(page, limit, sorter, condition, false, cancellationToken)
+        return await GetAllSortedAndPaginatedAsync(page, limit, sorter, condition, enableTracking: false,
+                cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -162,15 +204,23 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
         CancellationToken cancellationToken = default) where TSorter : IComparable<TSorter>
     {
         var query = EntityDbSet.AsQueryable();
-        query = sorter.desc ? query.OrderByDescending(sorter.orderBy) : query.OrderBy(sorter.orderBy);
+
+        query = sorter.desc
+            ? query.OrderByDescending(sorter.orderBy)
+            : query.OrderBy(sorter.orderBy);
+
         if (!enableTracking)
         {
             query = query.AsNoTracking();
         }
 
         var safePageLimit = AvoidNegativeOrZeroPagination(page, limit);
-        return await query.Skip((safePageLimit.page - 1) * safePageLimit.limit).Take(safePageLimit.limit)
-            .ToListAsync(cancellationToken).ConfigureAwait(false);
+
+        return await query
+            .Skip((safePageLimit.page - 1) * safePageLimit.limit)
+            .Take(safePageLimit.limit)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<ICollection<TEntity>> GetAllSortedAndPaginatedAsync<TSorter>(int page, int limit,
@@ -179,8 +229,9 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
     {
         var query = EntityDbSet.Where(condition);
 
-
-        query = sorter.desc ? query.OrderByDescending(sorter.orderBy) : query.OrderBy(sorter.orderBy);
+        query = sorter.desc
+            ? query.OrderByDescending(sorter.orderBy)
+            : query.OrderBy(sorter.orderBy);
 
         if (!enableTracking)
         {
@@ -188,8 +239,12 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
         }
 
         var safePageLimit = AvoidNegativeOrZeroPagination(page, limit);
-        return await query.Skip((safePageLimit.page - 1) * safePageLimit.limit).Take(safePageLimit.limit)
-            .ToListAsync(cancellationToken).ConfigureAwait(false);
+
+        return await query
+            .Skip((safePageLimit.page - 1) * safePageLimit.limit)
+            .Take(safePageLimit.limit)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<ICollection<TResult>> GetAllSortedSubsetAsync<TResult, TSorter>(
@@ -198,9 +253,17 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
         where TSorter : IComparable<TSorter>
     {
         var query = EntityDbSet.AsQueryable();
-        query = sorter.desc ? query.OrderByDescending(sorter.orderBy) : query.OrderBy(sorter.orderBy);
+
+        query = sorter.desc
+            ? query.OrderByDescending(sorter.orderBy)
+            : query.OrderBy(sorter.orderBy);
+
         query = query.AsNoTracking();
-        return await query.Select(subsetSelector).ToListAsync(cancellationToken).ConfigureAwait(false);
+
+        return await query
+            .Select(subsetSelector)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<ICollection<TResult>> GetAllSortedSubsetAsync<TResult, TSorter>(
@@ -208,7 +271,8 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
         (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter, Expression<Func<TEntity, bool>> condition,
         CancellationToken cancellationToken = default) where TSorter : IComparable<TSorter>
     {
-        return await GetAllSortedSubsetAsync(subsetSelector, sorter, condition, false, cancellationToken)
+        return await GetAllSortedSubsetAsync(subsetSelector, sorter, condition, enableTracking: false,
+                cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -218,13 +282,20 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
         CancellationToken cancellationToken = default) where TSorter : IComparable<TSorter>
     {
         var query = EntityDbSet.AsQueryable();
-        query = sorter.desc ? query.OrderByDescending(sorter.orderBy) : query.OrderBy(sorter.orderBy);
+
+        query = sorter.desc
+            ? query.OrderByDescending(sorter.orderBy)
+            : query.OrderBy(sorter.orderBy);
+
         if (!enableTracking)
         {
             query = query.AsNoTracking();
         }
 
-        return await query.Select(subsetSelector).ToListAsync(cancellationToken).ConfigureAwait(false);
+        return await query
+            .Select(subsetSelector)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<ICollection<TResult>> GetAllSortedSubsetAsync<TResult, TSorter>(
@@ -234,14 +305,19 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
     {
         var query = EntityDbSet.Where(condition);
 
-        query = sorter.desc ? query.OrderByDescending(sorter.orderBy) : query.OrderBy(sorter.orderBy);
+        query = sorter.desc
+            ? query.OrderByDescending(sorter.orderBy)
+            : query.OrderBy(sorter.orderBy);
 
         if (!enableTracking)
         {
             query = query.AsNoTracking();
         }
 
-        return await query.Select(subsetSelector).ToListAsync(cancellationToken).ConfigureAwait(false);
+        return await query
+            .Select(subsetSelector)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<ICollection<TEntity>> GetAllSortedAsync<TSorter>(
@@ -250,7 +326,10 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
     {
         var query = EntityDbSet.Where(condition);
 
-        query = sorter.desc ? query.OrderByDescending(sorter.orderBy) : query.OrderBy(sorter.orderBy);
+        query = sorter.desc
+            ? query.OrderByDescending(sorter.orderBy)
+            : query.OrderBy(sorter.orderBy);
+
         if (!enableTracking)
         {
             query = query.AsNoTracking();
@@ -263,7 +342,8 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
         (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter, Expression<Func<TEntity, bool>> condition,
         CancellationToken cancellationToken = default) where TSorter : IComparable<TSorter>
     {
-        return await GetAllSortedAsync(sorter, condition, false, cancellationToken).ConfigureAwait(false);
+        return await GetAllSortedAsync(sorter, condition, enableTracking: false, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<ICollection<TEntity>> GetAllSortedAsync<TSorter>(
@@ -272,7 +352,11 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
         where TSorter : IComparable<TSorter>
     {
         var query = EntityDbSet.AsQueryable();
-        query = sorter.desc ? query.OrderByDescending(sorter.orderBy) : query.OrderBy(sorter.orderBy);
+
+        query = sorter.desc
+            ? query.OrderByDescending(sorter.orderBy)
+            : query.OrderBy(sorter.orderBy);
+
         if (!enableTracking)
         {
             query = query.AsNoTracking();
@@ -286,8 +370,13 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
         where TSorter : IComparable<TSorter>
     {
         var query = EntityDbSet.AsQueryable();
-        query = sorter.desc ? query.OrderByDescending(sorter.orderBy) : query.OrderBy(sorter.orderBy);
+
+        query = sorter.desc
+            ? query.OrderByDescending(sorter.orderBy)
+            : query.OrderBy(sorter.orderBy);
+
         query = query.AsNoTracking();
+
         return await query.ToListAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -302,14 +391,18 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
             query = query.AsNoTracking();
         }
 
-        return await query.Select(subsetSelector).ToListAsync(cancellationToken).ConfigureAwait(false);
+        return await query
+            .Select(subsetSelector)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<ICollection<TResult>> GetAllSubsetAsync<TResult>(
         Expression<Func<TEntity, TResult>> subsetSelector, Expression<Func<TEntity, bool>> condition,
         CancellationToken cancellationToken = default)
     {
-        return await GetAllSubsetAsync(subsetSelector, condition, false, cancellationToken).ConfigureAwait(false);
+        return await GetAllSubsetAsync(subsetSelector, condition, enableTracking: false, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<ICollection<TResult>> GetAllSubsetAsync<TResult>(
@@ -317,20 +410,29 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
         CancellationToken cancellationToken = default)
     {
         var query = EntityDbSet.AsQueryable();
+
         if (!enableTracking)
         {
             query = query.AsNoTracking();
         }
 
-        return await query.Select(subsetSelector).ToListAsync(cancellationToken).ConfigureAwait(false);
+        return await query
+            .Select(subsetSelector)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<ICollection<TResult>> GetAllSubsetAsync<TResult>(
         Expression<Func<TEntity, TResult>> subsetSelector, CancellationToken cancellationToken = default)
     {
         var query = EntityDbSet.AsQueryable();
+
         query = query.AsNoTracking();
-        return await query.Select(subsetSelector).ToListAsync(cancellationToken).ConfigureAwait(false);
+
+        return await query
+            .Select(subsetSelector)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<ICollection<TEntity>> GetAllAsync(Expression<Func<TEntity, bool>> condition, bool enableTracking,
@@ -343,32 +445,41 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
             query = query.AsNoTracking();
         }
 
-        return await query.ToListAsync(cancellationToken).ConfigureAwait(false);
+        return await query
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<ICollection<TEntity>> GetAllAsync(Expression<Func<TEntity, bool>> condition,
         CancellationToken cancellationToken = default)
     {
-        return await GetAllAsync(condition, false, cancellationToken).ConfigureAwait(false);
+        return await GetAllAsync(condition, enableTracking: false, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<ICollection<TEntity>> GetAllAsync(bool enableTracking,
         CancellationToken cancellationToken = default)
     {
         var query = EntityDbSet.AsQueryable();
+
         if (!enableTracking)
         {
             query = query.AsNoTracking();
         }
 
-        return await query.ToListAsync(cancellationToken).ConfigureAwait(false);
+        return await query
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<ICollection<TEntity>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         var query = EntityDbSet.AsQueryable();
+
         query = query.AsNoTracking();
-        return await query.ToListAsync(cancellationToken).ConfigureAwait(false);
+
+        return await query
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public virtual Task<bool> EveryAsync(Expression<Func<TEntity, bool>> condition,
@@ -404,10 +515,10 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
         await EntityDbSet.AddRangeAsync(entity).ConfigureAwait(false);
     }
 
-
     public virtual void Update(TEntity entityToUpdate)
     {
         var entry = DatabaseContext.Entry(entityToUpdate);
+
         if (entry.State is EntityState.Detached)
         {
             EntityDbSet.Attach(entityToUpdate);
@@ -421,6 +532,7 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
         foreach (var entity in entitiesToUpdate)
         {
             var entry = DatabaseContext.Entry(entity);
+
             if (entry.State is EntityState.Detached)
             {
                 EntityDbSet.Attach(entity);
@@ -433,6 +545,7 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
     public virtual void Remove(TEntity entityToDelete)
     {
         var entry = DatabaseContext.Entry(entityToDelete);
+
         if (entry.State is EntityState.Detached)
         {
             EntityDbSet.Attach(entityToDelete);
@@ -446,6 +559,7 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
         foreach (var entity in entitiesToUpdate)
         {
             var entry = DatabaseContext.Entry(entity);
+
             if (entry.State is EntityState.Detached)
             {
                 EntityDbSet.Attach(entity);
@@ -457,7 +571,9 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
 
     public virtual Task<int> RemoveManyDirectAsync(Expression<Func<TEntity, bool>> condition)
     {
-        return EntityDbSet.Where(condition).ExecuteDeleteAsync();
+        return EntityDbSet
+            .Where(condition)
+            .ExecuteDeleteAsync();
     }
 
     public void TrackEntity(TEntity entity)
@@ -468,6 +584,7 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
     private static (int page, int limit) AvoidNegativeOrZeroPagination(int page, int limit)
     {
         var pagination = (page, limit);
+
         if (page <= 0)
         {
             pagination.page = 1;
