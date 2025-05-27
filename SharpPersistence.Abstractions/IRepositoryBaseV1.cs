@@ -11,13 +11,11 @@ public interface IRepositoryBaseV1<TEntity>
         CancellationToken cancellationToken = default);
 
     Task<TEntity?> GetOneAsync(Expression<Func<TEntity, bool>> condition,
-        bool enableTracking,
-        CancellationToken cancellationToken = default);
+        bool enableTracking, CancellationToken cancellationToken = default);
     
     Task<TEntity?> GetOneSortedAsync<TSorter>(Expression<Func<TEntity, bool>> condition,
         (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
-        bool enableTracking,
-        CancellationToken cancellationToken = default);
+        bool enableTracking, CancellationToken cancellationToken = default);
     
     Task<TEntity?> GetOneSortedAsync<TSorter>(Expression<Func<TEntity, bool>> condition,
         (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
@@ -35,16 +33,14 @@ public interface IRepositoryBaseV1<TEntity>
         CancellationToken cancellationToken = default);
 
     Task<ICollection<TResult>> GetAllSortedAndPaginatedSubsetAsync<TResult, TSorter>(
-        int page,
-        int limit,
+        int page, int limit,
         Expression<Func<TEntity, TResult>> subsetSelector,
         (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
         CancellationToken cancellationToken = default)
         where TSorter : IComparable<TSorter>;
 
     Task<ICollection<TResult>> GetAllSortedAndPaginatedSubsetAsync<TResult, TSorter>(
-        int page,
-        int limit,
+        int page, int limit,
         Expression<Func<TEntity, TResult>> subsetSelector,
         (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
         Expression<Func<TEntity, bool>> condition,
@@ -52,8 +48,7 @@ public interface IRepositoryBaseV1<TEntity>
         where TSorter : IComparable<TSorter>;
 
     Task<ICollection<TResult>> GetAllSortedAndPaginatedSubsetAsync<TResult, TSorter>(
-        int page,
-        int limit,
+        int page, int limit,
         Expression<Func<TEntity, TResult>> subsetSelector,
         (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
         bool enableTracking,
@@ -61,8 +56,7 @@ public interface IRepositoryBaseV1<TEntity>
         where TSorter : IComparable<TSorter>;
 
     Task<ICollection<TResult>> GetAllSortedAndPaginatedSubsetAsync<TResult, TSorter>(
-        int page,
-        int limit,
+        int page, int limit,
         Expression<Func<TEntity, TResult>> subsetSelector,
         (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
         Expression<Func<TEntity, bool>> condition,
@@ -72,31 +66,27 @@ public interface IRepositoryBaseV1<TEntity>
 
 
     Task<ICollection<TEntity>> GetAllSortedAndPaginatedAsync<TSorter>(
-        int page,
-        int limit,
+        int page, int limit,
         (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
         CancellationToken cancellationToken = default)
         where TSorter : IComparable<TSorter>;
 
     Task<ICollection<TEntity>> GetAllSortedAndPaginatedAsync<TSorter>(
-        int page,
-        int limit,
+        int page, int limit,
         (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
         Expression<Func<TEntity, bool>> condition,
         CancellationToken cancellationToken = default)
         where TSorter : IComparable<TSorter>;
 
     Task<ICollection<TEntity>> GetAllSortedAndPaginatedAsync<TSorter>(
-        int page,
-        int limit,
+        int page, int limit,
         (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
         bool enableTracking,
         CancellationToken cancellationToken = default)
         where TSorter : IComparable<TSorter>;
 
     Task<ICollection<TEntity>> GetAllSortedAndPaginatedAsync<TSorter>(
-        int page,
-        int limit,
+        int page, int limit,
         (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
         Expression<Func<TEntity, bool>> condition,
         bool enableTracking,

@@ -37,8 +37,7 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
     }
 
     public async Task<TEntity?> GetOneSortedAsync<TSorter>(Expression<Func<TEntity, bool>> condition,
-        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
-        bool enableTracking,
+        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter, bool enableTracking,
         CancellationToken cancellationToken = default)
     {
         var query = EntityDbSet.Where(condition);
@@ -56,8 +55,7 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
     }
 
     public async Task<TEntity?> GetOneSortedAsync<TSorter>(Expression<Func<TEntity, bool>> condition,
-        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
-        CancellationToken cancellationToken = default)
+        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter, CancellationToken cancellationToken = default)
     {
         return await GetOneSortedAsync(condition, sorter, enableTracking: false, cancellationToken)
             .ConfigureAwait(false);
@@ -114,7 +112,7 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
         CancellationToken cancellationToken = default) where TSorter : IComparable<TSorter>
     {
         return await GetAllSortedAndPaginatedSubsetAsync(page, limit, subsetSelector, sorter, condition,
-                enableTracking: false, cancellationToken).ConfigureAwait(false);
+            enableTracking: false, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<ICollection<TResult>> GetAllSortedAndPaginatedSubsetAsync<TResult, TSorter>(int page, int limit,
@@ -195,8 +193,7 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
         CancellationToken cancellationToken = default) where TSorter : IComparable<TSorter>
     {
         return await GetAllSortedAndPaginatedAsync(page, limit, sorter, condition, enableTracking: false,
-                cancellationToken)
-            .ConfigureAwait(false);
+            cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<ICollection<TEntity>> GetAllSortedAndPaginatedAsync<TSorter>(int page, int limit,
@@ -272,8 +269,7 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
         CancellationToken cancellationToken = default) where TSorter : IComparable<TSorter>
     {
         return await GetAllSortedSubsetAsync(subsetSelector, sorter, condition, enableTracking: false,
-                cancellationToken)
-            .ConfigureAwait(false);
+            cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<ICollection<TResult>> GetAllSortedSubsetAsync<TResult, TSorter>(
@@ -348,8 +344,7 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
 
     public async Task<ICollection<TEntity>> GetAllSortedAsync<TSorter>(
         (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter, bool enableTracking,
-        CancellationToken cancellationToken = default)
-        where TSorter : IComparable<TSorter>
+        CancellationToken cancellationToken = default) where TSorter : IComparable<TSorter>
     {
         var query = EntityDbSet.AsQueryable();
 
