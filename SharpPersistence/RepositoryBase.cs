@@ -4,14 +4,14 @@ using SharpPersistence.Abstractions;
 
 namespace SharpPersistence;
 
-public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<TEntity>
+public abstract class RepositoryBase<TEntity, TDbContext> : IRepositoryBase<TEntity>
     where TEntity : class
     where TDbContext : DbContext
 {
     protected readonly TDbContext DatabaseContext;
     protected readonly DbSet<TEntity> EntityDbSet;
 
-    protected RepositoryBaseV1(TDbContext context)
+    protected RepositoryBase(TDbContext context)
     {
         DatabaseContext = context;
         EntityDbSet = DatabaseContext.Set<TEntity>();
@@ -62,8 +62,8 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
     }
 
     public async Task<TResult?> GetOneSortedSubsetAsync<TSorter, TResult>(
-        Expression<Func<TEntity, TResult>> subsetSelector,
         Expression<Func<TEntity, bool>> condition,
+        Expression<Func<TEntity, TResult>> subsetSelector,
         (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
         bool enableTracking,
         CancellationToken cancellationToken = default)
@@ -84,16 +84,18 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
             .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    public Task<TResult?> GetOneSortedSubsetAsync<TSorter, TResult>(Expression<Func<TEntity, TResult>> subsetSelector,
+    public Task<TResult?> GetOneSortedSubsetAsync<TSorter, TResult>(
         Expression<Func<TEntity, bool>> condition,
-        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter, 
+        Expression<Func<TEntity, TResult>> subsetSelector,
+        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
         CancellationToken cancellationToken = default)
     {
-        return GetOneSortedSubsetAsync(subsetSelector, condition, sorter, enableTracking: false, cancellationToken);
+        return GetOneSortedSubsetAsync(condition, subsetSelector, sorter, enableTracking: false, cancellationToken);
     }
 
-    public async Task<TResult?> GetOneSubsetAsync<TResult>(Expression<Func<TEntity, TResult>> subsetSelector,
-        Expression<Func<TEntity, bool>> condition, bool enableTracking, CancellationToken cancellationToken = default)
+    public async Task<TResult?> GetOneSubsetAsync<TResult>(Expression<Func<TEntity, bool>> condition,
+        Expression<Func<TEntity, TResult>> subsetSelector,
+        bool enableTracking, CancellationToken cancellationToken = default)
     {
         var query = EntityDbSet.Where(condition);
 
@@ -108,10 +110,11 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
             .ConfigureAwait(false);
     }
 
-    public Task<TResult?> GetOneSubsetAsync<TResult>(Expression<Func<TEntity, TResult>> subsetSelector,
-        Expression<Func<TEntity, bool>> condition, CancellationToken cancellationToken = default)
+    public Task<TResult?> GetOneSubsetAsync<TResult>(Expression<Func<TEntity, bool>> condition,
+        Expression<Func<TEntity, TResult>> subsetSelector,
+        CancellationToken cancellationToken = default)
     {
-        return GetOneSubsetAsync(subsetSelector, condition, enableTracking: false, cancellationToken);
+        return GetOneSubsetAsync(condition, subsetSelector, enableTracking: false, cancellationToken);
     }
 
     public Task<TResult?> GetOneSubsetAsync<TResult>(Expression<Func<TEntity, TResult>> subsetSelector,
@@ -148,11 +151,12 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
     }
 
     public Task<ICollection<TResult>> GetAllSortedAndPaginatedSubsetAsync<TResult, TSorter>(int page, int limit,
+        Expression<Func<TEntity, bool>> condition,
         Expression<Func<TEntity, TResult>> subsetSelector,
-        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter, Expression<Func<TEntity, bool>> condition,
+        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
         CancellationToken cancellationToken = default) where TSorter : IComparable<TSorter>
     {
-        return GetAllSortedAndPaginatedSubsetAsync(page, limit, subsetSelector, sorter, condition,
+        return GetAllSortedAndPaginatedSubsetAsync(page, limit, condition, subsetSelector, sorter,
             enableTracking: false, cancellationToken);
     }
 
@@ -183,8 +187,8 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
     }
 
     public async Task<ICollection<TResult>> GetAllSortedAndPaginatedSubsetAsync<TResult, TSorter>(int page, int limit,
-        Expression<Func<TEntity, TResult>> subsetSelector,
-        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter, Expression<Func<TEntity, bool>> condition,
+        Expression<Func<TEntity, bool>> condition, Expression<Func<TEntity, TResult>> subsetSelector,
+        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
         bool enableTracking, CancellationToken cancellationToken = default) where TSorter : IComparable<TSorter>
     {
         var query = EntityDbSet.Where(condition);
@@ -230,10 +234,10 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
     }
 
     public Task<ICollection<TEntity>> GetAllSortedAndPaginatedAsync<TSorter>(int page, int limit,
-        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter, Expression<Func<TEntity, bool>> condition,
+        Expression<Func<TEntity, bool>> condition, (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
         CancellationToken cancellationToken = default) where TSorter : IComparable<TSorter>
     {
-        return GetAllSortedAndPaginatedAsync(page, limit, sorter, condition, enableTracking: false,
+        return GetAllSortedAndPaginatedAsync(page, limit, condition, sorter, enableTracking: false,
             cancellationToken);
     }
 
@@ -262,7 +266,7 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
     }
 
     public async Task<ICollection<TEntity>> GetAllSortedAndPaginatedAsync<TSorter>(int page, int limit,
-        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter, Expression<Func<TEntity, bool>> condition,
+        Expression<Func<TEntity, bool>> condition, (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
         bool enableTracking, CancellationToken cancellationToken = default) where TSorter : IComparable<TSorter>
     {
         var query = EntityDbSet.Where(condition);
@@ -305,12 +309,12 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
     }
 
     public Task<ICollection<TResult>> GetAllSortedSubsetAsync<TResult, TSorter>(
+        Expression<Func<TEntity, bool>> condition,
         Expression<Func<TEntity, TResult>> subsetSelector,
-        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter, Expression<Func<TEntity, bool>> condition,
+        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
         CancellationToken cancellationToken = default) where TSorter : IComparable<TSorter>
     {
-        return GetAllSortedSubsetAsync(subsetSelector, sorter, condition, enableTracking: false,
-            cancellationToken);
+        return GetAllSortedSubsetAsync(condition, subsetSelector, sorter, enableTracking: false, cancellationToken);
     }
 
     public async Task<ICollection<TResult>> GetAllSortedSubsetAsync<TResult, TSorter>(
@@ -336,8 +340,9 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
     }
 
     public async Task<ICollection<TResult>> GetAllSortedSubsetAsync<TResult, TSorter>(
+        Expression<Func<TEntity, bool>> condition,
         Expression<Func<TEntity, TResult>> subsetSelector,
-        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter, Expression<Func<TEntity, bool>> condition,
+        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
         bool enableTracking, CancellationToken cancellationToken = default) where TSorter : IComparable<TSorter>
     {
         var query = EntityDbSet.Where(condition);
@@ -357,9 +362,9 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
             .ConfigureAwait(false);
     }
 
-    public async Task<ICollection<TEntity>> GetAllSortedAsync<TSorter>(
-        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter, Expression<Func<TEntity, bool>> condition,
-        bool enableTracking, CancellationToken cancellationToken = default) where TSorter : IComparable<TSorter>
+    public async Task<ICollection<TEntity>> GetAllSortedAsync<TSorter>(Expression<Func<TEntity, bool>> condition,
+        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter, bool enableTracking,
+        CancellationToken cancellationToken = default) where TSorter : IComparable<TSorter>
     {
         var query = EntityDbSet.Where(condition);
 
@@ -375,11 +380,11 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
         return await query.ToListAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    public Task<ICollection<TEntity>> GetAllSortedAsync<TSorter>(
-        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter, Expression<Func<TEntity, bool>> condition,
+    public Task<ICollection<TEntity>> GetAllSortedAsync<TSorter>(Expression<Func<TEntity, bool>> condition,
+        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
         CancellationToken cancellationToken = default) where TSorter : IComparable<TSorter>
     {
-        return GetAllSortedAsync(sorter, condition, enableTracking: false, cancellationToken);
+        return GetAllSortedAsync(condition, sorter, enableTracking: false, cancellationToken);
     }
 
     public async Task<ICollection<TEntity>> GetAllSortedAsync<TSorter>(
@@ -415,8 +420,8 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
         return await query.ToListAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<ICollection<TResult>> GetAllSubsetAsync<TResult>(
-        Expression<Func<TEntity, TResult>> subsetSelector, Expression<Func<TEntity, bool>> condition,
+    public async Task<ICollection<TResult>> GetAllSubsetAsync<TResult>(Expression<Func<TEntity, bool>> condition,
+        Expression<Func<TEntity, TResult>> subsetSelector,
         bool enableTracking, CancellationToken cancellationToken = default)
     {
         var query = EntityDbSet.Where(condition);
@@ -433,10 +438,10 @@ public abstract class RepositoryBaseV1<TEntity, TDbContext> : IRepositoryBaseV1<
     }
 
     public Task<ICollection<TResult>> GetAllSubsetAsync<TResult>(
-        Expression<Func<TEntity, TResult>> subsetSelector, Expression<Func<TEntity, bool>> condition,
+        Expression<Func<TEntity, bool>> condition, Expression<Func<TEntity, TResult>> subsetSelector,
         CancellationToken cancellationToken = default)
     {
-        return GetAllSubsetAsync(subsetSelector, condition, enableTracking: false, cancellationToken);
+        return GetAllSubsetAsync(condition, subsetSelector, enableTracking: false, cancellationToken);
     }
 
     public async Task<ICollection<TResult>> GetAllSubsetAsync<TResult>(

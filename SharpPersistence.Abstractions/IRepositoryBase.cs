@@ -2,7 +2,7 @@ using System.Linq.Expressions;
 
 namespace SharpPersistence.Abstractions;
 
-public interface IRepositoryBaseV1<TEntity>
+public interface IRepositoryBase<TEntity>
 {
     Task CreateAsync(TEntity entity);
     Task CreateManyAsync(ICollection<TEntity> entity);
@@ -22,14 +22,14 @@ public interface IRepositoryBaseV1<TEntity>
         CancellationToken cancellationToken = default);
 
     Task<TResult?> GetOneSubsetAsync<TResult>(
-        Expression<Func<TEntity, TResult>> subsetSelector,
         Expression<Func<TEntity, bool>> condition,
+        Expression<Func<TEntity, TResult>> subsetSelector,
         bool enableTracking,
         CancellationToken cancellationToken = default);
 
     Task<TResult?> GetOneSubsetAsync<TResult>(
-        Expression<Func<TEntity, TResult>> subsetSelector,
         Expression<Func<TEntity, bool>> condition,
+        Expression<Func<TEntity, TResult>> subsetSelector,
         CancellationToken cancellationToken = default);
 
     Task<TResult?> GetOneSubsetAsync<TResult>(
@@ -37,15 +37,15 @@ public interface IRepositoryBaseV1<TEntity>
         CancellationToken cancellationToken = default);
 
     Task<TResult?> GetOneSortedSubsetAsync<TSorter, TResult>(
-        Expression<Func<TEntity, TResult>> subsetSelector,
         Expression<Func<TEntity, bool>> condition,
+        Expression<Func<TEntity, TResult>> subsetSelector,
         (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
         bool enableTracking,
         CancellationToken cancellationToken = default);
 
         Task<TResult?> GetOneSortedSubsetAsync<TSorter, TResult>(
-        Expression<Func<TEntity, TResult>> subsetSelector,
         Expression<Func<TEntity, bool>> condition,
+        Expression<Func<TEntity, TResult>> subsetSelector,
         (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
         CancellationToken cancellationToken = default);
 
@@ -58,9 +58,9 @@ public interface IRepositoryBaseV1<TEntity>
 
     Task<ICollection<TResult>> GetAllSortedAndPaginatedSubsetAsync<TResult, TSorter>(
         int page, int limit,
+        Expression<Func<TEntity, bool>> condition,
         Expression<Func<TEntity, TResult>> subsetSelector,
         (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
-        Expression<Func<TEntity, bool>> condition,
         CancellationToken cancellationToken = default)
         where TSorter : IComparable<TSorter>;
 
@@ -74,9 +74,9 @@ public interface IRepositoryBaseV1<TEntity>
 
     Task<ICollection<TResult>> GetAllSortedAndPaginatedSubsetAsync<TResult, TSorter>(
         int page, int limit,
+        Expression<Func<TEntity, bool>> condition,
         Expression<Func<TEntity, TResult>> subsetSelector,
         (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
-        Expression<Func<TEntity, bool>> condition,
         bool enableTracking,
         CancellationToken cancellationToken = default)
         where TSorter : IComparable<TSorter>;
@@ -90,8 +90,8 @@ public interface IRepositoryBaseV1<TEntity>
 
     Task<ICollection<TEntity>> GetAllSortedAndPaginatedAsync<TSorter>(
         int page, int limit,
-        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
         Expression<Func<TEntity, bool>> condition,
+        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
         CancellationToken cancellationToken = default)
         where TSorter : IComparable<TSorter>;
 
@@ -104,8 +104,8 @@ public interface IRepositoryBaseV1<TEntity>
 
     Task<ICollection<TEntity>> GetAllSortedAndPaginatedAsync<TSorter>(
         int page, int limit,
-        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
         Expression<Func<TEntity, bool>> condition,
+        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
         bool enableTracking,
         CancellationToken cancellationToken = default)
         where TSorter : IComparable<TSorter>;
@@ -118,9 +118,9 @@ public interface IRepositoryBaseV1<TEntity>
         where TSorter : IComparable<TSorter>;
 
     Task<ICollection<TResult>> GetAllSortedSubsetAsync<TResult, TSorter>(
+        Expression<Func<TEntity, bool>> condition,
         Expression<Func<TEntity, TResult>> subsetSelector,
         (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
-        Expression<Func<TEntity, bool>> condition,
         CancellationToken cancellationToken = default)
         where TSorter : IComparable<TSorter>;
 
@@ -132,23 +132,23 @@ public interface IRepositoryBaseV1<TEntity>
         where TSorter : IComparable<TSorter>;
 
     Task<ICollection<TResult>> GetAllSortedSubsetAsync<TResult, TSorter>(
+        Expression<Func<TEntity, bool>> condition,
         Expression<Func<TEntity, TResult>> subsetSelector,
         (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
-        Expression<Func<TEntity, bool>> condition,
         bool enableTracking,
         CancellationToken cancellationToken = default)
         where TSorter : IComparable<TSorter>;
 
     Task<ICollection<TEntity>> GetAllSortedAsync<TSorter>(
-        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
         Expression<Func<TEntity, bool>> condition,
+        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
         bool enableTracking,
         CancellationToken cancellationToken = default)
         where TSorter : IComparable<TSorter>;
 
     Task<ICollection<TEntity>> GetAllSortedAsync<TSorter>(
-        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
         Expression<Func<TEntity, bool>> condition,
+        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
         CancellationToken cancellationToken = default)
         where TSorter : IComparable<TSorter>;
 
@@ -164,14 +164,14 @@ public interface IRepositoryBaseV1<TEntity>
         where TSorter : IComparable<TSorter>;
 
     Task<ICollection<TResult>> GetAllSubsetAsync<TResult>(
-        Expression<Func<TEntity, TResult>> subsetSelector,
         Expression<Func<TEntity, bool>> condition,
+        Expression<Func<TEntity, TResult>> subsetSelector,
         bool enableTracking,
         CancellationToken cancellationToken = default);
 
     Task<ICollection<TResult>> GetAllSubsetAsync<TResult>(
-        Expression<Func<TEntity, TResult>> subsetSelector,
         Expression<Func<TEntity, bool>> condition,
+        Expression<Func<TEntity, TResult>> subsetSelector,
         CancellationToken cancellationToken = default);
 
     Task<ICollection<TResult>> GetAllSubsetAsync<TResult>(
