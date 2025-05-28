@@ -253,9 +253,9 @@ public class SqlCheckConstraintGeneratorTest
         var genLower = new SqlCheckConstrainGenerator(Rdbms.SqlServer, SqlNamingConvention.LowerSnakeCase);
         var genUpper = new SqlCheckConstrainGenerator(Rdbms.SqlServer, SqlNamingConvention.UpperSnakeCase);
         var genPascal = new SqlCheckConstrainGenerator(Rdbms.SqlServer, SqlNamingConvention.PascalCase);
-        genLower.In("TestColumn", new List<int> { 1 }).ShouldContain("test_column");
         genUpper.In("TestColumn", new List<int> { 1 }).ShouldContain("TEST_COLUMN");
         genPascal.In("test_column", new List<int> { 1 }).ShouldContain("TestColumn");
+        genLower.In("TestColumn", new List<int> { 1 }).ShouldContain("test_column");
     }
 
     [Fact]

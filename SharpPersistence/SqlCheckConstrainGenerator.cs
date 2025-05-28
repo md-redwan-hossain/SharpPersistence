@@ -99,9 +99,9 @@ public class SqlCheckConstrainGenerator
         switch (_sqlNamingConvention)
         {
             case SqlNamingConvention.LowerSnakeCase:
-                return (left.ToLowerInvariant().Underscore(), right.ToLowerInvariant().Underscore());
+                return (left.Underscore().ToLowerInvariant(), right.Underscore().ToLowerInvariant());
             case SqlNamingConvention.UpperSnakeCase:
-                return (left.ToUpperInvariant().Underscore(), right.ToUpperInvariant().Underscore());
+                return (left.Underscore().ToUpperInvariant(), right.Underscore().ToUpperInvariant());
             case SqlNamingConvention.PascalCase:
                 return (left.Pascalize(), right.Pascalize());
             default:
@@ -114,9 +114,9 @@ public class SqlCheckConstrainGenerator
         switch (_sqlNamingConvention)
         {
             case SqlNamingConvention.LowerSnakeCase:
-                return columnOrOperand.ToLowerInvariant().Underscore();
+                return columnOrOperand.Underscore().ToLowerInvariant();
             case SqlNamingConvention.UpperSnakeCase:
-                return columnOrOperand.ToUpperInvariant().Underscore();
+                return columnOrOperand.Underscore().ToUpperInvariant();
             case SqlNamingConvention.PascalCase:
                 return columnOrOperand.Pascalize();
             default:
@@ -127,6 +127,7 @@ public class SqlCheckConstrainGenerator
     public string In(string leftOperand, ICollection<int> rightOperands, bool? delimitLeftOperand = null)
     {
         var transformed = TransformCase(leftOperand);
+
         return string.Concat(
             OperandHandler(transformed, delimitLeftOperand ?? _delimitStringGlobalLevel),
             InSign,
@@ -613,7 +614,7 @@ public class SqlCheckConstrainGenerator
 
     private static string WrapWithParentheses(string text) => $"({text})";
 
-    private static string SqlString(string text) => $"\'{text}\'";
+    private static string SqlString(string text) => $"'{text.Replace("'", "''")}'";
 
     private string DelimitString(string text)
     {
