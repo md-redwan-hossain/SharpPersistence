@@ -138,6 +138,14 @@ public class RepositoryBaseV1Tests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetOneSubsetAsync_SelectorAndCancellationTokenOnly_ReturnsFirstProjection()
+    {
+        // Should return the Value of the first entity (Name = "A", Value = 1)
+        var value = await _repository.GetOneSubsetAsync(e => e.Value, TestContext.Current.CancellationToken);
+        value.ShouldBe(1);
+    }
+
+    [Fact]
     public async Task GetAllSortedAndPaginatedSubsetAsync_ReturnsCorrectPage()
     {
         var result = await _repository.GetAllSortedAndPaginatedSubsetAsync<string, int>
@@ -639,5 +647,30 @@ public class RepositoryBaseV1Tests : IAsyncLifetime
 
         entity.ShouldNotBeNull();
         entity.Name.ShouldBe("D");
+    }
+
+    [Fact]
+    public async Task GetOneSortedSubsetAsync_WithEnableTracking_ReturnsProjectedValue()
+    {
+        // Should return the highest Value (4) with tracking enabled
+        var value = await _repository.GetOneSortedSubsetAsync(
+            e => e.Value,
+            e => e.Value > 0,
+            (e => e.Value, true),
+            true,
+            TestContext.Current.CancellationToken);
+        value.ShouldBe(4);
+    }
+
+    [Fact]
+    public async Task GetOneSortedSubsetAsync_Basic_ReturnsProjectedValue()
+    {
+        // Should return the highest Value (4) with default tracking (AsNoTracking)
+        var value = await _repository.GetOneSortedSubsetAsync(
+            e => e.Value,
+            e => e.Value > 0,
+            (e => e.Value, true),
+            TestContext.Current.CancellationToken);
+        value.ShouldBe(4);
     }
 }
