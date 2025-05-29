@@ -211,9 +211,13 @@ public interface IRepositoryBase<TEntity>
     Task<long> GetCountAsync(CancellationToken cancellationToken = default);
 
     void Update(TEntity entityToUpdate);
+    
     void UpdateMany(ICollection<TEntity> entitiesToUpdate);
+    
     void Remove(TEntity entityToDelete);
+    
     void RemoveMany(ICollection<TEntity> entitiesToUpdate);
+    
     Task<int> RemoveManyDirectAsync(Expression<Func<TEntity, bool>> condition);
 
     void TrackEntity(TEntity entity);
