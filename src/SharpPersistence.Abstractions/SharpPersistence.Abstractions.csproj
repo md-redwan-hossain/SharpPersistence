@@ -1,10 +1,12 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net9.0</TargetFramework>
+        <TargetFramework>net8.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <Title>SharpPersistence</Title>
+        <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+        <Version>0.0.1</Version>
+        <Title>SharpPersistence.Abstractions</Title>
         <Authors>Md. Redwan Hossain</Authors>
         <Copyright>Copyright (c) Md. Redwan Hossain</Copyright>
         <PackageProjectUrl>https://github.com/md-redwan-hossain/SharpPersistence</PackageProjectUrl>

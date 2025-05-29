@@ -1,8 +1,8 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpPersistence.Abstractions", "SharpPersistence.Abstractions\SharpPersistence.Abstractions.csproj", "{C68058A3-7DD7-44E9-B807-7C3BCC4FE8A9}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpPersistence.Abstractions", "src\SharpPersistence.Abstractions\SharpPersistence.Abstractions.csproj", "{C68058A3-7DD7-44E9-B807-7C3BCC4FE8A9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpPersistence", "SharpPersistence\SharpPersistence.csproj", "{496EC883-7CDB-455B-A5F6-3BB281C28D4E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpPersistence", "src\SharpPersistence\SharpPersistence.csproj", "{496EC883-7CDB-455B-A5F6-3BB281C28D4E}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpPersistence.Tests", "SharpPersistence.Tests\SharpPersistence.Tests.csproj", "{152C8625-719C-4F4E-8937-21960886C6F0}"
 EndProject
