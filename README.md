@@ -1,6 +1,6 @@
 # SharpPersistence
 
-A robust, extensible, and thoroughly tested .NET library for working with relational database systems.
+SharpPersistence is a robust, extensible, and thoroughly tested .NET library for working with relational database systems.
 
 ## Features
 
