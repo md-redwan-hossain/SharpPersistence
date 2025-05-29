@@ -217,4 +217,5 @@ public interface IRepositoryBase<TEntity>
     Task<int> RemoveManyDirectAsync(Expression<Func<TEntity, bool>> condition);
 
     void TrackEntity(TEntity entity);
+    void TrackEntities(IEnumerable<TEntity> entities);
 }

@@ -1,6 +1,27 @@
+| Branch | Status                                                                                                                      |
+|--------|-----------------------------------------------------------------------------------------------------------------------------|
+| main   | ![Dotnet 9](https://github.com/md-redwan-hossain/SharpPersistence/actions/workflows/dotnet.yml/badge.svg?branch=main) |
+
+
 # SharpPersistence
 
 SharpPersistence is a robust, extensible, and thoroughly tested .NET library for working with relational database systems.
+
+### Installation
+
+To install, run one of the following commands:
+
+```bash
+dotnet add package SharpPersistence
+```
+
+or
+
+```bash
+dotnet add package SharpPersistence.Abstractions
+```
+
+Or visit [SharpPersistence on NuGet](https://www.nuget.org/packages/SharpPersistence/) and [SharpPersistence.Abstractions on NuGet](https://www.nuget.org/packages/SharpPersistence.Abstractions/)
 
 ## Features
 

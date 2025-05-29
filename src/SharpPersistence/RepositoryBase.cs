@@ -586,6 +586,11 @@ public abstract class RepositoryBase<TEntity, TDbContext> : IRepositoryBase<TEnt
         DatabaseContext.Set<TEntity>().Attach(entity);
     }
 
+    public void TrackEntities(IEnumerable<TEntity> entities)
+    {
+        DatabaseContext.Set<TEntity>().AttachRange(entities);
+    }
+
     private static (int page, int limit) AvoidNegativeOrZeroPagination(int page, int limit)
     {
         var pagination = (page, limit);
