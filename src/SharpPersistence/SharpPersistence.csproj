@@ -17,7 +17,7 @@
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <NoWarn>CS1591</NoWarn>
         <DocumentationFile Condition="'$(Configuration)'=='Release'">bin\$(Configuration)\$(TargetFramework)\SharpPersistence.xml</DocumentationFile>
-        <Description>SharpPersistence is a robust, extensible, and thoroughly tested .NET library for working with relational database systems.</Description>
+        <Description>SharpPersistence is a robust, extensible, and thoroughly tested .NET library for working with relational database systems</Description>
     </PropertyGroup>
 
     <ItemGroup>

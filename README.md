@@ -12,6 +12,13 @@ SharpPersistence is a robust, extensible, and thoroughly tested .NET library for
   - Dependency injection ready
   - Readable, maintainable, and well-formatted code
 
+- **`UnitOfWork` with `IUnitOfWork`**
+
+  - Transactional management of multiple repository operations
+  - Ensures atomicity and consistency across changes
+  - Integrates seamlessly with the repository pattern
+  - Simplifies commit/rollback logic in service layers
+
 - **SQL Check Constraint Generator (`SqlCheckConstrainGenerator`)**
   - Type-safe, raw SQL check constraint generation
   - Supports multiple RDBMS (SQL Server, PostgreSQL, MySQL)

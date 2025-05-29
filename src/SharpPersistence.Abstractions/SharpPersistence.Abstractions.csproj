@@ -16,7 +16,7 @@
         <PackageTags>sql database repository generic-repository unit-of-work check-constraint</PackageTags>
         <NoWarn>CS1591</NoWarn>
         <DocumentationFile Condition="'$(Configuration)'=='Release'">bin\$(Configuration)\$(TargetFramework)\SharpPersistence.xml</DocumentationFile>
-        <Description>SharpPersistence.Abstractions contains the Dependencies for SharpPersistence.</Description>
+        <Description>SharpPersistence.Abstractions contains the Dependencies for SharpPersistence</Description>
     </PropertyGroup>
 
     <ItemGroup>
