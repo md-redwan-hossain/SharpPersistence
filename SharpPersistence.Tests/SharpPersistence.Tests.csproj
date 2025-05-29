@@ -27,8 +27,8 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\SharpPersistence.Abstractions\SharpPersistence.Abstractions.csproj" />
-      <ProjectReference Include="..\SharpPersistence\SharpPersistence.csproj" />
+      <ProjectReference Include="..\src\SharpPersistence.Abstractions\SharpPersistence.Abstractions.csproj" />
+      <ProjectReference Include="..\src\SharpPersistence\SharpPersistence.csproj" />
     </ItemGroup>
 
 </Project>
