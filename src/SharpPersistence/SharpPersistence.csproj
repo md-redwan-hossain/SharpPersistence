@@ -19,7 +19,7 @@
         <DocumentationFile Condition="'$(Configuration)'=='Release'">bin\$(Configuration)\$(TargetFramework)\SharpPersistence.xml</DocumentationFile>
         <Description>SharpPersistence is a robust, extensible, and thoroughly tested .NET library for working with relational database systems</Description>
     </PropertyGroup>
-
+    
     <ItemGroup>
         <PackageReference Include="Humanizer" Version="2.14.1"/>
         <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.5"/>

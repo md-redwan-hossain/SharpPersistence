@@ -19,6 +19,8 @@
         <Description>SharpPersistence.Abstractions contains the Dependencies for SharpPersistence</Description>
     </PropertyGroup>
 
+    <Import Project="SqlParser.build.props"/>
+
     <ItemGroup>
         <None Include="..\..\logo.png">
             <Pack>True</Pack>
