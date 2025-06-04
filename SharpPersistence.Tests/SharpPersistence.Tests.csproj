@@ -27,6 +27,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\SharpPersistence.TestData\SharpPersistence.TestData.csproj" />
         <ProjectReference Include="..\src\SharpPersistence.Abstractions\SharpPersistence.Abstractions.csproj"/>
         <ProjectReference Include="..\src\SharpPersistence\SharpPersistence.csproj"/>
     </ItemGroup>

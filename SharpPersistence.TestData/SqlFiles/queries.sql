@@ -9,3 +9,5 @@ FROM users
 WHERE active = 1
 -- #end# GetActiveUsers
 
+
+SELECT 'this will not be parsed';

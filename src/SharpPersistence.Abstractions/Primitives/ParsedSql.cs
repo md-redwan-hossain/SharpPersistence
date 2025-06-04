@@ -13,5 +13,5 @@ public readonly struct ParsedSql
     }
 
     public override string ToString() =>
-        $"-- start: {Name}{Environment.NewLine}{SqlBody}{Environment.NewLine}-- end: {Name}{Environment.NewLine}";
+        $"-- #start# {Name}{Environment.NewLine}{SqlBody}{Environment.NewLine}-- #end# {Name}{Environment.NewLine}";
 }
