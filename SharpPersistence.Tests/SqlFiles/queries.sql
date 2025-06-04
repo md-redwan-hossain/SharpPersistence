@@ -1,11 +1,11 @@
--- start: GetAllUsers
+-- #start# GetAllUsers
 SELECT *
 FROM users
--- end: GetAllUsers
+-- #end# GetAllUsers
 
--- start: GetActiveUsers
+-- #start# GetActiveUsers
 SELECT *
 FROM users
 WHERE active = 1
--- end: GetActiveUsers
+-- #end# GetActiveUsers
 

@@ -51,17 +51,19 @@ and [SharpPersistence.Abstractions on NuGet](https://www.nuget.org/packages/Shar
 
 ## `SqlParser` Usage:
 
+- `sql` statements must be enclosed by `-- #start#` and `-- #end#`
+
 ```sql
--- start: GetAllUsers
+-- #start# GetAllUsers
 SELECT *
 FROM users
--- end: GetAllUsers
+-- #end# GetAllUsers
 
--- start: GetActiveUsers
+-- #start# GetActiveUsers
 SELECT *
 FROM users
 WHERE active = 1
--- end: GetActiveUsers
+-- #end# GetActiveUsers
 ```
 
 - Unique tag of a sql statement is case-insensitive.

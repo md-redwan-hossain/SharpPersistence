@@ -7,8 +7,8 @@ namespace SharpPersistence.Parsers.Internals;
 internal class SqlParserEngine
 {
     private static readonly string[] NewLineSeparators = ["\r\n", "\n", "\r"];
-    private const string StartPrefix = "start:";
-    private const string EndPrefix = "end:";
+    private const string StartPrefix = "#start#";
+    private const string EndPrefix = "#end#";
     private string _sqlFileName = string.Empty;
 
     internal ParsedSqlStorage ParsedSqlStatements { get; } = new();
@@ -127,35 +127,43 @@ internal class SqlParserEngine
         }
     }
 
-    private static bool IsStartBlock(ref SqlLine sqlLine) => Regex.IsMatch(sqlLine.Text, @"^\s*--\s*start\s*:");
+    private static bool IsStartBlock(ref SqlLine sqlLine) => Regex.IsMatch(sqlLine.Text, @"^\s*--\s*#start#");
 
-    private static bool IsEndBlock(ref SqlLine sqlLine) => Regex.IsMatch(sqlLine.Text, @"^\s*--\s*end\s*:");
+    private static bool IsEndBlock(ref SqlLine sqlLine) => Regex.IsMatch(sqlLine.Text, @"^\s*--\s*#end#");
 
     private string ExtractUniqueName(ref SqlLine sqlLine, string prefix)
     {
-        var parts = sqlLine.Text.Split(':', 2);
-        if (parts.Length < 2)
+        // For the new format -- #start# tagname or -- #end# tagname
+        // We need to find the prefix and extract everything after it
+        var trimmedLine = sqlLine.Text.Trim();
+        var prefixIndex = trimmedLine.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
+
+        if (prefixIndex == -1)
         {
             ValidationErrors.Add(FormatParserExceptionMessage(
                 "Invalid {0} tag format. Expected format: -- {0} uniqueTag",
-                actualValue: prefix.TrimEnd(':'),
+                actualValue: prefix,
                 lineNumber: sqlLine.Number,
                 column: 1,
                 sqlFileName: _sqlFileName));
             return string.Empty;
         }
 
-        var extractedTag = parts[1].Trim();
+        // Extract everything after the prefix
+        var startIndex = prefixIndex + prefix.Length;
+        var extractedTag = startIndex < trimmedLine.Length
+            ? trimmedLine.Substring(startIndex).Trim()
+            : string.Empty;
 
         if (string.IsNullOrWhiteSpace(extractedTag))
         {
             ValidationErrors.Add(FormatParserExceptionMessage(
                 "The tag name is empty in {0} declaration.",
-                actualValue: prefix.TrimEnd(':'),
+                actualValue: prefix,
                 lineNumber: sqlLine.Number,
                 column: GetColumnPosition(sqlLine.Text, prefix),
                 sqlFileName: _sqlFileName));
-            
+
             return string.Empty;
         }
 
