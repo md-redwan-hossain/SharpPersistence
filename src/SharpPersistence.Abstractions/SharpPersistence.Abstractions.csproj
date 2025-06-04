@@ -18,7 +18,7 @@
         <DocumentationFile Condition="'$(Configuration)'=='Release'">bin\$(Configuration)\$(TargetFramework)\SharpPersistence.xml</DocumentationFile>
         <Description>SharpPersistence.Abstractions contains the Dependencies for SharpPersistence</Description>
     </PropertyGroup>
-
+    
     <ItemGroup>
         <None Include="..\..\logo.png">
             <Pack>True</Pack>
