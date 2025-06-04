@@ -8,11 +8,13 @@ public class SqlParser
 {
     private readonly SqlParserEngine _parser = new();
     private readonly List<string> _validationErrors = [];
-    private const string DirectoryName = "sharp_persistence_sql";
+    private const string DefaultDirectoryName = "sharp_persistence_sql_files";
 
-    public IParsedSqlStorage ParseFromStorage()
+    public IParsedSqlStorage ParseFromStorage(string directoryName = DefaultDirectoryName)
     {
-        var sqlFiles = LoadFromDirectory(DirectoryName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(directoryName);
+
+        var sqlFiles = LoadFromDirectory(directoryName);
         foreach (var sqlFile in sqlFiles)
         {
             _parser.Parse(sqlFile.Content, sqlFile.FileName);

@@ -49,6 +49,43 @@ and [SharpPersistence.Abstractions on NuGet](https://www.nuget.org/packages/Shar
     - Proper string escaping and identifier delimiting
     - Fully tested for edge cases and all method combinations
 
+## `SqlParser` Usage:
+
+```sql
+-- start: GetAllUsers
+SELECT *
+FROM users
+-- end: GetAllUsers
+
+-- start: GetActiveUsers
+SELECT *
+FROM users
+WHERE active = 1
+-- end: GetActiveUsers
+```
+
+- Unique tag of a sql statement is case-insensitive.
+- Paste the following code snippet inside the `Project` node of your `csproj` file to enable scanning of sql files:
+- The default directory in the output directory is `sharp_persistence_sql_files`
+
+```xml
+
+<PropertyGroup>
+    <DefaultItemExcludes>
+        $(DefaultItemExcludes);out/**;publish/**;bin/**;obj/**
+    </DefaultItemExcludes>
+</PropertyGroup>
+
+<ItemGroup>
+<Content
+        Include="**\*.sql"
+        Exclude="$(DefaultItemExcludes);$(DefaultExcludesInProjectFolder)"
+        CopyToOutputDirectory="PreserveNewest"
+        TargetPath="sharp_persistence_sql_files\%(RecursiveDir)\%(Filename)%(Extension)"
+/>
+</ItemGroup>
+```
+
 ## Testing
 
 - All features are covered by xUnit v3 and Shouldly assertions.

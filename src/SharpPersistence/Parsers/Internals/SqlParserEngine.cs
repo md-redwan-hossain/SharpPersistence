@@ -21,9 +21,6 @@ internal class SqlParserEngine
 
         if (string.IsNullOrWhiteSpace(source))
         {
-            ValidationErrors.Add(FormatParserExceptionMessage("Data source is empty or consists only in whitespace.",
-                sqlFileName: _sqlFileName));
-
             return;
         }
 
@@ -41,19 +38,19 @@ internal class SqlParserEngine
 
             if (IsStartBlock(ref line))
             {
-                var tagName = ExtractTagName(ref line, StartPrefix);
-                switch (string.IsNullOrEmpty(tagName))
+                var uniqueTag = ExtractUniqueName(ref line, StartPrefix);
+                switch (string.IsNullOrEmpty(uniqueTag))
                 {
-                    case false when sqlBlocks.ContainsKey(tagName):
+                    case false when sqlBlocks.ContainsKey(uniqueTag):
                         ValidationErrors.Add(FormatParserExceptionMessage(
                             "Duplicate tag '{0}' found. Each tag must be unique.",
-                            actualValue: tagName,
+                            actualValue: uniqueTag,
                             lineNumber: line.Number,
                             column: GetColumnPosition(line.Text, StartPrefix),
                             sqlFileName: _sqlFileName));
                         break;
                     case false:
-                        sqlBlocks[tagName] = new SqlBlockInfo
+                        sqlBlocks[uniqueTag] = new SqlBlockInfo
                         {
                             StartLine = line.Number,
                             StartFound = true
@@ -63,16 +60,16 @@ internal class SqlParserEngine
             }
             else if (IsEndBlock(ref line))
             {
-                var tagName = ExtractTagName(ref line, EndPrefix);
-                switch (string.IsNullOrEmpty(tagName))
+                var uniqueTag = ExtractUniqueName(ref line, EndPrefix);
+                switch (string.IsNullOrEmpty(uniqueTag))
                 {
-                    case false when sqlBlocks.ContainsKey(tagName):
-                        sqlBlocks[tagName] = sqlBlocks[tagName] with { EndLine = line.Number, EndFound = true };
+                    case false when sqlBlocks.ContainsKey(uniqueTag):
+                        sqlBlocks[uniqueTag] = sqlBlocks[uniqueTag] with { EndLine = line.Number, EndFound = true };
                         break;
                     case false:
                         ValidationErrors.Add(FormatParserExceptionMessage(
                             "End tag '{0}' found without corresponding start tag.",
-                            actualValue: tagName,
+                            actualValue: uniqueTag,
                             lineNumber: line.Number,
                             column: GetColumnPosition(line.Text, EndPrefix),
                             sqlFileName: _sqlFileName));
@@ -101,7 +98,7 @@ internal class SqlParserEngine
             }
         }
 
-        foreach (var (tagName, blockInfo) in sqlBlocks.Where(b => b.Value is { StartFound: true, EndFound: true }))
+        foreach (var (uniqueTag, blockInfo) in sqlBlocks.Where(b => b.Value is { StartFound: true, EndFound: true }))
         {
             var sqlContent = new StringBuilder();
 
@@ -119,13 +116,13 @@ internal class SqlParserEngine
             {
                 ValidationErrors.Add(FormatParserExceptionMessage(
                     "SQL block '{0}' is empty.",
-                    actualValue: tagName,
+                    actualValue: uniqueTag,
                     lineNumber: blockInfo.StartLine,
                     sqlFileName: _sqlFileName));
             }
             else
             {
-                ParsedSqlStatements.TryAdd(tagName, finalSql);
+                ParsedSqlStatements.TryAdd(uniqueTag, finalSql);
             }
         }
     }
@@ -134,13 +131,13 @@ internal class SqlParserEngine
 
     private static bool IsEndBlock(ref SqlLine sqlLine) => Regex.IsMatch(sqlLine.Text, @"^\s*--\s*end\s*:");
 
-    private string ExtractTagName(ref SqlLine sqlLine, string prefix)
+    private string ExtractUniqueName(ref SqlLine sqlLine, string prefix)
     {
         var parts = sqlLine.Text.Split(':', 2);
         if (parts.Length < 2)
         {
             ValidationErrors.Add(FormatParserExceptionMessage(
-                "Invalid {0} tag format. Expected format: -- {0} tagName",
+                "Invalid {0} tag format. Expected format: -- {0} uniqueTag",
                 actualValue: prefix.TrimEnd(':'),
                 lineNumber: sqlLine.Number,
                 column: 1,
@@ -149,6 +146,7 @@ internal class SqlParserEngine
         }
 
         var extractedTag = parts[1].Trim();
+
         if (string.IsNullOrWhiteSpace(extractedTag))
         {
             ValidationErrors.Add(FormatParserExceptionMessage(
@@ -157,10 +155,11 @@ internal class SqlParserEngine
                 lineNumber: sqlLine.Number,
                 column: GetColumnPosition(sqlLine.Text, prefix),
                 sqlFileName: _sqlFileName));
+            
             return string.Empty;
         }
 
-        return extractedTag;
+        return extractedTag.ToLowerInvariant();
     }
 
     private static int GetColumnPosition(string lineText, string prefix)
@@ -172,7 +171,7 @@ internal class SqlParserEngine
     private static string FormatParserExceptionMessage(string message, object? actualValue = null,
         int? lineNumber = null, int? column = null, string? sqlFileName = null)
     {
-        var formattedMessage = actualValue != null ? string.Format(message, actualValue) : message;
+        var formattedMessage = actualValue is not null ? string.Format(message, actualValue) : message;
 
         if (AreNotNull(sqlFileName, lineNumber, column))
         {
@@ -184,17 +183,17 @@ internal class SqlParserEngine
             return $"Parsing error (line {lineNumber}, col {column}): error: {formattedMessage}";
         }
 
-        if (sqlFileName != null && lineNumber != null)
+        if (sqlFileName is not null && lineNumber is not null)
         {
             return $"{sqlFileName}:(line {lineNumber}): error: {formattedMessage}";
         }
 
-        if (lineNumber != null)
+        if (lineNumber is not null)
         {
             return $"Parsing error (line {lineNumber}): error: {formattedMessage}";
         }
 
-        if (sqlFileName != null)
+        if (sqlFileName is not null)
         {
             return $"{sqlFileName}: error: {formattedMessage}";
         }

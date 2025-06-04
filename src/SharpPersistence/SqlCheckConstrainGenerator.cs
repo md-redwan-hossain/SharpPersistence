@@ -597,7 +597,7 @@ public class SqlCheckConstrainGenerator
                 sb.Append(", ");
             }
 
-            if (logic != null)
+            if (logic is not null)
             {
                 sb.Append(logic(item));
             }

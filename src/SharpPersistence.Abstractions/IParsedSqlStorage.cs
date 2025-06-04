@@ -4,7 +4,7 @@ namespace SharpPersistence.Abstractions;
 
 public interface IParsedSqlStorage : IEnumerable<ParsedSql>
 {
-  string this[string tagName] { get; }
+  string this[string uniqueTag] { get; }
 
-  bool TryGetParsedSql(string tagName, out string? sql);
+  bool TryGetParsedSql(string uniqueTag, out string? sql);
 }

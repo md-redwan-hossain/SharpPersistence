@@ -9,30 +9,30 @@ internal class ParsedSqlStorage : IParsedSqlStorage
 {
     private readonly Dictionary<string, string> _sqlStatements = new(StringComparer.OrdinalIgnoreCase);
 
-    public string this[string tagName]
+    public string this[string uniqueTag]
     {
         get
         {
-            ArgumentNullException.ThrowIfNull(tagName);
+            ArgumentNullException.ThrowIfNull(uniqueTag);
 
-            if (_sqlStatements.TryGetValue(tagName, out var sqlStatement))
+            if (_sqlStatements.TryGetValue(uniqueTag, out var sqlStatement))
             {
                 return sqlStatement;
             }
 
-            throw new InvalidOperationException($"The given tag '{tagName}' is not present in the collection.");
+            throw new InvalidOperationException($"The given tag '{uniqueTag}' is not present in the collection.");
         }
     }
 
-    public bool TryGetParsedSql(string tagName, out string? sql)
+    public bool TryGetParsedSql(string uniqueTag, out string? sql)
     {
-        ArgumentNullException.ThrowIfNull(tagName);
-        return _sqlStatements.TryGetValue(tagName, out sql);
+        ArgumentNullException.ThrowIfNull(uniqueTag);
+        return _sqlStatements.TryGetValue(uniqueTag, out sql);
     }
 
-    internal bool TryAdd(string tagName, string sqlStatement)
+    internal bool TryAdd(string uniqueTag, string sqlStatement)
     {
-        return _sqlStatements.TryAdd(tagName, sqlStatement);
+        return _sqlStatements.TryAdd(uniqueTag, sqlStatement);
     }
 
     public IEnumerator<ParsedSql> GetEnumerator()
