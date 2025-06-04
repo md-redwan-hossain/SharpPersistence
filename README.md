@@ -18,12 +18,12 @@ dotnet add package SharpPersistence.EfCore
 ```
 
 Or visit:
-<br>
-[SharpPersistence.Abstractions on NuGet](https://www.nuget.org/packages/SharpPersistence.Abstractions/)
-<br>
-[SharpPersistence on NuGet](https://www.nuget.org/packages/SharpPersistence/)
-<br>
-[SharpPersistence.EfCore on NuGet](https://www.nuget.org/packages/SharpPersistence.EfCore/)
+
+- [SharpPersistence.Abstractions on NuGet](https://www.nuget.org/packages/SharpPersistence.Abstractions/)
+
+- [SharpPersistence on NuGet](https://www.nuget.org/packages/SharpPersistence/)
+
+- [SharpPersistence.EfCore on NuGet](https://www.nuget.org/packages/SharpPersistence.EfCore/)
 
 ## Features
 
