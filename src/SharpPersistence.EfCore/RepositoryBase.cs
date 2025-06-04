@@ -2,7 +2,7 @@ using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using SharpPersistence.Abstractions;
 
-namespace SharpPersistence;
+namespace SharpPersistence.EfCore;
 
 public abstract class RepositoryBase<TEntity, TDbContext> : IRepositoryBase<TEntity>
     where TEntity : class

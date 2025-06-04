@@ -4,25 +4,26 @@
 
 # SharpPersistence
 
-SharpPersistence is a robust, extensible, and thoroughly tested .NET library for working with relational database
+SharpPersistence is a collection of robust, extensible, and thoroughly tested .NET libraries for working with database
 systems.
 
 ### Installation
 
-To install, run one of the following commands:
-
-```bash
-dotnet add package SharpPersistence
-```
-
-and
+To install the packages, run the following commands:
 
 ```bash
 dotnet add package SharpPersistence.Abstractions
+dotnet add package SharpPersistence
+dotnet add package SharpPersistence.EfCore
 ```
 
-Or visit [SharpPersistence on NuGet](https://www.nuget.org/packages/SharpPersistence/)
-and [SharpPersistence.Abstractions on NuGet](https://www.nuget.org/packages/SharpPersistence.Abstractions/)
+Or visit:
+<br>
+[SharpPersistence.Abstractions on NuGet](https://www.nuget.org/packages/SharpPersistence.Abstractions/)
+<br>
+[SharpPersistence on NuGet](https://www.nuget.org/packages/SharpPersistence/)
+<br>
+[SharpPersistence.EfCore on NuGet](https://www.nuget.org/packages/SharpPersistence.EfCore/)
 
 ## Features
 
@@ -88,6 +89,7 @@ ORDER BY u.LastLoginDate DESC
   the `ParseFromStorage()` method's parameter. The same value must be used in the `TargetPath` below.
 
 ```xml
+
 <PropertyGroup>
     <DefaultItemExcludes>
         $(DefaultItemExcludes);out/**;publish/**;bin/**;obj/**
@@ -105,6 +107,7 @@ ORDER BY u.LastLoginDate DESC
 - Don't miss out the `Project` node during pasting the code. An example is given below:
 
 ```xml
+
 <Project Sdk="Microsoft.NET.Sdk">
     <!-- paste it here -->
 </Project>

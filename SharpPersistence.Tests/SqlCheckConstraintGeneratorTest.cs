@@ -1,4 +1,5 @@
 using SharpPersistence.Enums;
+using SharpPersistence.Generators;
 using Shouldly;
 
 namespace SharpPersistence.Tests;

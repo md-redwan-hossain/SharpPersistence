@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using SharpPersistence.Abstractions;
 
-namespace SharpPersistence;
+namespace SharpPersistence.EfCore;
 
 public abstract class UnitOfWork : IUnitOfWork
 {

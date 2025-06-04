@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
 using SharpPersistence.Abstractions;
+using SharpPersistence.EfCore;
 
 namespace SharpPersistence.Tests;
 

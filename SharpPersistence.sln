@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpPersistence", "src\Sha
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpPersistence.Tests", "SharpPersistence.Tests\SharpPersistence.Tests.csproj", "{152C8625-719C-4F4E-8937-21960886C6F0}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpPersistence.EfCore", "src\SharpPersistence.EfCore\SharpPersistence.EfCore.csproj", "{B3025734-B005-4365-88A3-33BCC12D67E1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,5 +26,9 @@ Global
 		{152C8625-719C-4F4E-8937-21960886C6F0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{152C8625-719C-4F4E-8937-21960886C6F0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{152C8625-719C-4F4E-8937-21960886C6F0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B3025734-B005-4365-88A3-33BCC12D67E1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B3025734-B005-4365-88A3-33BCC12D67E1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B3025734-B005-4365-88A3-33BCC12D67E1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B3025734-B005-4365-88A3-33BCC12D67E1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

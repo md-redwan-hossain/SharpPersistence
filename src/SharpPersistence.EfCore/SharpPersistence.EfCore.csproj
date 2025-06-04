@@ -1,12 +1,12 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net8.0</TargetFramework>
+        <TargetFramework>net9.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
-        <Version>0.0.3</Version>
-        <Title>SharpPersistence</Title>
+        <Version>0.0.1</Version>
+        <Title>SharpPersistence.EfCore</Title>
         <Authors>Md. Redwan Hossain</Authors>
         <Copyright>Copyright (c) Md. Redwan Hossain</Copyright>
         <PackageProjectUrl>https://github.com/md-redwan-hossain/SharpPersistence</PackageProjectUrl>
@@ -14,14 +14,14 @@
         <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
         <RepositoryUrl>https://github.com/md-redwan-hossain/SharpPersistence</RepositoryUrl>
         <PackageTags>sql database repository generic-repository unit-of-work check-constraint</PackageTags>
-        <PackageReadmeFile>README.md</PackageReadmeFile>
         <NoWarn>CS1591</NoWarn>
         <DocumentationFile Condition="'$(Configuration)'=='Release'">bin\$(Configuration)\$(TargetFramework)\SharpPersistence.xml</DocumentationFile>
-        <Description>SharpPersistence is a collection of robust, extensible, and thoroughly tested .NET libraries for working with database systems.</Description>
+        <Description>SharpPersistence.EfCore contains utility classes to work with relational database systems</Description>
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Humanizer" Version="2.14.1"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.5"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.5"/>
     </ItemGroup>
 
     <ItemGroup>
@@ -33,15 +33,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <None Include="..\..\README.md">
-            <Pack>True</Pack>
-            <Link>README.md</Link>
-            <PackagePath>.</PackagePath>
-        </None>
+      <ProjectReference Include="..\SharpPersistence.Abstractions\SharpPersistence.Abstractions.csproj" />
     </ItemGroup>
-
-    <ItemGroup>
-        <ProjectReference Include="..\SharpPersistence.Abstractions\SharpPersistence.Abstractions.csproj"/>
-    </ItemGroup>
-
+    
 </Project>

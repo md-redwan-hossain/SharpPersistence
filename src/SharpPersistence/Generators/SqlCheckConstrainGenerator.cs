@@ -2,7 +2,7 @@ using System.Text;
 using Humanizer;
 using SharpPersistence.Enums;
 
-namespace SharpPersistence;
+namespace SharpPersistence.Generators;
 
 /// <summary>
 /// <c>SqlCheckConstrainGenerator</c> is a utility class for generating raw sql code for check-constrains in a type-safe manner.
