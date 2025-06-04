@@ -88,6 +88,13 @@ WHERE active = 1
 </ItemGroup>
 ```
 
+- For ASP.NET Core Dependency Injection:
+
+```csharp
+IParsedSqlStorage parsedSqlStatements = new SqlParser().ParseFromStorage();
+builder.Services.AddSingleton<IParsedSqlStorage>(parsedSqlStatements);
+```
+
 ## Testing
 
 - All features are covered by xUnit v3 and Shouldly assertions.
