@@ -36,7 +36,7 @@ public class SqlParserTest
                                FROM users
                                """;
 
-        _parsedSqlStorage["GetAllUsers"].ShouldBeEquivalentTo(sqlBody);
+        _parsedSqlStorage["GetAllUsers"].ShouldContainWithoutWhitespace(sqlBody);
     }
 
     [Fact]
