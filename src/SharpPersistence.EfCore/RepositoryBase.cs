@@ -16,6 +16,13 @@ public abstract class RepositoryBase<TEntity, TDbContext> : IRepositoryBase<TEnt
         DatabaseContext = context;
         EntityDbSet = DatabaseContext.Set<TEntity>();
     }
+    
+    public virtual Task<int> UpdateDirectAsync<TProperty>(Expression<Func<TEntity, bool>> condition,
+        Func<TEntity, TProperty> propertyExpression, TProperty valueExpression)
+    {
+        return EntityDbSet.Where(condition)
+            .ExecuteUpdateAsync(x => x.SetProperty(propertyExpression, valueExpression));
+    }
 
     public async Task<TEntity?> GetOneAsync(Expression<Func<TEntity, bool>> condition,
         CancellationToken cancellationToken = default)
@@ -558,30 +565,7 @@ public abstract class RepositoryBase<TEntity, TDbContext> : IRepositoryBase<TEnt
     {
         EntityDbSet.Update(entityToUpdate);
     }
-
-    public virtual Task<int> UpdateDirectAsync<TProperty>(
-        Expression<Func<TEntity, bool>> condition,
-       Expression<Func<TEntity, TProperty>> propertyExpression,
-        Expression<Func<TEntity, TProperty>> valueExpression)
-    {
-
-        return EntityDbSet
-            .Where(condition)
-            .ExecuteUpdateAsync(setters =>
-                setters.SetProperty(propertyExpression, valueExpression));
-    }
-
-
-    public virtual Task<int> UpdateDirectAsync<TProperty>(
-        Expression<Func<TEntity, bool>> condition,
-        Func<TEntity, TProperty> propertySelector,
-        TProperty value)
-    {
-        return EntityDbSet
-            .Where(condition)
-            .ExecuteUpdateAsync(setters => setters.SetProperty(propertySelector, value));
-    }
-
+    
     public virtual void UpdateMany(ICollection<TEntity> entitiesToUpdate)
     {
         EntityDbSet.UpdateRange(entitiesToUpdate);

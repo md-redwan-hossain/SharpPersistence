@@ -3,7 +3,10 @@ using System.Linq.Expressions;
 namespace SharpPersistence.Abstractions;
 
 public interface IRepositoryBase<TEntity>
+    where TEntity : class
 {
+    Task<int> UpdateDirectAsync<TProperty>(Expression<Func<TEntity, bool>> condition,
+        Func<TEntity, TProperty> propertyExpression, TProperty valueExpression);
     Task CreateAsync(TEntity entity);
     Task CreateManyAsync(ICollection<TEntity> entity);
 
@@ -213,17 +216,7 @@ public interface IRepositoryBase<TEntity>
     void Update(TEntity entityToUpdate);
 
     void UpdateMany(ICollection<TEntity> entitiesToUpdate);
-
-    Task<int> UpdateDirectAsync<TProperty>(
-        Expression<Func<TEntity, bool>> condition,
-        Func<TEntity, TProperty> propertySelector,
-        Func<TEntity, TProperty> valueExpression);
-
-    Task<int> UpdateDirectAsync<TProperty>(
-        Expression<Func<TEntity, bool>> condition,
-        Func<TEntity, TProperty> propertySelector,
-        TProperty value);
-
+    
     void Remove(TEntity entityToDelete);
 
     void RemoveMany(ICollection<TEntity> entitiesToUpdate);
