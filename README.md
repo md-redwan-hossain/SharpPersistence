@@ -51,6 +51,53 @@ Or visit:
 - Proper string escaping and identifier delimiting
 - Fully tested for edge cases and all method combinations
 
+Some examples with `IEntityTypeConfiguration` of Ef Core are given below:
+
+```csharp
+  var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase, 
+      delimitStringGlobalLevel: false);
+
+  builder.ToTable(x => x.HasCheckConstraint(
+      "valid_product_sell_price_in_sales_invoice",
+      cc.GreaterThanOrEqual(nameof(SalesInvoiceItem.SingleUnitSellPrice),
+          0, SqlDataType.Decimal)
+  ));
+  
+  builder.ToTable(x => x.HasCheckConstraint(
+    "valid_employee_release_data",
+    cc.Or(
+        cc.And(
+            cc.EqualTo(nameof(EmploymentRecord.IsReleased), true),
+            cc.IsNotNull(nameof(EmploymentRecord.ReleaseDate)),
+            cc.IsNotNull(nameof(EmploymentRecord.ReleaseReasonId))
+        ),
+        cc.And(
+            cc.EqualTo(nameof(EmploymentRecord.IsReleased), false),
+            cc.IsNull(nameof(EmploymentRecord.ReleaseDate)),
+            cc.IsNull(nameof(EmploymentRecord.ReleaseReasonId))
+        )
+    )
+));
+  
+  builder.ToTable(x => x.HasCheckConstraint(
+    "valid_debit_credit_entry",
+    cc.Or(
+        cc.And(
+            cc.GreaterThanOrEqual(nameof(JournalVoucherItem.CreditAmount),
+                0, SqlDataType.Decimal),
+            cc.EqualTo(nameof(JournalVoucherItem.DebitAmount),
+                0, SqlDataType.Decimal)
+        ),
+        cc.And(
+            cc.GreaterThanOrEqual(nameof(JournalVoucherItem.DebitAmount),
+                0, SqlDataType.Decimal),
+            cc.EqualTo(nameof(JournalVoucherItem.CreditAmount),
+                0, SqlDataType.Decimal)
+        )
+    )
+));
+```
+
 ### **`SqlParser`**
 
 - Separation of Concerns: Keep complex SQL queries in `.sql` files instead of cluttering your C# code
@@ -70,7 +117,7 @@ Or visit:
 -- #start# GetAllUsers
 SELECT u.Id, u.Name, u.Email, u.CreatedAt
 FROM Users u
-WHERE u.IsDeleted = 0
+WHERE u.Id = :userId
 ORDER BY u.Name
 -- #end# GetAllUsers
 
@@ -140,17 +187,25 @@ builder.Services.AddSingleton<IParsedSqlStorage>(parsedSqlStatements);
 // In your service classes
 public class UserService
 {
-    private readonly IParsedSqlStorage _sqlStorage;
+    private readonly IDbConnectionFactory _dbConnectionFactory;
+    private readonly IParsedSqlStorage _parsedSqlStorage;
 
-    public UserService(IParsedSqlStorage sqlStorage)
+    public UserService(IDbConnectionFactory dbConnectionFactory, IParsedSqlStorage sqlStorage)
     {
-        _sqlStorage = sqlStorage;
+        _dbConnectionFactory = dbConnectionFactory;
+        _parsedSqlStorage = parsedSqlStorage;
     }
 
-    public async Task<List<User>> GetAllUsersAsync()
+    public async Task<IEnumerable<User>> GetAllUsersAsync(int userId, CancellationToken ct)
     {
         var sql = _sqlStorage["GetAllUsers"];
-        return await _dbContext.Users.FromSqlRaw(sql).ToListAsync();
+        
+        await using var connection = await _dbConnectionFactory.CreateConnectionAsync(ct);
+        
+        var parameters = new { userId };
+
+        return await connection.QueryAsync<User>(new CommandDefinition(sql, parameters,
+            cancellationToken: ct));
     }
 }
 ```
