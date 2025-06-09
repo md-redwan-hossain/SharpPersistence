@@ -3,6 +3,7 @@ using System.Linq.Expressions;
 namespace SharpPersistence.Abstractions;
 
 public interface IRepositoryBase<TEntity>
+    where TEntity : class
 {
     Task CreateAsync(TEntity entity);
     Task CreateManyAsync(ICollection<TEntity> entity);
@@ -43,7 +44,7 @@ public interface IRepositoryBase<TEntity>
         bool enableTracking,
         CancellationToken cancellationToken = default);
 
-        Task<TResult?> GetOneSortedSubsetAsync<TSorter, TResult>(
+    Task<TResult?> GetOneSortedSubsetAsync<TSorter, TResult>(
         Expression<Func<TEntity, bool>> condition,
         Expression<Func<TEntity, TResult>> subsetSelector,
         (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
@@ -211,13 +212,13 @@ public interface IRepositoryBase<TEntity>
     Task<long> GetCountAsync(CancellationToken cancellationToken = default);
 
     void Update(TEntity entityToUpdate);
-    
+
     void UpdateMany(ICollection<TEntity> entitiesToUpdate);
-    
+
     void Remove(TEntity entityToDelete);
-    
+
     void RemoveMany(ICollection<TEntity> entitiesToUpdate);
-    
+
     Task<int> RemoveManyDirectAsync(Expression<Func<TEntity, bool>> condition);
 
     void TrackEntity(TEntity entity);

@@ -11,8 +11,8 @@ namespace SharpPersistence.Tests;
 public class TestEntity
 {
     public int Id { get; set; }
-    [MaxLength(10000)] public string Name { get; set; } = string.Empty;
-    public int Value { get; set; }
+    [MaxLength(10000)] public required string Name { get; set; }
+    public required int NumericValue { get; set; }
 }
 
 public class TestDbContext : DbContext
@@ -67,10 +67,10 @@ public class RepositoryBaseTests : IAsyncLifetime
 
         var seed = new List<TestEntity>
         {
-            new() { Name = "A", Value = 1 },
-            new() { Name = "B", Value = 2 },
-            new() { Name = "C", Value = 3 },
-            new() { Name = "D", Value = 4 },
+            new() { Name = "A", NumericValue = 1 },
+            new() { Name = "B", NumericValue = 2 },
+            new() { Name = "C", NumericValue = 3 },
+            new() { Name = "D", NumericValue = 4 },
         };
 
         await _repository.CreateManyAsync(seed);
@@ -90,7 +90,7 @@ public class RepositoryBaseTests : IAsyncLifetime
     [Fact]
     public async Task CreateAsync_AddsEntity()
     {
-        var entity = new TestEntity { Name = "E", Value = 5 };
+        var entity = new TestEntity { Name = "E", NumericValue = 5 };
 
         await _repository.CreateAsync(entity);
 
@@ -102,7 +102,7 @@ public class RepositoryBaseTests : IAsyncLifetime
     [Fact]
     public async Task CreateManyAsync_AddsEntities()
     {
-        var entities = new[] { new TestEntity { Name = "F", Value = 6 }, new TestEntity { Name = "G", Value = 7 } };
+        var entities = new[] { new TestEntity { Name = "F", NumericValue = 6 }, new TestEntity { Name = "G", NumericValue = 7 } };
 
         await _repository.CreateManyAsync(entities);
 
@@ -117,7 +117,7 @@ public class RepositoryBaseTests : IAsyncLifetime
         var entity = await _repository.GetOneAsync(e => e.Name == "A", TestContext.Current.CancellationToken);
 
         entity.ShouldNotBeNull();
-        entity.Value.ShouldBe(1);
+        entity.NumericValue.ShouldBe(1);
     }
 
     [Fact]
@@ -134,7 +134,7 @@ public class RepositoryBaseTests : IAsyncLifetime
     {
         var value = await _repository.GetOneSubsetAsync(
             condition: e => e.Name == "A",
-            subsetSelector: e => e.Value,
+            subsetSelector: e => e.NumericValue,
             cancellationToken: TestContext.Current.CancellationToken);
 
         value.ShouldBe(1);
@@ -143,8 +143,8 @@ public class RepositoryBaseTests : IAsyncLifetime
     [Fact]
     public async Task GetOneSubsetAsync_SelectorAndCancellationTokenOnly_ReturnsFirstProjection()
     {
-        // Should return the Value of the first entity (Name = "A", Value = 1)
-        var value = await _repository.GetOneSubsetAsync(e => e.Value, TestContext.Current.CancellationToken);
+        // Should return the NumericValue of the first entity (Name = "A", NumericValue = 1)
+        var value = await _repository.GetOneSubsetAsync(e => e.NumericValue, TestContext.Current.CancellationToken);
         value.ShouldBe(1);
     }
 
@@ -152,7 +152,7 @@ public class RepositoryBaseTests : IAsyncLifetime
     public async Task GetAllSortedAndPaginatedSubsetAsync_ReturnsCorrectPage()
     {
         var result = await _repository.GetAllSortedAndPaginatedSubsetAsync<string, int>
-            (1, 2, e => e.Name, (e => e.Value, false), TestContext.Current.CancellationToken);
+            (1, 2, e => e.Name, (e => e.NumericValue, false), TestContext.Current.CancellationToken);
 
         result.Count.ShouldBe(2);
         result.First().ShouldBe("A");
@@ -163,9 +163,9 @@ public class RepositoryBaseTests : IAsyncLifetime
     {
         var result = await _repository.GetAllSortedAndPaginatedSubsetAsync<string, int>(
             page: 1, limit: 2,
-            condition: e => e.Value > 1,
+            condition: e => e.NumericValue > 1,
             subsetSelector: e => e.Name,
-            sorter: (e => e.Value, false),
+            sorter: (e => e.NumericValue, false),
             enableTracking: true,
             cancellationToken: TestContext.Current.CancellationToken);
 
@@ -176,7 +176,7 @@ public class RepositoryBaseTests : IAsyncLifetime
     [Fact]
     public async Task GetAllSortedAndPaginatedAsync_ReturnsCorrectPage()
     {
-        var result = await _repository.GetAllSortedAndPaginatedAsync(1, 2, (e => e.Value, false),
+        var result = await _repository.GetAllSortedAndPaginatedAsync(1, 2, (e => e.NumericValue, false),
             TestContext.Current.CancellationToken);
 
         result.Count.ShouldBe(2);
@@ -189,19 +189,19 @@ public class RepositoryBaseTests : IAsyncLifetime
         var result = await _repository.GetAllSortedAndPaginatedAsync(
             page: 1,
             limit: 2,
-            condition: e => e.Value > 1,
-            sorter: (e => e.Value, false),
+            condition: e => e.NumericValue > 1,
+            sorter: (e => e.NumericValue, false),
             enableTracking: true,
             cancellationToken: TestContext.Current.CancellationToken);
 
         result.Count.ShouldBe(2);
-        result.All(e => e.Value > 1).ShouldBeTrue();
+        result.All(e => e.NumericValue > 1).ShouldBeTrue();
     }
 
     [Fact]
     public async Task GetAllSortedSubsetAsync_ReturnsSortedSubset()
     {
-        var result = await _repository.GetAllSortedSubsetAsync<string, int>(e => e.Name, (e => e.Value, true),
+        var result = await _repository.GetAllSortedSubsetAsync<string, int>(e => e.Name, (e => e.NumericValue, true),
             TestContext.Current.CancellationToken);
 
         result.Count.ShouldBe(4);
@@ -212,9 +212,9 @@ public class RepositoryBaseTests : IAsyncLifetime
     public async Task GetAllSortedSubsetAsync_WithConditionAndTracking()
     {
         var result = await _repository.GetAllSortedSubsetAsync<string, int>(
-            condition: e => e.Value > 2,
+            condition: e => e.NumericValue > 2,
             subsetSelector: e => e.Name,
-            sorter: (e => e.Value, false),
+            sorter: (e => e.NumericValue, false),
             enableTracking: true,
             cancellationToken: TestContext.Current.CancellationToken);
 
@@ -226,7 +226,7 @@ public class RepositoryBaseTests : IAsyncLifetime
     public async Task GetAllSortedAsync_ReturnsSorted()
     {
         var result =
-            await _repository.GetAllSortedAsync((e => e.Value, true), TestContext.Current.CancellationToken);
+            await _repository.GetAllSortedAsync((e => e.NumericValue, true), TestContext.Current.CancellationToken);
 
         result.Count.ShouldBe(4);
         result.First().Name.ShouldBe("D");
@@ -236,13 +236,13 @@ public class RepositoryBaseTests : IAsyncLifetime
     public async Task GetAllSortedAsync_WithConditionAndTracking()
     {
         var result = await _repository.GetAllSortedAsync(
-            condition: e => e.Value > 2,
-            sorter: (e => e.Value, false),
+            condition: e => e.NumericValue > 2,
+            sorter: (e => e.NumericValue, false),
             enableTracking: true,
             cancellationToken: TestContext.Current.CancellationToken);
 
         result.Count.ShouldBe(2);
-        result.All(e => e.Value > 2).ShouldBeTrue();
+        result.All(e => e.NumericValue > 2).ShouldBeTrue();
     }
 
     [Fact]
@@ -258,7 +258,7 @@ public class RepositoryBaseTests : IAsyncLifetime
     public async Task GetAllSubsetAsync_WithConditionAndTracking()
     {
         var result = await _repository.GetAllSubsetAsync(
-            condition: e => e.Value > 2,
+            condition: e => e.NumericValue > 2,
             subsetSelector: e => e.Name,
             enableTracking: true,
             cancellationToken: TestContext.Current.CancellationToken);
@@ -278,10 +278,10 @@ public class RepositoryBaseTests : IAsyncLifetime
     [Fact]
     public async Task GetAllAsync_WithConditionAndTracking()
     {
-        var result = await _repository.GetAllAsync(e => e.Value > 2, true, TestContext.Current.CancellationToken);
+        var result = await _repository.GetAllAsync(e => e.NumericValue > 2, true, TestContext.Current.CancellationToken);
 
         result.Count.ShouldBe(2);
-        result.All(e => e.Value > 2).ShouldBeTrue();
+        result.All(e => e.NumericValue > 2).ShouldBeTrue();
     }
 
     [Fact]
@@ -295,7 +295,7 @@ public class RepositoryBaseTests : IAsyncLifetime
     [Fact]
     public async Task EveryAsync_ReturnsTrueIfAllMatch()
     {
-        var all = await _repository.EveryAsync(e => e.Value > 0, TestContext.Current.CancellationToken);
+        var all = await _repository.EveryAsync(e => e.NumericValue > 0, TestContext.Current.CancellationToken);
 
         all.ShouldBeTrue();
     }
@@ -311,7 +311,7 @@ public class RepositoryBaseTests : IAsyncLifetime
     [Fact]
     public async Task GetCountAsync_WithCondition()
     {
-        var count = await _repository.GetCountAsync(e => e.Value > 2, TestContext.Current.CancellationToken);
+        var count = await _repository.GetCountAsync(e => e.NumericValue > 2, TestContext.Current.CancellationToken);
 
         count.ShouldBe(2);
     }
@@ -337,7 +337,7 @@ public class RepositoryBaseTests : IAsyncLifetime
     {
         _dbContext.ChangeTracker.Clear();
 
-        var entities = (await _repository.GetAllAsync(e => e.Value > 2, TestContext.Current.CancellationToken))
+        var entities = (await _repository.GetAllAsync(e => e.NumericValue > 2, TestContext.Current.CancellationToken))
             .ToList();
 
         _repository.RemoveMany(entities);
@@ -352,7 +352,7 @@ public class RepositoryBaseTests : IAsyncLifetime
     {
         _dbContext.ChangeTracker.Clear();
 
-        var removed = await _repository.RemoveManyDirectAsync(e => e.Value > 2);
+        var removed = await _repository.RemoveManyDirectAsync(e => e.NumericValue > 2);
 
         removed.ShouldBe(2);
 
@@ -368,13 +368,13 @@ public class RepositoryBaseTests : IAsyncLifetime
 
         entity.ShouldNotBeNull();
 
-        entity.Value = 100;
+        entity.NumericValue = 100;
 
         _repository.Update(entity);
 
         await _dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        (await _repository.GetOneAsync(e => e.Name == "A", TestContext.Current.CancellationToken))?.Value.ShouldBe(100);
+        (await _repository.GetOneAsync(e => e.Name == "A", TestContext.Current.CancellationToken))?.NumericValue.ShouldBe(100);
     }
 
     [Fact]
@@ -382,22 +382,22 @@ public class RepositoryBaseTests : IAsyncLifetime
     {
         _dbContext.ChangeTracker.Clear();
 
-        var entities = (await _repository.GetAllAsync(e => e.Value > 2, TestContext.Current.CancellationToken))
+        var entities = (await _repository.GetAllAsync(e => e.NumericValue > 2, TestContext.Current.CancellationToken))
             .ToList();
 
-        foreach (var e in entities) e.Value += 10;
+        foreach (var e in entities) e.NumericValue += 10;
 
         _repository.UpdateMany(entities);
 
         await _dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        (await _repository.GetOneAsync(e => e.Name == "C", TestContext.Current.CancellationToken))?.Value.ShouldBe(13);
+        (await _repository.GetOneAsync(e => e.Name == "C", TestContext.Current.CancellationToken))?.NumericValue.ShouldBe(13);
     }
 
     [Fact]
     public void TrackEntity_AttachesEntity()
     {
-        var entity = new TestEntity { Id = 999, Name = "Z", Value = 99 };
+        var entity = new TestEntity { Id = 999, Name = "Z", NumericValue = 99 };
 
         _repository.TrackEntity(entity);
 
@@ -425,7 +425,7 @@ public class RepositoryBaseTests : IAsyncLifetime
     {
         var value = await _repository.GetOneSubsetAsync(
             condition: e => e.Name == "A",
-            subsetSelector: e => e.Value,
+            subsetSelector: e => e.NumericValue,
             enableTracking: true,
             cancellationToken: TestContext.Current.CancellationToken);
 
@@ -437,7 +437,7 @@ public class RepositoryBaseTests : IAsyncLifetime
     {
         var value = await _repository.GetOneSubsetAsync(
             condition: e => e.Name == "A",
-            subsetSelector: e => e.Value,
+            subsetSelector: e => e.NumericValue,
             cancellationToken: TestContext.Current.CancellationToken);
 
         value.ShouldBe(1);
@@ -447,7 +447,7 @@ public class RepositoryBaseTests : IAsyncLifetime
     public async Task GetAllSortedAndPaginatedSubsetAsync_Basic()
     {
         var entity = await _repository.GetAllSortedAndPaginatedSubsetAsync<string, int>(1, 2, e => e.Name,
-            (e => e.Value, false), TestContext.Current.CancellationToken);
+            (e => e.NumericValue, false), TestContext.Current.CancellationToken);
 
         entity.Count.ShouldBe(2);
     }
@@ -458,9 +458,9 @@ public class RepositoryBaseTests : IAsyncLifetime
         var entity = await _repository.GetAllSortedAndPaginatedSubsetAsync<string, int>(
             page: 1,
             limit: 2,
-            condition: e => e.Value > 1,
+            condition: e => e.NumericValue > 1,
             subsetSelector: e => e.Name,
-            sorter: (e => e.Value, false),
+            sorter: (e => e.NumericValue, false),
             cancellationToken: TestContext.Current.CancellationToken);
 
         entity.All(x => x != "A").ShouldBeTrue();
@@ -470,7 +470,7 @@ public class RepositoryBaseTests : IAsyncLifetime
     public async Task GetAllSortedAndPaginatedSubsetAsync_WithEnableTracking()
     {
         var entity = await _repository.GetAllSortedAndPaginatedSubsetAsync<string, int>(1, 2, e => e.Name,
-            (e => e.Value, false), true, TestContext.Current.CancellationToken);
+            (e => e.NumericValue, false), true, TestContext.Current.CancellationToken);
 
         entity.Count.ShouldBe(2);
     }
@@ -481,9 +481,9 @@ public class RepositoryBaseTests : IAsyncLifetime
         var entity = await _repository.GetAllSortedAndPaginatedSubsetAsync<string, int>(
             page: 1,
             limit: 2,
-            condition: e => e.Value > 1,
+            condition: e => e.NumericValue > 1,
             subsetSelector: e => e.Name,
-            sorter: (e => e.Value, false),
+            sorter: (e => e.NumericValue, false),
             enableTracking: true,
             cancellationToken: TestContext.Current.CancellationToken);
 
@@ -493,7 +493,7 @@ public class RepositoryBaseTests : IAsyncLifetime
     [Fact]
     public async Task GetAllSortedAndPaginatedAsync_Basic()
     {
-        var entity = await _repository.GetAllSortedAndPaginatedAsync(1, 2, (e => e.Value, false),
+        var entity = await _repository.GetAllSortedAndPaginatedAsync(1, 2, (e => e.NumericValue, false),
             TestContext.Current.CancellationToken);
 
         entity.Count.ShouldBe(2);
@@ -505,17 +505,17 @@ public class RepositoryBaseTests : IAsyncLifetime
         var entity = await _repository.GetAllSortedAndPaginatedAsync(
             page: 1,
             limit: 2,
-            condition: e => e.Value > 1,
-            sorter: (e => e.Value, false),
+            condition: e => e.NumericValue > 1,
+            sorter: (e => e.NumericValue, false),
             cancellationToken: TestContext.Current.CancellationToken);
 
-        entity.All(x => x.Value > 1).ShouldBeTrue();
+        entity.All(x => x.NumericValue > 1).ShouldBeTrue();
     }
 
     [Fact]
     public async Task GetAllSortedAndPaginatedAsync_WithEnableTracking()
     {
-        var entity = await _repository.GetAllSortedAndPaginatedAsync(1, 2, (e => e.Value, false), true,
+        var entity = await _repository.GetAllSortedAndPaginatedAsync(1, 2, (e => e.NumericValue, false), true,
             TestContext.Current.CancellationToken);
 
         entity.Count.ShouldBe(2);
@@ -527,18 +527,18 @@ public class RepositoryBaseTests : IAsyncLifetime
         var entity = await _repository.GetAllSortedAndPaginatedAsync(
             page: 1,
             limit: 2,
-            condition: e => e.Value > 1,
-            sorter: (e => e.Value, false),
+            condition: e => e.NumericValue > 1,
+            sorter: (e => e.NumericValue, false),
             enableTracking: true,
             cancellationToken: TestContext.Current.CancellationToken);
 
-        entity.All(x => x.Value > 1).ShouldBeTrue();
+        entity.All(x => x.NumericValue > 1).ShouldBeTrue();
     }
 
     [Fact]
     public async Task GetAllSortedSubsetAsync_Basic()
     {
-        var entity = await _repository.GetAllSortedSubsetAsync<string, int>(e => e.Name, (e => e.Value, false),
+        var entity = await _repository.GetAllSortedSubsetAsync<string, int>(e => e.Name, (e => e.NumericValue, false),
             TestContext.Current.CancellationToken);
 
         entity.Count.ShouldBe(4);
@@ -548,9 +548,9 @@ public class RepositoryBaseTests : IAsyncLifetime
     public async Task GetAllSortedSubsetAsync_WithCondition()
     {
         var entity = await _repository.GetAllSortedSubsetAsync<string, int>(
-            condition: e => e.Value > 1,
+            condition: e => e.NumericValue > 1,
             subsetSelector: e => e.Name,
-            sorter: (e => e.Value, false),
+            sorter: (e => e.NumericValue, false),
             cancellationToken: TestContext.Current.CancellationToken);
 
         entity.All(x => x != "A").ShouldBeTrue();
@@ -559,7 +559,7 @@ public class RepositoryBaseTests : IAsyncLifetime
     [Fact]
     public async Task GetAllSortedSubsetAsync_WithEnableTracking()
     {
-        var entity = await _repository.GetAllSortedSubsetAsync<string, int>(e => e.Name, (e => e.Value, false), true,
+        var entity = await _repository.GetAllSortedSubsetAsync<string, int>(e => e.Name, (e => e.NumericValue, false), true,
             TestContext.Current.CancellationToken);
 
         entity.Count.ShouldBe(4);
@@ -569,9 +569,9 @@ public class RepositoryBaseTests : IAsyncLifetime
     public async Task GetAllSortedSubsetAsync_WithConditionAndEnableTracking()
     {
         var entity = await _repository.GetAllSortedSubsetAsync<string, int>(
-            condition: e => e.Value > 1,
+            condition: e => e.NumericValue > 1,
             subsetSelector: e => e.Name,
-            sorter: (e => e.Value, false),
+            sorter: (e => e.NumericValue, false),
             enableTracking: true,
             cancellationToken: TestContext.Current.CancellationToken);
 
@@ -582,30 +582,30 @@ public class RepositoryBaseTests : IAsyncLifetime
     public async Task GetAllSortedAsync_WithConditionAndEnableTracking()
     {
         var entity = await _repository.GetAllSortedAsync(
-            condition: e => e.Value > 1,
-            sorter: (e => e.Value, false),
+            condition: e => e.NumericValue > 1,
+            sorter: (e => e.NumericValue, false),
             enableTracking: true,
             cancellationToken: TestContext.Current.CancellationToken);
 
-        entity.All(x => x.Value > 1).ShouldBeTrue();
+        entity.All(x => x.NumericValue > 1).ShouldBeTrue();
     }
 
     [Fact]
     public async Task GetAllSortedAsync_WithCondition()
     {
         var entity = await _repository.GetAllSortedAsync(
-            condition: e => e.Value > 1,
-            sorter: (e => e.Value, false),
+            condition: e => e.NumericValue > 1,
+            sorter: (e => e.NumericValue, false),
             cancellationToken: TestContext.Current.CancellationToken);
 
-        entity.All(x => x.Value > 1).ShouldBeTrue();
+        entity.All(x => x.NumericValue > 1).ShouldBeTrue();
     }
 
     [Fact]
     public async Task GetAllSortedAsync_WithEnableTracking()
     {
         var entity = await _repository
-            .GetAllSortedAsync((e => e.Value, false), true, TestContext.Current.CancellationToken);
+            .GetAllSortedAsync((e => e.NumericValue, false), true, TestContext.Current.CancellationToken);
 
         entity.Count.ShouldBe(4);
     }
@@ -613,7 +613,7 @@ public class RepositoryBaseTests : IAsyncLifetime
     [Fact]
     public async Task GetAllSortedAsync_Basic()
     {
-        var entity = await _repository.GetAllSortedAsync((e => e.Value, false), TestContext.Current.CancellationToken);
+        var entity = await _repository.GetAllSortedAsync((e => e.NumericValue, false), TestContext.Current.CancellationToken);
 
         entity.Count.ShouldBe(4);
     }
@@ -622,7 +622,7 @@ public class RepositoryBaseTests : IAsyncLifetime
     public async Task GetAllSubsetAsync_WithConditionAndEnableTracking()
     {
         var entity = await _repository.GetAllSubsetAsync(
-            condition: e => e.Value > 1,
+            condition: e => e.NumericValue > 1,
             subsetSelector: e => e.Name,
             enableTracking: true,
             cancellationToken: TestContext.Current.CancellationToken);
@@ -634,7 +634,7 @@ public class RepositoryBaseTests : IAsyncLifetime
     public async Task GetAllSubsetAsync_WithCondition()
     {
         var entity = await _repository.GetAllSubsetAsync(
-            condition: e => e.Value > 1,
+            condition: e => e.NumericValue > 1,
             subsetSelector: e => e.Name,
             cancellationToken: TestContext.Current.CancellationToken);
 
@@ -660,17 +660,17 @@ public class RepositoryBaseTests : IAsyncLifetime
     [Fact]
     public async Task GetAllAsync_WithConditionAndEnableTracking()
     {
-        var entity = await _repository.GetAllAsync(e => e.Value > 1, true, TestContext.Current.CancellationToken);
+        var entity = await _repository.GetAllAsync(e => e.NumericValue > 1, true, TestContext.Current.CancellationToken);
 
-        entity.All(x => x.Value > 1).ShouldBeTrue();
+        entity.All(x => x.NumericValue > 1).ShouldBeTrue();
     }
 
     [Fact]
     public async Task GetAllAsync_WithCondition()
     {
-        var entity = await _repository.GetAllAsync(e => e.Value > 1, TestContext.Current.CancellationToken);
+        var entity = await _repository.GetAllAsync(e => e.NumericValue > 1, TestContext.Current.CancellationToken);
 
-        entity.All(x => x.Value > 1).ShouldBeTrue();
+        entity.All(x => x.NumericValue > 1).ShouldBeTrue();
     }
 
     [Fact]
@@ -692,8 +692,8 @@ public class RepositoryBaseTests : IAsyncLifetime
     [Fact]
     public async Task GetOneSortedAsync_WithEnableTracking()
     {
-        // Get the last entity by Value descending, with enableTracking
-        var entity = await _repository.GetOneSortedAsync(e => e.Value > 0, (e => e.Value, true), true,
+        // Get the last entity by NumericValue descending, with enableTracking
+        var entity = await _repository.GetOneSortedAsync(e => e.NumericValue > 0, (e => e.NumericValue, true), true,
             TestContext.Current.CancellationToken);
 
         entity.ShouldNotBeNull();
@@ -704,8 +704,8 @@ public class RepositoryBaseTests : IAsyncLifetime
     [Fact]
     public async Task GetOneSortedAsync_Basic()
     {
-        // Get the last entity by Value descending, without enableTracking param
-        var entity = await _repository.GetOneSortedAsync(e => e.Value > 0, (e => e.Value, true),
+        // Get the last entity by NumericValue descending, without enableTracking param
+        var entity = await _repository.GetOneSortedAsync(e => e.NumericValue > 0, (e => e.NumericValue, true),
             TestContext.Current.CancellationToken);
 
         entity.ShouldNotBeNull();
@@ -715,11 +715,11 @@ public class RepositoryBaseTests : IAsyncLifetime
     [Fact]
     public async Task GetOneSortedSubsetAsync_WithEnableTracking_ReturnsProjectedValue()
     {
-        // Should return the highest Value (4) with tracking enabled
+        // Should return the highest NumericValue (4) with tracking enabled
         var value = await _repository.GetOneSortedSubsetAsync(
-            condition: e => e.Value > 0,
-            subsetSelector: e => e.Value,
-            sorter: (e => e.Value, true),
+            condition: e => e.NumericValue > 0,
+            subsetSelector: e => e.NumericValue,
+            sorter: (e => e.NumericValue, true),
             enableTracking: true,
             cancellationToken: TestContext.Current.CancellationToken);
         value.ShouldBe(4);
@@ -728,11 +728,11 @@ public class RepositoryBaseTests : IAsyncLifetime
     [Fact]
     public async Task GetOneSortedSubsetAsync_Basic_ReturnsProjectedValue()
     {
-        // Should return the highest Value (4) with default tracking (AsNoTracking)
+        // Should return the highest NumericValue (4) with default tracking (AsNoTracking)
         var value = await _repository.GetOneSortedSubsetAsync(
-            condition: e => e.Value > 0,
-            subsetSelector: e => e.Value,
-            sorter: (e => e.Value, true),
+            condition: e => e.NumericValue > 0,
+            subsetSelector: e => e.NumericValue,
+            sorter: (e => e.NumericValue, true),
             cancellationToken: TestContext.Current.CancellationToken);
         value.ShouldBe(4);
     }
