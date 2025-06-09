@@ -43,7 +43,7 @@ public interface IRepositoryBase<TEntity>
         bool enableTracking,
         CancellationToken cancellationToken = default);
 
-        Task<TResult?> GetOneSortedSubsetAsync<TSorter, TResult>(
+    Task<TResult?> GetOneSortedSubsetAsync<TSorter, TResult>(
         Expression<Func<TEntity, bool>> condition,
         Expression<Func<TEntity, TResult>> subsetSelector,
         (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
@@ -211,13 +211,23 @@ public interface IRepositoryBase<TEntity>
     Task<long> GetCountAsync(CancellationToken cancellationToken = default);
 
     void Update(TEntity entityToUpdate);
-    
+
     void UpdateMany(ICollection<TEntity> entitiesToUpdate);
-    
+
+    Task<int> UpdateDirectAsync<TProperty>(
+        Expression<Func<TEntity, bool>> condition,
+        Func<TEntity, TProperty> propertySelector,
+        Func<TEntity, TProperty> valueExpression);
+
+    Task<int> UpdateDirectAsync<TProperty>(
+        Expression<Func<TEntity, bool>> condition,
+        Func<TEntity, TProperty> propertySelector,
+        TProperty value);
+
     void Remove(TEntity entityToDelete);
-    
+
     void RemoveMany(ICollection<TEntity> entitiesToUpdate);
-    
+
     Task<int> RemoveManyDirectAsync(Expression<Func<TEntity, bool>> condition);
 
     void TrackEntity(TEntity entity);

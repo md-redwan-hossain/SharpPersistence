@@ -395,6 +395,48 @@ public class RepositoryBaseTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task UpdateDirectAsync_SetsConstantValue()
+    {
+        // Arrange
+        var before = await _repository.GetOneAsync(e => e.Name == "A", TestContext.Current.CancellationToken);
+        before.ShouldNotBeNull();
+        before.Value.ShouldBe(1);
+
+        // Act
+        var updated = await _repository.UpdateDirectAsync(
+            e => e.Name == "A",
+            e => e.Value,
+            42);
+
+        // Assert
+        updated.ShouldBe(1);
+        var after = await _repository.GetOneAsync(e => e.Name == "A", TestContext.Current.CancellationToken);
+        after.ShouldNotBeNull();
+        after.Value.ShouldBe(42);
+    }
+
+    [Fact]
+    public async Task UpdateDirectAsync_SetsValueWithFunction()
+    {
+        // Arrange
+        var before = await _repository.GetOneAsync(e => e.Name == "B", TestContext.Current.CancellationToken);
+        before.ShouldNotBeNull();
+        before.Value.ShouldBe(2);
+
+        // Act
+        var updated = await _repository.UpdateDirectAsync(
+            e => e.Name == "B",
+            e => e.Value,
+            e => e.Value + 10);
+
+        // Assert
+        updated.ShouldBe(1);
+        var after = await _repository.GetOneAsync(e => e.Name == "B", TestContext.Current.CancellationToken);
+        after.ShouldNotBeNull();
+        after.Value.ShouldBe(12);
+    }
+
+    [Fact]
     public void TrackEntity_AttachesEntity()
     {
         var entity = new TestEntity { Id = 999, Name = "Z", Value = 99 };
