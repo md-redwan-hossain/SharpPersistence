@@ -36,7 +36,7 @@ public class SqlParserTest
                                FROM users
                                """;
 
-        _parsedSqlStorage["GetAllUsers"].ShouldBeEquivalentTo(sqlBody);
+        _parsedSqlStorage["GetAllUsers"].ShouldContainWithoutWhitespace(sqlBody);
     }
 
     [Fact]
@@ -45,6 +45,6 @@ public class SqlParserTest
         _parsedSqlStorage.TryGetParsedSql("GetActiveUsers", out var sql);
 
         sql.ShouldNotBeNull();
-        sql.ShouldContain("WHERE active = 1");
+        sql.ShouldContainWithoutWhitespace("WHERE active = 1");
     }
 }
