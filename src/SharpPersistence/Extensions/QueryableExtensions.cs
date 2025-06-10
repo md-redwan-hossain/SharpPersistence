@@ -1,8 +1,10 @@
+using System.Linq.Expressions;
+
 namespace SharpPersistence.Extensions;
 
 public static class QueryableExtensions
 {
-    public static IQueryable<T> PaginateQueryable<T>(this IQueryable<T> queryable, int page, int limit)
+    public static IQueryable<T> OffsetPaginate<T>(this IQueryable<T> queryable, int page, int limit)
     {
         if (page <= 0)
         {

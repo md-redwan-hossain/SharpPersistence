@@ -27,79 +27,9 @@ Or visit:
 
 ## Features
 
-### **`RepositoryBase` with `IRepositoryBase`**
-
-- All CRUD operations with async support
-- Multiple overloads for flexible querying
-- Proper EF Core tracking management
-- Dependency injection ready
-- Readable, maintainable, and well-formatted code
-
-### **`UnitOfWork` with `IUnitOfWork`**
-
-- Transactional management of multiple repository operations
-- Ensures atomicity and consistency across changes
-- Integrates seamlessly with the repository pattern
-- Simplifies commit/rollback logic in service layers
-
-### **`SqlCheckConstrainGenerator`**
-
-- Type-safe, raw SQL check constraint generation
-- Supports multiple RDBMS (SQL Server, PostgreSQL, MySQL)
-- Naming convention support (PascalCase, lower_snake_case, UPPER_SNAKE_CASE)
-- Handles all SQL comparison, logical, and set operators
-- Proper string escaping and identifier delimiting
-- Fully tested for edge cases and all method combinations
-
-Some examples with `IEntityTypeConfiguration` of Ef Core are given below:
-
-```csharp
-  var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase, 
-      delimitStringGlobalLevel: false);
-
-  builder.ToTable(x => x.HasCheckConstraint(
-      "valid_product_sell_price_in_sales_invoice",
-      cc.GreaterThanOrEqual(nameof(SalesInvoiceItem.SingleUnitSellPrice),
-          0, SqlDataType.Decimal)
-  ));
-  
-  builder.ToTable(x => x.HasCheckConstraint(
-    "valid_employee_release_data",
-    cc.Or(
-        cc.And(
-            cc.EqualTo(nameof(EmploymentRecord.IsReleased), true),
-            cc.IsNotNull(nameof(EmploymentRecord.ReleaseDate)),
-            cc.IsNotNull(nameof(EmploymentRecord.ReleaseReasonId))
-        ),
-        cc.And(
-            cc.EqualTo(nameof(EmploymentRecord.IsReleased), false),
-            cc.IsNull(nameof(EmploymentRecord.ReleaseDate)),
-            cc.IsNull(nameof(EmploymentRecord.ReleaseReasonId))
-        )
-    )
-));
-  
-  builder.ToTable(x => x.HasCheckConstraint(
-    "valid_debit_credit_entry",
-    cc.Or(
-        cc.And(
-            cc.GreaterThanOrEqual(nameof(JournalVoucherItem.CreditAmount),
-                0, SqlDataType.Decimal),
-            cc.EqualTo(nameof(JournalVoucherItem.DebitAmount),
-                0, SqlDataType.Decimal)
-        ),
-        cc.And(
-            cc.GreaterThanOrEqual(nameof(JournalVoucherItem.DebitAmount),
-                0, SqlDataType.Decimal),
-            cc.EqualTo(nameof(JournalVoucherItem.CreditAmount),
-                0, SqlDataType.Decimal)
-        )
-    )
-));
-```
-
 ### **`SqlParser`**
 
+- `SqlParser` is available in `SharpPersistence`
 - Separation of Concerns: Keep complex SQL queries in `.sql` files instead of cluttering your C# code
 - Better SQL Editing: Full syntax highlighting, IntelliSense, and formatting in SQL files
 - Version Control Friendly: Track SQL changes separately from business logic
@@ -164,14 +94,14 @@ ORDER BY u.LastLoginDate DESC
 
 ```csharp
 // Parse SQL files at startup
-IParsedSqlStorage sqlStorage = new SqlParser().ParseFromStorage();
+IParsedSqlStorage parsedSqlStorage = new SqlParser().ParseFromStorage();
 
-// Access parsed SQL by tag name (case-insensitive)
-string getAllUsersQuery = sqlStorage["GetAllUsers"];
+// Access parsed SQL by tag name (case-insensitive) through C# indexer
+string getAllUsersQuery = parsedSqlStorage["GetAllUsers"];
 // Use the query...
 
 // Safe access with TryGet
-if (sqlStorage.TryGetParsedSql("GetAllUsers", out string? query))
+if (parsedSqlStorage.TryGetParsedSql("GetAllUsers", out string? query))
 {
     // Use the query...
 }
@@ -198,7 +128,7 @@ public class UserService
 
     public async Task<IEnumerable<User>> GetAllUsersAsync(int userId, CancellationToken ct)
     {
-        var sql = _sqlStorage["GetAllUsers"];
+        var sql = _parsedSqlStorage["GetAllUsers"];
         
         await using var connection = await _dbConnectionFactory.CreateConnectionAsync(ct);
         
@@ -210,12 +140,87 @@ public class UserService
 }
 ```
 
-**Error Handling:**
+**Notes:**
 SqlParser validates your SQL files at startup and throws detailed error messages for:
 
 - Missing start/end tags
 - Duplicate tag names
 - Invalid tag formats
+
+### **`SqlCheckConstrainGenerator`**
+
+- `SqlCheckConstrainGenerator` is available in `SharpPersistence`
+- Type-safe, raw SQL check constraint generation
+- Supports multiple RDBMS (SQL Server, PostgreSQL, MySQL)
+- Naming convention support (PascalCase, lower_snake_case, UPPER_SNAKE_CASE)
+- Handles all SQL comparison, logical, and set operators
+- Proper string escaping and identifier delimiting
+- Fully tested for edge cases and all method combinations
+
+Some examples with `IEntityTypeConfiguration` of Ef Core are given below:
+
+```csharp
+  var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase, 
+      delimitStringGlobalLevel: false);
+
+  builder.ToTable(x => x.HasCheckConstraint(
+      "valid_product_sell_price_in_sales_invoice",
+      cc.GreaterThanOrEqual(nameof(SalesInvoiceItem.SingleUnitSellPrice),
+          0, SqlDataType.Decimal)
+  ));
+  
+  builder.ToTable(x => x.HasCheckConstraint(
+    "valid_employee_release_data",
+    cc.Or(
+        cc.And(
+            cc.EqualTo(nameof(EmploymentRecord.IsReleased), true),
+            cc.IsNotNull(nameof(EmploymentRecord.ReleaseDate)),
+            cc.IsNotNull(nameof(EmploymentRecord.ReleaseReasonId))
+        ),
+        cc.And(
+            cc.EqualTo(nameof(EmploymentRecord.IsReleased), false),
+            cc.IsNull(nameof(EmploymentRecord.ReleaseDate)),
+            cc.IsNull(nameof(EmploymentRecord.ReleaseReasonId))
+        )
+    )
+));
+  
+  builder.ToTable(x => x.HasCheckConstraint(
+    "valid_debit_credit_entry",
+    cc.Or(
+        cc.And(
+            cc.GreaterThanOrEqual(nameof(JournalVoucherItem.CreditAmount),
+                0, SqlDataType.Decimal),
+            cc.EqualTo(nameof(JournalVoucherItem.DebitAmount),
+                0, SqlDataType.Decimal)
+        ),
+        cc.And(
+            cc.GreaterThanOrEqual(nameof(JournalVoucherItem.DebitAmount),
+                0, SqlDataType.Decimal),
+            cc.EqualTo(nameof(JournalVoucherItem.CreditAmount),
+                0, SqlDataType.Decimal)
+        )
+    )
+));
+```
+
+### **`RepositoryBase` with `IRepositoryBase`**
+
+- `IRepositoryBase` is available in `SharpPersistence.Abstractions`
+- `RepositoryBase` is available in `SharpPersistence.EfCore`
+- All CRUD operations with async support
+- Multiple overloads for flexible querying
+- Proper EF Core tracking management
+- Dependency injection ready
+- Readable, maintainable, and well-formatted code
+
+### **`UnitOfWork` with `IUnitOfWork`**
+- `IUnitOfWork` is available in `SharpPersistence.Abstractions`
+- `UnitOfWork` is available in `SharpPersistence.EfCore`
+- Transactional management of multiple repository operations
+- Ensures atomicity and consistency across changes
+- Integrates seamlessly with the repository pattern
+- Simplifies commit/rollback logic in service layers
 
 ## Testing
 

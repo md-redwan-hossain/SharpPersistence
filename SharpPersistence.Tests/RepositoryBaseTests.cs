@@ -1,39 +1,10 @@
-using System.ComponentModel.DataAnnotations;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
-using SharpPersistence.Abstractions;
-using SharpPersistence.EfCore;
+using SharpPersistence.Tests.TestDependencyFiles;
 
 namespace SharpPersistence.Tests;
-
-public class TestEntity
-{
-    public int Id { get; set; }
-    [MaxLength(10000)] public required string Name { get; set; }
-    public required int NumericValue { get; set; }
-}
-
-public class TestDbContext : DbContext
-{
-    public DbSet<TestEntity> TestEntities { get; set; }
-
-    public TestDbContext(DbContextOptions<TestDbContext> options) : base(options)
-    {
-    }
-}
-
-public interface ITestRepository : IRepositoryBase<TestEntity>
-{
-}
-
-public class TestRepository : RepositoryBase<TestEntity, TestDbContext>, ITestRepository
-{
-    public TestRepository(TestDbContext context) : base(context)
-    {
-    }
-}
 
 public class RepositoryBaseTests : IAsyncLifetime
 {
@@ -61,9 +32,7 @@ public class RepositoryBaseTests : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        _dbContext.TestEntities.RemoveRange(_dbContext.TestEntities);
-
-        await _dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
+        await _repository.RemoveManyDirectAsync(x => x.Id > int.MinValue);
 
         var seed = new List<TestEntity>
         {
@@ -102,7 +71,8 @@ public class RepositoryBaseTests : IAsyncLifetime
     [Fact]
     public async Task CreateManyAsync_AddsEntities()
     {
-        var entities = new[] { new TestEntity { Name = "F", NumericValue = 6 }, new TestEntity { Name = "G", NumericValue = 7 } };
+        var entities = new[]
+            { new TestEntity { Name = "F", NumericValue = 6 }, new TestEntity { Name = "G", NumericValue = 7 } };
 
         await _repository.CreateManyAsync(entities);
 
@@ -124,7 +94,6 @@ public class RepositoryBaseTests : IAsyncLifetime
     public async Task GetOneAsync_WithTracking()
     {
         var entity = await _repository.GetOneAsync(e => e.Name == "A", true, TestContext.Current.CancellationToken);
-
         entity.ShouldNotBeNull();
         _dbContext.Entry(entity).State.ShouldBe(EntityState.Unchanged);
     }
@@ -278,7 +247,8 @@ public class RepositoryBaseTests : IAsyncLifetime
     [Fact]
     public async Task GetAllAsync_WithConditionAndTracking()
     {
-        var result = await _repository.GetAllAsync(e => e.NumericValue > 2, true, TestContext.Current.CancellationToken);
+        var result =
+            await _repository.GetAllAsync(e => e.NumericValue > 2, true, TestContext.Current.CancellationToken);
 
         result.Count.ShouldBe(2);
         result.All(e => e.NumericValue > 2).ShouldBeTrue();
@@ -374,7 +344,8 @@ public class RepositoryBaseTests : IAsyncLifetime
 
         await _dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        (await _repository.GetOneAsync(e => e.Name == "A", TestContext.Current.CancellationToken))?.NumericValue.ShouldBe(100);
+        (await _repository.GetOneAsync(e => e.Name == "A", TestContext.Current.CancellationToken))?.NumericValue
+            .ShouldBe(100);
     }
 
     [Fact]
@@ -391,7 +362,8 @@ public class RepositoryBaseTests : IAsyncLifetime
 
         await _dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        (await _repository.GetOneAsync(e => e.Name == "C", TestContext.Current.CancellationToken))?.NumericValue.ShouldBe(13);
+        (await _repository.GetOneAsync(e => e.Name == "C", TestContext.Current.CancellationToken))?.NumericValue
+            .ShouldBe(13);
     }
 
     [Fact]
@@ -451,6 +423,7 @@ public class RepositoryBaseTests : IAsyncLifetime
 
         entity.Count.ShouldBe(2);
     }
+
 
     [Fact]
     public async Task GetAllSortedAndPaginatedSubsetAsync_WithCondition()
@@ -559,7 +532,8 @@ public class RepositoryBaseTests : IAsyncLifetime
     [Fact]
     public async Task GetAllSortedSubsetAsync_WithEnableTracking()
     {
-        var entity = await _repository.GetAllSortedSubsetAsync<string, int>(e => e.Name, (e => e.NumericValue, false), true,
+        var entity = await _repository.GetAllSortedSubsetAsync<string, int>(e => e.Name, (e => e.NumericValue, false),
+            true,
             TestContext.Current.CancellationToken);
 
         entity.Count.ShouldBe(4);
@@ -613,7 +587,8 @@ public class RepositoryBaseTests : IAsyncLifetime
     [Fact]
     public async Task GetAllSortedAsync_Basic()
     {
-        var entity = await _repository.GetAllSortedAsync((e => e.NumericValue, false), TestContext.Current.CancellationToken);
+        var entity =
+            await _repository.GetAllSortedAsync((e => e.NumericValue, false), TestContext.Current.CancellationToken);
 
         entity.Count.ShouldBe(4);
     }
@@ -660,7 +635,8 @@ public class RepositoryBaseTests : IAsyncLifetime
     [Fact]
     public async Task GetAllAsync_WithConditionAndEnableTracking()
     {
-        var entity = await _repository.GetAllAsync(e => e.NumericValue > 1, true, TestContext.Current.CancellationToken);
+        var entity =
+            await _repository.GetAllAsync(e => e.NumericValue > 1, true, TestContext.Current.CancellationToken);
 
         entity.All(x => x.NumericValue > 1).ShouldBeTrue();
     }
