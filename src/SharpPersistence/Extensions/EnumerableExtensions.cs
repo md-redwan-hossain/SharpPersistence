@@ -1,5 +1,3 @@
-using SharpPersistence.Abstractions.Primitives;
-
 namespace SharpPersistence.Extensions;
 
 public static class EnumerableExtensions

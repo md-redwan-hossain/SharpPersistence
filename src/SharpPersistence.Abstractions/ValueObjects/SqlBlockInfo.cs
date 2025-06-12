@@ -1,4 +1,4 @@
-namespace SharpPersistence.Abstractions.Primitives;
+namespace SharpPersistence.Abstractions.ValueObjects;
 
 public readonly record struct SqlBlockInfo
 {

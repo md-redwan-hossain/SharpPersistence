@@ -1,4 +1,4 @@
-using SharpPersistence.Abstractions.Primitives;
+using SharpPersistence.Abstractions.ValueObjects;
 
 namespace SharpPersistence.Abstractions;
 

@@ -1,7 +1,7 @@
 using System.Collections;
 using System.Text;
 using SharpPersistence.Abstractions;
-using SharpPersistence.Abstractions.Primitives;
+using SharpPersistence.Abstractions.ValueObjects;
 
 namespace SharpPersistence.Parsers.Internals;
 

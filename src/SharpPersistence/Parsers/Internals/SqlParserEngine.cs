@@ -1,6 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
-using SharpPersistence.Abstractions.Primitives;
+using SharpPersistence.Abstractions.ValueObjects;
 
 namespace SharpPersistence.Parsers.Internals;
 

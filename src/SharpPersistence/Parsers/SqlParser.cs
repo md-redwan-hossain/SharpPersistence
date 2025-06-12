@@ -1,5 +1,5 @@
 using SharpPersistence.Abstractions;
-using SharpPersistence.Abstractions.Primitives;
+using SharpPersistence.Abstractions.ValueObjects;
 using SharpPersistence.Parsers.Internals;
 
 namespace SharpPersistence.Parsers;
