@@ -15,6 +15,7 @@
         <RepositoryUrl>https://github.com/md-redwan-hossain/SharpPersistence</RepositoryUrl>
         <PackageTags>sql database repository generic-repository unit-of-work check-constraint</PackageTags>
         <NoWarn>CS1591</NoWarn>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
         <DocumentationFile Condition="'$(Configuration)'=='Release'">bin\$(Configuration)\$(TargetFramework)\SharpPersistence.xml</DocumentationFile>
         <Description>SharpPersistence.Abstractions contains the Dependencies for SharpPersistence</Description>
     </PropertyGroup>
@@ -24,6 +25,14 @@
             <Pack>True</Pack>
             <PackagePath>.</PackagePath>
             <Link>logo.png</Link>
+        </None>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="..\..\README.md">
+            <Pack>True</Pack>
+            <Link>README.md</Link>
+            <PackagePath>.</PackagePath>
         </None>
     </ItemGroup>
 

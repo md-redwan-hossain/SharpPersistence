@@ -5,7 +5,7 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
-        <Version>0.0.1</Version>
+        <Version>0.0.2</Version>
         <Title>SharpPersistence.EfCore</Title>
         <Authors>Md. Redwan Hossain</Authors>
         <Copyright>Copyright (c) Md. Redwan Hossain</Copyright>
@@ -15,6 +15,7 @@
         <RepositoryUrl>https://github.com/md-redwan-hossain/SharpPersistence</RepositoryUrl>
         <PackageTags>sql database repository generic-repository unit-of-work check-constraint</PackageTags>
         <NoWarn>CS1591</NoWarn>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
         <DocumentationFile Condition="'$(Configuration)'=='Release'">bin\$(Configuration)\$(TargetFramework)\SharpPersistence.xml</DocumentationFile>
         <Description>SharpPersistence.EfCore contains utility classes to work with relational database systems</Description>
     </PropertyGroup>
@@ -33,7 +34,16 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\SharpPersistence.Abstractions\SharpPersistence.Abstractions.csproj" />
+        <None Include="..\..\README.md">
+            <Pack>True</Pack>
+            <Link>README.md</Link>
+            <PackagePath>.</PackagePath>
+        </None>
     </ItemGroup>
-    
+
+
+    <ItemGroup>
+        <ProjectReference Include="..\SharpPersistence.Abstractions\SharpPersistence.Abstractions.csproj"/>
+    </ItemGroup>
+
 </Project>
