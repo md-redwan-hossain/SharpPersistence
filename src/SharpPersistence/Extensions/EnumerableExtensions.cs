@@ -2,7 +2,7 @@ namespace SharpPersistence.Extensions;
 
 public static class EnumerableExtensions
 {
-    public static IEnumerable<T> OffsetPaginate<T>(this IEnumerable<T> enumerable, int page, int limit)
+    public static IEnumerable<T> EnumerableOffsetPaginate<T>(this IEnumerable<T> enumerable, int page, int limit)
     {
         if (page <= 0)
         {

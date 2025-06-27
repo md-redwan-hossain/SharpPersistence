@@ -58,7 +58,7 @@ public class QueryableExtensionsTests : IAsyncLifetime
     [Fact]
     public async Task CursorPaginate()
     {
-        var data = await _dbContext.TestEntities.OffsetPaginate(1, 5)
+        var data = await _dbContext.TestEntities.QueryableOffsetPaginate(1, 5)
             .ToListAsync(TestContext.Current.CancellationToken);
         
         data.ShouldNotBeEmpty();

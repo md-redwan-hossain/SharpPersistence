@@ -8,7 +8,7 @@ public class EnumerableExtensionsTests
     [Fact]
     public void CursorPaginate()
     {
-        var data = Enumerable.Range(1, 100).OrderBy(x => x).OffsetPaginate(1, 10);
+        var data = Enumerable.Range(1, 100).OrderBy(x => x).EnumerableOffsetPaginate(1, 10);
         data.ShouldNotBeEmpty();
     }
 }
