@@ -10,11 +10,12 @@ public class SqlParser
     private readonly List<string> _validationErrors = [];
     private const string DefaultDirectoryName = "sharp_persistence_sql_files";
 
-    public IParsedSqlStorage ParseFromStorage(string directoryName = DefaultDirectoryName)
+    public IParsedSqlStorage ParseFromStorage(string directoryName = DefaultDirectoryName,
+        bool throwIfDirectoryNotExists = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directoryName);
 
-        var sqlFiles = LoadFromDirectory(directoryName);
+        var sqlFiles = LoadFromDirectory(directoryName, throwIfDirectoryNotExists);
         foreach (var sqlFile in sqlFiles)
         {
             _parser.Parse(sqlFile.Content, sqlFile.FileName);
@@ -23,8 +24,8 @@ public class SqlParser
         ThrowExceptionIfErrorsExist();
         return _parser.ParsedSqlStatements;
     }
-    
-    private IEnumerable<SqlFile> LoadFromDirectory(string directoryName)
+
+    private IEnumerable<SqlFile> LoadFromDirectory(string directoryName, bool throwIfDirectoryNotExists = false)
     {
         ArgumentNullException.ThrowIfNull(directoryName);
 
@@ -32,13 +33,17 @@ public class SqlParser
             ? directoryName
             : Path.Combine(AppContext.BaseDirectory, directoryName);
 
-        if (Directory.Exists(path) is false)
+        if (Directory.Exists(path))
         {
-            _validationErrors.Add($"{directoryName}: error: No such directory exists.");
-            return [];
+            return GetSqlFiles(path);
         }
 
-        return GetSqlFiles(path);
+        if (throwIfDirectoryNotExists)
+        {
+            _validationErrors.Add($"{directoryName}: error: No such directory exists.");
+        }
+
+        return [];
     }
 
     private static IEnumerable<SqlFile> GetSqlFiles(string directoryName)
