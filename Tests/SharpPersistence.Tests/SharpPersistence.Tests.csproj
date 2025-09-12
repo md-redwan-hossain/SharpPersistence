@@ -25,12 +25,7 @@
     <ItemGroup>
         <Using Include="Xunit"/>
     </ItemGroup>
-
-    <ItemGroup>
-        <ProjectReference Include="..\src\SharpPersistence.Abstractions\SharpPersistence.Abstractions.csproj"/>
-        <ProjectReference Include="..\src\SharpPersistence.EfCore\SharpPersistence.EfCore.csproj" />
-        <ProjectReference Include="..\src\SharpPersistence\SharpPersistence.csproj"/>
-    </ItemGroup>
+    
 
     <PropertyGroup>
         <DefaultItemExcludes>
@@ -45,6 +40,12 @@
                 CopyToOutputDirectory="PreserveNewest"
                 TargetPath="sharp_persistence_sql_files\%(RecursiveDir)\%(Filename)%(Extension)"
         />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\src\SharpPersistence.Abstractions\SharpPersistence.Abstractions.csproj" />
+      <ProjectReference Include="..\..\src\SharpPersistence.EfCore\SharpPersistence.EfCore.csproj" />
+      <ProjectReference Include="..\..\src\SharpPersistence\SharpPersistence.csproj" />
     </ItemGroup>
 
 </Project>
