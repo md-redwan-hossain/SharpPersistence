@@ -1,4 +1,3 @@
-using System.Reflection;
 using SharpPersistence.Abstractions;
 using SharpPersistence.Abstractions.ValueObjects;
 using SharpPersistence.Parsers.Internals;
@@ -24,89 +23,7 @@ public class SqlParser
         ThrowExceptionIfErrorsExist();
         return _parser.ParsedSqlStatements;
     }
-
-    public IParsedSqlStorage ParseFromCallingAssembly()
-    {
-        var callingAssembly = Assembly.GetCallingAssembly();
-        var sqlFiles = LoadFromAssemblyDirectory(callingAssembly);
-
-        foreach (var sqlFile in sqlFiles)
-        {
-            _parser.Parse(sqlFile.Content, sqlFile.FileName);
-        }
-
-        ThrowExceptionIfErrorsExist();
-        return _parser.ParsedSqlStatements;
-    }
-
-    private IEnumerable<SqlFile> LoadFromAssemblyDirectory(Assembly assembly)
-    {
-        ArgumentNullException.ThrowIfNull(assembly);
-
-        var assemblyLocation = assembly.Location;
-        if (string.IsNullOrEmpty(assemblyLocation))
-        {
-            _validationErrors.Add($"Could not determine location of assembly: {assembly.FullName}");
-            return [];
-        }
-
-        var assemblyDirectory = Path.GetDirectoryName(assemblyLocation);
-
-        if (Directory.Exists(assemblyDirectory) is false)
-        {
-            _validationErrors.Add($"{assemblyDirectory}: error: Assembly directory does not exist.");
-            return [];
-        }
-
-        return GetAllSqlFiles(assemblyDirectory);
-    }
-
-    private static IEnumerable<SqlFile> GetAllSqlFiles(string rootDirectory)
-    {
-        try
-        {
-            var files = Directory.GetFiles(rootDirectory, "*.sql", SearchOption.AllDirectories);
-
-            return files
-                .Select(TryReadSqlFile)
-                .Where(sqlFile => sqlFile != null)
-                .Cast<SqlFile>();
-        }
-        catch (UnauthorizedAccessException)
-        {
-            // Skip directories we don't have access to
-            return [];
-        }
-        catch (DirectoryNotFoundException)
-        {
-            // Directory was deleted between check and enumeration
-            return [];
-        }
-    }
-
-    private static SqlFile? TryReadSqlFile(string filePath)
-    {
-        try
-        {
-            var content = File.ReadAllText(filePath);
-            return new SqlFile
-            {
-                FileName = Path.GetFileName(filePath),
-                Content = content
-            };
-        }
-        catch (IOException)
-        {
-            // Skip files that can't be read
-            return null;
-        }
-        catch (UnauthorizedAccessException)
-        {
-            // Skip files we don't have permission to read
-            return null;
-        }
-    }
-
+    
     private IEnumerable<SqlFile> LoadFromDirectory(string directoryName)
     {
         ArgumentNullException.ThrowIfNull(directoryName);
