@@ -45,24 +45,13 @@ public class SqlCheckConstrainGenerator
     public string And(string firstOperand, string secondOperand, params string[] otherOperands)
     {
         var sb = new StringBuilder(string.Concat(firstOperand, AndSign, secondOperand));
-        var size = otherOperands.Length;
-        var counter = 0;
+        
+        var queue = new Queue<string>(otherOperands);
 
-        if (size > 0)
+        while (queue.TryDequeue(out var value))
         {
             sb.Append(AndSign);
-        }
-
-        foreach (var operand in otherOperands)
-        {
-            sb.Append(operand);
-
-            if (counter >= 1 && counter != size)
-            {
-                sb.Append(AndSign);
-            }
-
-            counter += 1;
+            sb.Append(value);
         }
 
         return WrapWithParentheses(NormalizeAndTrimWhiteSpace(sb));
@@ -71,24 +60,13 @@ public class SqlCheckConstrainGenerator
     public string Or(string firstOperand, string secondOperand, params string[] otherOperands)
     {
         var sb = new StringBuilder(string.Concat(firstOperand, OrSign, secondOperand));
-        var size = otherOperands.Length;
-        var counter = 0;
 
-        if (size > 0)
+        var queue = new Queue<string>(otherOperands);
+
+        while (queue.TryDequeue(out var value))
         {
             sb.Append(OrSign);
-        }
-
-        foreach (var operand in otherOperands)
-        {
-            sb.Append(operand);
-
-            if (counter >= 1 && counter != size)
-            {
-                sb.Append(OrSign);
-            }
-
-            counter += 1;
+            sb.Append(value);
         }
 
         return WrapWithParentheses(NormalizeAndTrimWhiteSpace(sb));
@@ -583,8 +561,7 @@ public class SqlCheckConstrainGenerator
         CommaSeparatedCollectionDataMaker(collection, SqlString);
 
     private static string CommaSeparatedCollectionDataMaker<TCollection, TValue>(
-        ICollection<TCollection> collection,
-        Func<TCollection, TValue>? logic = null)
+        ICollection<TCollection> collection, Func<TCollection, TValue>? logic = null)
     {
         var sb = new StringBuilder();
         var size = collection.Count;

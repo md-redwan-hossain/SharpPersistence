@@ -1,11 +1,47 @@
 using SharpPersistence.Enums;
 using SharpPersistence.Generators;
+using SharpPersistence.Tests.TestDependencyFiles;
 using Shouldly;
 
 namespace SharpPersistence.Tests;
 
 public class SqlCheckConstraintGeneratorTest
 {
+    [Fact]
+    public void AndCheckWithFourParams()
+    {
+        var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
+            delimitStringGlobalLevel: false);
+
+        var sql =
+            "((is_cash = True AND is_bank = False AND is_mobile_bank = False) OR (is_cash = False AND is_bank = True AND is_mobile_bank = False) OR (is_cash = False AND is_bank = False AND is_mobile_bank = True) OR (is_cash = False AND is_bank = False AND is_mobile_bank = False))";
+
+        var testSql = cc.Or(
+            cc.And(
+                cc.EqualTo(nameof(AccountHead.IsCash), true),
+                cc.EqualTo(nameof(AccountHead.IsBank), false),
+                cc.EqualTo(nameof(AccountHead.IsMobileBank), false)
+            ),
+            cc.And(
+                cc.EqualTo(nameof(AccountHead.IsCash), false),
+                cc.EqualTo(nameof(AccountHead.IsBank), true),
+                cc.EqualTo(nameof(AccountHead.IsMobileBank), false)
+            ),
+            cc.And(
+                cc.EqualTo(nameof(AccountHead.IsCash), false),
+                cc.EqualTo(nameof(AccountHead.IsBank), false),
+                cc.EqualTo(nameof(AccountHead.IsMobileBank), true)
+            ),
+            cc.And(
+                cc.EqualTo(nameof(AccountHead.IsCash), false),
+                cc.EqualTo(nameof(AccountHead.IsBank), false),
+                cc.EqualTo(nameof(AccountHead.IsMobileBank), false)
+            )
+        );
+
+        testSql.ShouldBe(sql);
+    }
+
     [Fact]
     public void AndCheckWithParams()
     {
