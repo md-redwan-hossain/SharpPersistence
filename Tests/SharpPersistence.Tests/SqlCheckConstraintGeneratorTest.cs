@@ -14,7 +14,7 @@ public class SqlCheckConstraintGeneratorTest
             delimitStringGlobalLevel: false);
 
         var sql =
-            "((is_cash = True AND is_bank = False AND is_mobile_bank = False) OR (is_cash = False AND is_bank = True AND is_mobile_bank = False) OR (is_cash = False AND is_bank = False AND is_mobile_bank = True) OR (is_cash = False AND is_bank = False AND is_mobile_bank = False))";
+            "((is_cash = TRUE AND is_bank = FALSE AND is_mobile_bank = FALSE) OR (is_cash = FALSE AND is_bank = TRUE AND is_mobile_bank = FALSE) OR (is_cash = FALSE AND is_bank = FALSE AND is_mobile_bank = TRUE) OR (is_cash = FALSE AND is_bank = FALSE AND is_mobile_bank = FALSE))";
 
         var testSql = cc.Or(
             cc.And(
@@ -42,6 +42,42 @@ public class SqlCheckConstraintGeneratorTest
         testSql.ShouldBe(sql);
     }
 
+    
+    [Fact]
+    public void AndCheckWithFourParamsWithIsOperator()
+    {
+        var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
+            delimitStringGlobalLevel: false);
+
+        const string sql =
+            "((is_cash IS TRUE AND is_bank IS FALSE AND is_mobile_bank IS FALSE) OR (is_cash IS FALSE AND is_bank IS TRUE AND is_mobile_bank IS FALSE) OR (is_cash IS FALSE AND is_bank IS FALSE AND is_mobile_bank IS TRUE) OR (is_cash IS FALSE AND is_bank IS FALSE AND is_mobile_bank IS FALSE))";
+
+        var testSql = cc.Or(
+            cc.And(
+                cc.EqualTo(nameof(AccountHead.IsCash), true, useIsOperator: true),
+                cc.EqualTo(nameof(AccountHead.IsBank), false, useIsOperator: true),
+                cc.EqualTo(nameof(AccountHead.IsMobileBank), false, useIsOperator: true)
+            ),
+            cc.And(
+                cc.EqualTo(nameof(AccountHead.IsCash), false, useIsOperator: true),
+                cc.EqualTo(nameof(AccountHead.IsBank), true, useIsOperator: true),
+                cc.EqualTo(nameof(AccountHead.IsMobileBank), false, useIsOperator: true)
+            ),
+            cc.And(
+                cc.EqualTo(nameof(AccountHead.IsCash), false, useIsOperator: true),
+                cc.EqualTo(nameof(AccountHead.IsBank), false, useIsOperator: true),
+                cc.EqualTo(nameof(AccountHead.IsMobileBank), true, useIsOperator: true)
+            ),
+            cc.And(
+                cc.EqualTo(nameof(AccountHead.IsCash), false, useIsOperator: true),
+                cc.EqualTo(nameof(AccountHead.IsBank), false, useIsOperator: true),
+                cc.EqualTo(nameof(AccountHead.IsMobileBank), false, useIsOperator: true)
+            )
+        );
+
+        testSql.ShouldBe(sql);
+    }
+    
     [Fact]
     public void AndCheckWithParams()
     {
@@ -213,8 +249,8 @@ public class SqlCheckConstraintGeneratorTest
     public void EqualTo_NotEqualTo_Should_Handle_All_Types()
     {
         var gen = new SqlCheckConstrainGenerator(Rdbms.SqlServer, SqlNamingConvention.PascalCase);
-        gen.EqualTo("Col", true).ShouldContain("= True");
-        gen.NotEqualTo("Col", false).ShouldContain("<> False");
+        gen.EqualTo("Col", true).ShouldContain("= TRUE");
+        gen.NotEqualTo("Col", false).ShouldContain("<> FALSE");
         gen.EqualTo("Col", 5, SqlDataType.Int).ShouldContain("= 5");
         gen.NotEqualTo("Col", 7, SqlDataType.Int).ShouldContain("<> 7");
         gen.EqualTo("Col", "Val", SqlOperandType.Value).ShouldContain("= 'Val'");

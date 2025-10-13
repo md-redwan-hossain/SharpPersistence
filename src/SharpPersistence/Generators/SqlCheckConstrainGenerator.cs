@@ -45,7 +45,7 @@ public class SqlCheckConstrainGenerator
     public string And(string firstOperand, string secondOperand, params string[] otherOperands)
     {
         var sb = new StringBuilder(string.Concat(firstOperand, AndSign, secondOperand));
-        
+
         var queue = new Queue<string>(otherOperands);
 
         while (queue.TryDequeue(out var value))
@@ -206,25 +206,25 @@ public class SqlCheckConstrainGenerator
         );
     }
 
-    public string NotEqualTo(string leftOperand, bool rightOperand,
+    public string NotEqualTo(string leftOperand, bool rightOperand, bool useIsNotOperator = false,
         bool? delimitLeftOperand = null)
     {
         var transformed = TransformCase(leftOperand);
         return string.Concat(
             OperandHandler(transformed, delimitLeftOperand ?? _delimitStringGlobalLevel),
-            NotEqualSign,
-            rightOperand ? bool.TrueString : bool.FalseString
+            useIsNotOperator ? IsNot : NotEqualSign,
+            rightOperand ? bool.TrueString.ToUpperInvariant() : bool.FalseString.ToUpperInvariant()
         );
     }
 
-    public string EqualTo(string leftOperand, bool rightOperand,
+    public string EqualTo(string leftOperand, bool rightOperand, bool useIsOperator = false,
         bool? delimitLeftOperand = null)
     {
         var transformed = TransformCase(leftOperand);
         return string.Concat(
             OperandHandler(transformed, delimitLeftOperand ?? _delimitStringGlobalLevel),
-            EqualSign,
-            rightOperand ? bool.TrueString : bool.FalseString
+            useIsOperator ? Is : EqualSign,
+            rightOperand ? bool.TrueString.ToUpperInvariant() : bool.FalseString.ToUpperInvariant()
         );
     }
 
