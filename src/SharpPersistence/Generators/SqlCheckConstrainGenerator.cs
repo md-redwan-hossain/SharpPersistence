@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Numerics;
 using System.Text;
 using Humanizer;
 using SharpPersistence.Enums;
@@ -41,6 +43,11 @@ public class SqlCheckConstrainGenerator
     private const string NotInSign = " NOT IN ";
     private const string BetweenSign = " BETWEEN ";
     private const string NotBetweenSign = " NOT BETWEEN ";
+    private const string MathAdd = " + ";
+    private const string MathSubtract = " - ";
+    private const string MathMultiply = " * ";
+    private const string MathDivide = " / ";
+    private const string MathModulo = " % ";
 
     public string And(string firstOperand, string secondOperand, params string[] otherOperands)
     {
@@ -54,7 +61,7 @@ public class SqlCheckConstrainGenerator
             sb.Append(value);
         }
 
-        return WrapWithParentheses(NormalizeAndTrimWhiteSpace(sb));
+        return WrapWithParentheses(NormalizeAndTrim(sb));
     }
 
     public string Or(string firstOperand, string secondOperand, params string[] otherOperands)
@@ -69,7 +76,7 @@ public class SqlCheckConstrainGenerator
             sb.Append(value);
         }
 
-        return WrapWithParentheses(NormalizeAndTrimWhiteSpace(sb));
+        return WrapWithParentheses(NormalizeAndTrim(sb));
     }
 
     private (string left, string right) TransformCase(string left, string right)
@@ -512,7 +519,7 @@ public class SqlCheckConstrainGenerator
     {
         var transformed = TransformCase(leftOperand);
         var leftOperandWithLogic = OperandHandler(transformed, delimitLeftOperand ?? _delimitStringGlobalLevel);
-        return NormalizeAndTrimWhiteSpace(
+        return NormalizeAndTrim(
             string.Concat(
                 leftOperandWithLogic,
                 Is,
@@ -525,13 +532,63 @@ public class SqlCheckConstrainGenerator
     {
         var transformed = TransformCase(leftOperand);
         var leftOperandWithLogic = OperandHandler(transformed, delimitLeftOperand ?? _delimitStringGlobalLevel);
-        return NormalizeAndTrimWhiteSpace(
+        return NormalizeAndTrim(
             string.Concat(
                 leftOperandWithLogic,
                 IsNot,
                 Null
             )
         );
+    }
+
+    public string NumericMath<T>(ICollection<(string column, SqlMathOperator? mathOperator)> columnWithOperators,
+        bool isEqual, T value, bool? delimitColumns = null)
+        where T : struct, INumber<T>
+    {
+        var transformed = columnWithOperators.Select(x => x with
+        {
+            column = OperandHandler(TransformCase(x.column), delimitColumns ?? _delimitStringGlobalLevel)
+        });
+
+        var sb = new StringBuilder();
+
+        var queue = new Queue<(string column, SqlMathOperator? mathOperator)>(transformed);
+
+        while (queue.TryDequeue(out var item))
+        {
+            sb.Append(item.column);
+
+            switch (item.mathOperator)
+            {
+                case null:
+                    continue;
+                case SqlMathOperator.Add:
+                    sb.Append(MathAdd);
+                    break;
+                case SqlMathOperator.Subtract:
+                    sb.Append(MathSubtract);
+                    break;
+                case SqlMathOperator.Multiply:
+                    sb.Append(MathMultiply);
+                    break;
+                case SqlMathOperator.Divide:
+                    sb.Append(MathDivide);
+                    break;
+                case SqlMathOperator.Modulo:
+                    sb.Append(MathModulo);
+                    break;
+                default:
+                    throw new InvalidEnumArgumentException();
+            }
+        }
+
+        var str = sb.ToString();
+
+        return NormalizeAndTrim(string.Concat(
+            str,
+            isEqual ? EqualSign : NotEqualSign,
+            value
+        ));
     }
 
     private string LengthOperatorHandler(string data)
@@ -604,7 +661,7 @@ public class SqlCheckConstrainGenerator
         };
     }
 
-    private static string NormalizeAndTrimWhiteSpace(StringBuilder input)
+    private static string NormalizeAndTrim(StringBuilder input)
     {
         if (input.Length == 0)
         {
@@ -634,8 +691,8 @@ public class SqlCheckConstrainGenerator
         return input.ToString().Trim();
     }
 
-    private static string NormalizeAndTrimWhiteSpace(string input)
+    private static string NormalizeAndTrim(string input)
     {
-        return NormalizeAndTrimWhiteSpace(new StringBuilder(input));
+        return NormalizeAndTrim(new StringBuilder(input));
     }
 }
