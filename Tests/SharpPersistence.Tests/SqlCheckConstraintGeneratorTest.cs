@@ -84,7 +84,7 @@ public class SqlCheckConstraintGeneratorTest
         var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
             delimitStringGlobalLevel: false);
         var sql =
-            $"((is_verified = {bool.FalseString} AND phone IS NULL AND otp IS NULL) OR (is_verified = {bool.TrueString} AND phone IS NOT NULL AND otp IS NOT NULL))";
+            $"((is_verified = {bool.FalseString.ToUpperInvariant()} AND phone IS NULL AND otp IS NULL) OR (is_verified = {bool.TrueString.ToUpperInvariant()} AND phone IS NOT NULL AND otp IS NOT NULL))";
 
         var testSql = cc.Or(
             cc.And(cc.EqualTo("is_verified", false), cc.IsNull("phone"), cc.IsNull("otp")),
@@ -100,7 +100,7 @@ public class SqlCheckConstraintGeneratorTest
         var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
             delimitStringGlobalLevel: false);
         var sql =
-            $"((is_verified = {bool.FalseString} AND phone IS NULL) OR (is_verified = {bool.TrueString} AND phone IS NOT NULL))";
+            $"((is_verified = {bool.FalseString.ToUpperInvariant()} AND phone IS NULL) OR (is_verified = {bool.TrueString.ToUpperInvariant()} AND phone IS NOT NULL))";
 
         var testSql = cc.Or(
             cc.And(cc.EqualTo("is_verified", false), cc.IsNull("phone")),
@@ -115,7 +115,7 @@ public class SqlCheckConstraintGeneratorTest
     {
         var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
             delimitStringGlobalLevel: false);
-        var sql = $"address = {bool.TrueString}";
+        var sql = $"address = {bool.TrueString.ToUpperInvariant()}";
         var testSql = cc.EqualTo("address", true);
         testSql.ShouldBe(sql);
     }
@@ -125,7 +125,7 @@ public class SqlCheckConstraintGeneratorTest
     {
         var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
             delimitStringGlobalLevel: false);
-        var sql = $"address = {bool.FalseString}";
+        var sql = $"address = {bool.FalseString.ToUpperInvariant()}";
         var testSql = cc.EqualTo("address", false);
         testSql.ShouldBe(sql);
     }
@@ -135,7 +135,7 @@ public class SqlCheckConstraintGeneratorTest
     {
         var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
             delimitStringGlobalLevel: false);
-        var sql = $"address <> {bool.TrueString}";
+        var sql = $"address <> {bool.TrueString.ToUpperInvariant()}";
         var testSql = cc.NotEqualTo("address", true);
         testSql.ShouldBe(sql);
     }
