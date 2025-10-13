@@ -42,7 +42,7 @@ public class SqlCheckConstraintGeneratorTest
         testSql.ShouldBe(sql);
     }
 
-    
+
     [Fact]
     public void AndCheckWithFourParamsWithIsOperator()
     {
@@ -77,7 +77,7 @@ public class SqlCheckConstraintGeneratorTest
 
         testSql.ShouldBe(sql);
     }
-    
+
     [Fact]
     public void AndCheckWithParams()
     {
@@ -117,6 +117,24 @@ public class SqlCheckConstraintGeneratorTest
             delimitStringGlobalLevel: false);
         var sql = $"address = {bool.TrueString.ToUpperInvariant()}";
         var testSql = cc.EqualTo("address", true);
+        testSql.ShouldBe(sql);
+    }
+
+    [Fact]
+    public void Math_Equal()
+    {
+        var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, 
+            SqlNamingConvention.LowerSnakeCase, delimitStringGlobalLevel: false);
+
+        const string sql = "balance + remaining - tax = 50";
+        var testSql = cc.Math(
+            [
+                ("balance", SqlMathOperator.Add),
+                ("remaining", SqlMathOperator.Subtract),
+                ("tax", null)
+            ],
+            SqlComparisionOperator.Equal, 50);
+
         testSql.ShouldBe(sql);
     }
 

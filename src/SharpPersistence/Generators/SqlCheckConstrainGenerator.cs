@@ -94,6 +94,20 @@ public class SqlCheckConstrainGenerator
         }
     }
 
+    private static string GetComparisionOperatorString(SqlComparisionOperator comparisionOperator)
+    {
+        return comparisionOperator switch
+        {
+            SqlComparisionOperator.Equal => EqualSign,
+            SqlComparisionOperator.GreaterThan => GreaterThanSign,
+            SqlComparisionOperator.LessThan => LessThanSign,
+            SqlComparisionOperator.GreaterThanOrEqual => GreaterThanOrEqualSign,
+            SqlComparisionOperator.LessThanOrEqual => LessThanOrEqualSign,
+            SqlComparisionOperator.NotEqual => NotEqualSign,
+            _ => throw new ArgumentOutOfRangeException(nameof(comparisionOperator))
+        };
+    }
+
     private string TransformCase(string columnOrOperand)
     {
         switch (_sqlNamingConvention)
@@ -541,8 +555,8 @@ public class SqlCheckConstrainGenerator
         );
     }
 
-    public string NumericMath<T>(ICollection<(string column, SqlMathOperator? mathOperator)> columnWithOperators,
-        bool isEqual, T value, bool? delimitColumns = null)
+    public string Math<T>(ICollection<(string column, SqlMathOperator? mathOperator)> columnWithOperators,
+        SqlComparisionOperator comparisionOperator, T value, bool? delimitColumns = null)
         where T : struct, INumber<T>
     {
         var transformed = columnWithOperators.Select(x => x with
@@ -586,7 +600,7 @@ public class SqlCheckConstrainGenerator
 
         return NormalizeAndTrim(string.Concat(
             str,
-            isEqual ? EqualSign : NotEqualSign,
+            GetComparisionOperatorString(comparisionOperator),
             value
         ));
     }
