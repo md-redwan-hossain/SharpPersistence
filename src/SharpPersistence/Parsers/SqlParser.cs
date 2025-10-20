@@ -25,12 +25,11 @@ public class SqlParser
         return _parser.ParsedSqlStatements;
     }
 
-    public IParsedSqlStorage ParseFromString(string sqlContent, string sqlFileName)
+    public IParsedSqlStorage ParseFromString(string sqlContent)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sqlContent);
-        ArgumentException.ThrowIfNullOrWhiteSpace(sqlFileName);
 
-        _parser.Parse(sqlContent, sqlFileName);
+        _parser.Parse(sqlContent, "sql from string");
         ThrowExceptionIfErrorsExist();
         return _parser.ParsedSqlStatements;
     }

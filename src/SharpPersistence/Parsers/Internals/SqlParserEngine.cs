@@ -9,14 +9,14 @@ internal class SqlParserEngine
     private static readonly string[] NewLineSeparators = ["\r\n", "\n", "\r"];
     private const string StartPrefix = "#start#";
     private const string EndPrefix = "#end#";
-    private string _sqlFileName = string.Empty;
+    private string _sqlSource = string.Empty;
 
     internal ParsedSqlStorage ParsedSqlStatements { get; } = new();
     internal List<string> ValidationErrors { get; } = [];
 
-    internal void Parse(string source, string sqlFileName)
+    internal void Parse(string source, string sqlSource)
     {
-        _sqlFileName = sqlFileName;
+        _sqlSource = sqlSource;
         ArgumentNullException.ThrowIfNull(source);
 
         if (string.IsNullOrWhiteSpace(source))
@@ -47,7 +47,7 @@ internal class SqlParserEngine
                             actualValue: uniqueTag,
                             lineNumber: line.Number,
                             column: GetColumnPosition(line.Text, StartPrefix),
-                            sqlFileName: _sqlFileName));
+                            sqlSource: _sqlSource));
                         break;
                     case false:
                         sqlBlocks[uniqueTag] = new SqlBlockInfo
@@ -72,7 +72,7 @@ internal class SqlParserEngine
                             actualValue: uniqueTag,
                             lineNumber: line.Number,
                             column: GetColumnPosition(line.Text, EndPrefix),
-                            sqlFileName: _sqlFileName));
+                            sqlSource: _sqlSource));
                         break;
                 }
             }
@@ -85,7 +85,7 @@ internal class SqlParserEngine
                 ValidationErrors.Add(FormatParserExceptionMessage(
                     "Start tag '{0}' is missing.",
                     actualValue: key,
-                    sqlFileName: _sqlFileName));
+                    sqlSource: _sqlSource));
             }
 
             if (!blockInfo.EndFound)
@@ -94,7 +94,7 @@ internal class SqlParserEngine
                     "End tag '{0}' is missing.",
                     actualValue: key,
                     lineNumber: blockInfo.StartLine,
-                    sqlFileName: _sqlFileName));
+                    sqlSource: _sqlSource));
             }
         }
 
@@ -118,7 +118,7 @@ internal class SqlParserEngine
                     "SQL block '{0}' is empty.",
                     actualValue: uniqueTag,
                     lineNumber: blockInfo.StartLine,
-                    sqlFileName: _sqlFileName));
+                    sqlSource: _sqlSource));
             }
             else
             {
@@ -144,7 +144,7 @@ internal class SqlParserEngine
                 actualValue: prefix,
                 lineNumber: sqlLine.Number,
                 column: 1,
-                sqlFileName: _sqlFileName));
+                sqlSource: _sqlSource));
             return string.Empty;
         }
 
@@ -161,7 +161,7 @@ internal class SqlParserEngine
                 actualValue: prefix,
                 lineNumber: sqlLine.Number,
                 column: GetColumnPosition(sqlLine.Text, prefix),
-                sqlFileName: _sqlFileName));
+                sqlSource: _sqlSource));
 
             return string.Empty;
         }
@@ -176,13 +176,13 @@ internal class SqlParserEngine
     }
 
     private static string FormatParserExceptionMessage(string message, object? actualValue = null,
-        int? lineNumber = null, int? column = null, string? sqlFileName = null)
+        int? lineNumber = null, int? column = null, string? sqlSource = null)
     {
         var formattedMessage = actualValue is not null ? string.Format(message, actualValue) : message;
 
-        if (AreNotNull(sqlFileName, lineNumber, column))
+        if (AreNotNull(sqlSource, lineNumber, column))
         {
-            return $"{sqlFileName}:(line {lineNumber}, col {column}): error: {formattedMessage}";
+            return $"{sqlSource}:(line {lineNumber}, col {column}): error: {formattedMessage}";
         }
 
         if (AreNotNull(lineNumber, column))
@@ -190,9 +190,9 @@ internal class SqlParserEngine
             return $"Parsing error (line {lineNumber}, col {column}): error: {formattedMessage}";
         }
 
-        if (sqlFileName is not null && lineNumber is not null)
+        if (sqlSource is not null && lineNumber is not null)
         {
-            return $"{sqlFileName}:(line {lineNumber}): error: {formattedMessage}";
+            return $"{sqlSource}:(line {lineNumber}): error: {formattedMessage}";
         }
 
         if (lineNumber is not null)
@@ -200,9 +200,9 @@ internal class SqlParserEngine
             return $"Parsing error (line {lineNumber}): error: {formattedMessage}";
         }
 
-        if (sqlFileName is not null)
+        if (sqlSource is not null)
         {
-            return $"{sqlFileName}: error: {formattedMessage}";
+            return $"{sqlSource}: error: {formattedMessage}";
         }
 
         return $"Parsing error: {formattedMessage}";

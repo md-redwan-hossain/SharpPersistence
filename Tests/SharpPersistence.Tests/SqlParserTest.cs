@@ -79,7 +79,7 @@ public class SqlParserTest
 
         var exception = Should.Throw<InvalidOperationException>(() =>
         {
-            new SqlParser().ParseFromString(sqlWithDuplicates, "test.sql");
+            new SqlParser().ParseFromString(sqlWithDuplicates);
         });
 
         exception.Message.ShouldContain("Duplicate tag 'mytesttag' found");
@@ -96,7 +96,7 @@ public class SqlParserTest
 
         var exception = Should.Throw<InvalidOperationException>(() =>
         {
-            new SqlParser().ParseFromString(sqlWithError, "test.sql");
+            new SqlParser().ParseFromString(sqlWithError);
         });
 
         // Error message should show "MySpecialTag"
@@ -118,7 +118,7 @@ public class SqlParserTest
 
         var exception = Should.Throw<InvalidOperationException>(() =>
         {
-            new SqlParser().ParseFromString(sqlWithDuplicates, "test.sql");
+            new SqlParser().ParseFromString(sqlWithDuplicates);
         });
 
         // Should show the casing of the duplicate (second occurrence)
