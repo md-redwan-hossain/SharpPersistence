@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text;
 using System.Text.RegularExpressions;
 using SharpPersistence.Abstractions.ValueObjects;
@@ -25,7 +26,7 @@ internal class SqlParserEngine
         }
 
         var lines = source.Split(NewLineSeparators, StringSplitOptions.None);
-        var sqlBlocks = new Dictionary<string, SqlBlockInfo>(StringComparer.OrdinalIgnoreCase);
+        var sqlBlocks = new ConcurrentDictionary<string, SqlBlockInfo>(StringComparer.OrdinalIgnoreCase);
 
         for (var i = 0; i < lines.Length; i++)
         {
