@@ -25,7 +25,7 @@ internal class SqlParserEngine
         }
 
         var lines = source.Split(NewLineSeparators, StringSplitOptions.None);
-        var sqlBlocks = new Dictionary<string, SqlBlockInfo>();
+        var sqlBlocks = new Dictionary<string, SqlBlockInfo>(StringComparer.OrdinalIgnoreCase);
 
         for (var i = 0; i < lines.Length; i++)
         {
@@ -166,7 +166,7 @@ internal class SqlParserEngine
             return string.Empty;
         }
 
-        return extractedTag.ToLowerInvariant();
+        return extractedTag;
     }
 
     private static int GetColumnPosition(string lineText, string prefix)

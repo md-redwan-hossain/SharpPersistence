@@ -25,6 +25,16 @@ public class SqlParser
         return _parser.ParsedSqlStatements;
     }
 
+    public IParsedSqlStorage ParseFromString(string sqlContent, string sqlFileName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sqlContent);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sqlFileName);
+
+        _parser.Parse(sqlContent, sqlFileName);
+        ThrowExceptionIfErrorsExist();
+        return _parser.ParsedSqlStatements;
+    }
+
     private IEnumerable<SqlFile> LoadFromDirectory(string directoryName, bool throwIfDirectoryNotExists = false)
     {
         ArgumentNullException.ThrowIfNull(directoryName);
