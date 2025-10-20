@@ -88,7 +88,7 @@ internal class SqlParserEngine
                     sqlFileName: _sqlFileName));
             }
 
-            if (blockInfo.EndFound is false)
+            if (!blockInfo.EndFound)
             {
                 ValidationErrors.Add(FormatParserExceptionMessage(
                     "End tag '{0}' is missing.",

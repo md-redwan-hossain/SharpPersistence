@@ -65,9 +65,30 @@ ORDER BY u.LastLoginDate DESC
 
 **2. Configure your project to copy SQL files:**
 
-- Add this to your `.csproj` file's `Project` node to automatically copy SQL files to the output directory.
-- `sharp_persistence_sql_files` is the default directory. If you want to change it, make sure to pass the new value in
-  the `ParseFromStorage()` method's parameter. The same value must be used in the `TargetPath` below.
+- Create a file named `Directory.Build.props` at the same level of your `sln` or `slnx` file.
+- Copy and paste the following code in the `Directory.Build.props` file.
+- If you already have `Directory.Build.props`, then copy the code inside `<Project> </Project>`
+
+```xml
+
+<Project>
+    <PropertyGroup>
+        <DefaultItemExcludes>
+            $(DefaultItemExcludes);out/**;publish/**;bin/**;obj/**
+        </DefaultItemExcludes>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Content Include="**\*.sql"
+                 Exclude="$(DefaultItemExcludes);$(DefaultExcludesInProjectFolder)"
+                 CopyToOutputDirectory="PreserveNewest"
+                 TargetPath="sharp_persistence_sql_files\$(AssemblyName)\%(RecursiveDir)\%(Filename)%(Extension)"/>
+    </ItemGroup>
+</Project>
+
+```
+
+- Alternatively, if you want to handle it from `csproj` file, Add the following code to your `csproj` file's `<Project> </Project>` node.
 
 ```xml
 
@@ -81,18 +102,12 @@ ORDER BY u.LastLoginDate DESC
 <Content Include="**\*.sql"
          Exclude="$(DefaultItemExcludes);$(DefaultExcludesInProjectFolder)"
          CopyToOutputDirectory="PreserveNewest"
-         TargetPath="sharp_persistence_sql_files\%(RecursiveDir)\%(Filename)%(Extension)"/>
+         TargetPath="sharp_persistence_sql_files\$(AssemblyName)\%(RecursiveDir)\%(Filename)%(Extension)"/>
 </ItemGroup>
 ```
 
-- Don't miss out the `Project` node during pasting the code. An example is given below:
-
-```xml
-
-<Project Sdk="Microsoft.NET.Sdk">
-    <!-- paste it here -->
-</Project>
-```
+- `sharp_persistence_sql_files` is the default directory. If you want to change it, make sure to pass the new value in
+  the `ParseFromStorage()` method's parameter. The same value must be used in the `TargetPath` of the above code.
 
 **3. Parse and use in your application:**
 
