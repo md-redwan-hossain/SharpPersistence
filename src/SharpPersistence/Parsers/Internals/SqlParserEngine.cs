@@ -133,8 +133,7 @@ internal class SqlParserEngine
 
     private string ExtractUniqueName(ref SqlLine sqlLine, string prefix)
     {
-        // For the new format -- #start# tagname or -- #end# tagname
-        // We need to find the prefix and extract everything after it
+        // find the prefix and extract everything after it
         var trimmedLine = sqlLine.Text.Trim();
         var prefixIndex = trimmedLine.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
 
@@ -152,7 +151,7 @@ internal class SqlParserEngine
         // Extract everything after the prefix
         var startIndex = prefixIndex + prefix.Length;
         var extractedTag = startIndex < trimmedLine.Length
-            ? trimmedLine.Substring(startIndex).Trim()
+            ? trimmedLine[startIndex..].Trim()
             : string.Empty;
 
         if (string.IsNullOrWhiteSpace(extractedTag))
