@@ -406,7 +406,8 @@ public abstract class RepositoryBase<TEntity, TDbContext> : IRepositoryBase<TEnt
     }
 
     public async Task<ICollection<TEntity>> GetAllSortedAsync<TSorter>(
-        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter, CancellationToken cancellationToken = default)
+        (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
+        CancellationToken cancellationToken = default)
         where TSorter : IComparable<TSorter>
     {
         var query = EntityDbSet.AsQueryable();
