@@ -5,11 +5,12 @@ using SharpPersistence.Abstractions;
 
 namespace SharpPersistence.EfCore;
 
-public abstract class UnitOfWork : IUnitOfWork
+public abstract class UnitOfWork<TDbContext> : IUnitOfWork
+    where TDbContext : DbContext
 {
-    private readonly DbContext _dbContext;
+    private readonly TDbContext _dbContext;
 
-    protected UnitOfWork(DbContext dbContext) => _dbContext = dbContext;
+    protected UnitOfWork(TDbContext dbContext) => _dbContext = dbContext;
 
     public virtual void Dispose() => _dbContext.Dispose();
 

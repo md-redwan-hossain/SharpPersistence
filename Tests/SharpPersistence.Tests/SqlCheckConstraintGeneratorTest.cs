@@ -1,5 +1,6 @@
 using SharpPersistence.Enums;
 using SharpPersistence.Generators;
+using SharpPersistence.Tests.TestDependencyFiles;
 using Shouldly;
 
 namespace SharpPersistence.Tests;
@@ -7,12 +8,83 @@ namespace SharpPersistence.Tests;
 public class SqlCheckConstraintGeneratorTest
 {
     [Fact]
+    public void AndCheckWithFourParams()
+    {
+        var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
+            delimitStringGlobalLevel: false);
+
+        var sql =
+            "((is_cash = TRUE AND is_bank = FALSE AND is_mobile_bank = FALSE) OR (is_cash = FALSE AND is_bank = TRUE AND is_mobile_bank = FALSE) OR (is_cash = FALSE AND is_bank = FALSE AND is_mobile_bank = TRUE) OR (is_cash = FALSE AND is_bank = FALSE AND is_mobile_bank = FALSE))";
+
+        var testSql = cc.Or(
+            cc.And(
+                cc.EqualTo(nameof(AccountHead.IsCash), true),
+                cc.EqualTo(nameof(AccountHead.IsBank), false),
+                cc.EqualTo(nameof(AccountHead.IsMobileBank), false)
+            ),
+            cc.And(
+                cc.EqualTo(nameof(AccountHead.IsCash), false),
+                cc.EqualTo(nameof(AccountHead.IsBank), true),
+                cc.EqualTo(nameof(AccountHead.IsMobileBank), false)
+            ),
+            cc.And(
+                cc.EqualTo(nameof(AccountHead.IsCash), false),
+                cc.EqualTo(nameof(AccountHead.IsBank), false),
+                cc.EqualTo(nameof(AccountHead.IsMobileBank), true)
+            ),
+            cc.And(
+                cc.EqualTo(nameof(AccountHead.IsCash), false),
+                cc.EqualTo(nameof(AccountHead.IsBank), false),
+                cc.EqualTo(nameof(AccountHead.IsMobileBank), false)
+            )
+        );
+
+        testSql.ShouldBe(sql);
+    }
+
+
+    [Fact]
+    public void AndCheckWithFourParamsWithIsOperator()
+    {
+        var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
+            delimitStringGlobalLevel: false);
+
+        const string sql =
+            "((is_cash IS TRUE AND is_bank IS FALSE AND is_mobile_bank IS FALSE) OR (is_cash IS FALSE AND is_bank IS TRUE AND is_mobile_bank IS FALSE) OR (is_cash IS FALSE AND is_bank IS FALSE AND is_mobile_bank IS TRUE) OR (is_cash IS FALSE AND is_bank IS FALSE AND is_mobile_bank IS FALSE))";
+
+        var testSql = cc.Or(
+            cc.And(
+                cc.EqualTo(nameof(AccountHead.IsCash), true, useIsOperator: true),
+                cc.EqualTo(nameof(AccountHead.IsBank), false, useIsOperator: true),
+                cc.EqualTo(nameof(AccountHead.IsMobileBank), false, useIsOperator: true)
+            ),
+            cc.And(
+                cc.EqualTo(nameof(AccountHead.IsCash), false, useIsOperator: true),
+                cc.EqualTo(nameof(AccountHead.IsBank), true, useIsOperator: true),
+                cc.EqualTo(nameof(AccountHead.IsMobileBank), false, useIsOperator: true)
+            ),
+            cc.And(
+                cc.EqualTo(nameof(AccountHead.IsCash), false, useIsOperator: true),
+                cc.EqualTo(nameof(AccountHead.IsBank), false, useIsOperator: true),
+                cc.EqualTo(nameof(AccountHead.IsMobileBank), true, useIsOperator: true)
+            ),
+            cc.And(
+                cc.EqualTo(nameof(AccountHead.IsCash), false, useIsOperator: true),
+                cc.EqualTo(nameof(AccountHead.IsBank), false, useIsOperator: true),
+                cc.EqualTo(nameof(AccountHead.IsMobileBank), false, useIsOperator: true)
+            )
+        );
+
+        testSql.ShouldBe(sql);
+    }
+
+    [Fact]
     public void AndCheckWithParams()
     {
         var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
             delimitStringGlobalLevel: false);
         var sql =
-            $"((is_verified = {bool.FalseString} AND phone IS NULL AND otp IS NULL) OR (is_verified = {bool.TrueString} AND phone IS NOT NULL AND otp IS NOT NULL))";
+            $"((is_verified = {bool.FalseString.ToUpperInvariant()} AND phone IS NULL AND otp IS NULL) OR (is_verified = {bool.TrueString.ToUpperInvariant()} AND phone IS NOT NULL AND otp IS NOT NULL))";
 
         var testSql = cc.Or(
             cc.And(cc.EqualTo("is_verified", false), cc.IsNull("phone"), cc.IsNull("otp")),
@@ -28,7 +100,7 @@ public class SqlCheckConstraintGeneratorTest
         var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
             delimitStringGlobalLevel: false);
         var sql =
-            $"((is_verified = {bool.FalseString} AND phone IS NULL) OR (is_verified = {bool.TrueString} AND phone IS NOT NULL))";
+            $"((is_verified = {bool.FalseString.ToUpperInvariant()} AND phone IS NULL) OR (is_verified = {bool.TrueString.ToUpperInvariant()} AND phone IS NOT NULL))";
 
         var testSql = cc.Or(
             cc.And(cc.EqualTo("is_verified", false), cc.IsNull("phone")),
@@ -43,8 +115,26 @@ public class SqlCheckConstraintGeneratorTest
     {
         var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
             delimitStringGlobalLevel: false);
-        var sql = $"address = {bool.TrueString}";
+        var sql = $"address = {bool.TrueString.ToUpperInvariant()}";
         var testSql = cc.EqualTo("address", true);
+        testSql.ShouldBe(sql);
+    }
+
+    [Fact]
+    public void Math_Equal()
+    {
+        var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, 
+            SqlNamingConvention.LowerSnakeCase, delimitStringGlobalLevel: false);
+
+        const string sql = "balance + remaining - tax = 50";
+        var testSql = cc.Math(
+            [
+                ("balance", SqlMathOperator.Add),
+                ("remaining", SqlMathOperator.Subtract),
+                ("tax", null)
+            ],
+            SqlComparisionOperator.Equal, 50);
+
         testSql.ShouldBe(sql);
     }
 
@@ -53,7 +143,7 @@ public class SqlCheckConstraintGeneratorTest
     {
         var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
             delimitStringGlobalLevel: false);
-        var sql = $"address = {bool.FalseString}";
+        var sql = $"address = {bool.FalseString.ToUpperInvariant()}";
         var testSql = cc.EqualTo("address", false);
         testSql.ShouldBe(sql);
     }
@@ -63,7 +153,7 @@ public class SqlCheckConstraintGeneratorTest
     {
         var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
             delimitStringGlobalLevel: false);
-        var sql = $"address <> {bool.TrueString}";
+        var sql = $"address <> {bool.TrueString.ToUpperInvariant()}";
         var testSql = cc.NotEqualTo("address", true);
         testSql.ShouldBe(sql);
     }
@@ -177,8 +267,8 @@ public class SqlCheckConstraintGeneratorTest
     public void EqualTo_NotEqualTo_Should_Handle_All_Types()
     {
         var gen = new SqlCheckConstrainGenerator(Rdbms.SqlServer, SqlNamingConvention.PascalCase);
-        gen.EqualTo("Col", true).ShouldContain("= True");
-        gen.NotEqualTo("Col", false).ShouldContain("<> False");
+        gen.EqualTo("Col", true).ShouldContain("= TRUE");
+        gen.NotEqualTo("Col", false).ShouldContain("<> FALSE");
         gen.EqualTo("Col", 5, SqlDataType.Int).ShouldContain("= 5");
         gen.NotEqualTo("Col", 7, SqlDataType.Int).ShouldContain("<> 7");
         gen.EqualTo("Col", "Val", SqlOperandType.Value).ShouldContain("= 'Val'");

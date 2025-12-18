@@ -4,9 +4,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpPersistence.Abstractio
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpPersistence", "src\SharpPersistence\SharpPersistence.csproj", "{496EC883-7CDB-455B-A5F6-3BB281C28D4E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpPersistence.Tests", "SharpPersistence.Tests\SharpPersistence.Tests.csproj", "{152C8625-719C-4F4E-8937-21960886C6F0}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpPersistence.Tests", "Tests\SharpPersistence.Tests\SharpPersistence.Tests.csproj", "{152C8625-719C-4F4E-8937-21960886C6F0}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpPersistence.EfCore", "src\SharpPersistence.EfCore\SharpPersistence.EfCore.csproj", "{B3025734-B005-4365-88A3-33BCC12D67E1}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{A9CD88E4-D2C4-4BE9-97D0-10E33E414944}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -30,5 +32,8 @@ Global
 		{B3025734-B005-4365-88A3-33BCC12D67E1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B3025734-B005-4365-88A3-33BCC12D67E1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B3025734-B005-4365-88A3-33BCC12D67E1}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{152C8625-719C-4F4E-8937-21960886C6F0} = {A9CD88E4-D2C4-4BE9-97D0-10E33E414944}
 	EndGlobalSection
 EndGlobal
