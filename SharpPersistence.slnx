@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/Tests/">
+    <Project Path="Tests/SharpPersistence.Tests/SharpPersistence.Tests.csproj" />
+  </Folder>
+  <Project Path="src/SharpPersistence.Abstractions/SharpPersistence.Abstractions.csproj" />
+  <Project Path="src/SharpPersistence.EfCore/SharpPersistence.EfCore.csproj" />
+  <Project Path="src/SharpPersistence/SharpPersistence.csproj" />
+</Solution>
