@@ -271,6 +271,24 @@ public class RepositoryBaseTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task EveryAsync_WithFilter_ReturnsTrueIfAllMatch()
+    {
+        var all = await _repository.EveryAsync(x => x.Name == "A" || x.Name == "B", e => e.NumericValue > 0,
+            TestContext.Current.CancellationToken);
+
+        all.ShouldBeTrue();
+    }
+    
+    [Fact]
+    public async Task ExistsAsync_WithFilter_ReturnsTrueIfNoneMatch()
+    {
+        var all = await _repository.ExistsAsync(x => x.Name == "A" || x.Name == "B", e => e.NumericValue > 11222,
+            TestContext.Current.CancellationToken);
+
+        all.ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task GetCountAsync_ReturnsCount()
     {
         var count = await _repository.GetCountAsync(TestContext.Current.CancellationToken);

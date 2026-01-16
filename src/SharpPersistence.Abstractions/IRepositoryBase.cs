@@ -5,6 +5,8 @@ namespace SharpPersistence.Abstractions;
 public interface IRepositoryBase<TEntity>
     where TEntity : class
 {
+    void Create(TEntity entity);
+    void CreateMany(ICollection<TEntity> entity);
     Task CreateAsync(TEntity entity);
     Task CreateManyAsync(ICollection<TEntity> entity);
 
@@ -200,10 +202,18 @@ public interface IRepositoryBase<TEntity>
     Task<ICollection<TEntity>> GetAllAsync(
         CancellationToken cancellationToken = default);
 
-    Task<bool> ExistsAsync(Expression<Func<TEntity, bool>> condition,
+    Task<bool> ExistsAsync(Expression<Func<TEntity, bool>> filteringCondition,
+        Expression<Func<TEntity, bool>> matchingCondition,
         CancellationToken cancellationToken = default);
 
-    Task<bool> EveryAsync(Expression<Func<TEntity, bool>> condition,
+    Task<bool> EveryAsync(Expression<Func<TEntity, bool>> filteringCondition,
+        Expression<Func<TEntity, bool>> matchingCondition,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> ExistsAsync(Expression<Func<TEntity, bool>> matchingCondition,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> EveryAsync(Expression<Func<TEntity, bool>> matchingCondition,
         CancellationToken cancellationToken = default);
 
     Task<long> GetCountAsync(Expression<Func<TEntity, bool>> condition,

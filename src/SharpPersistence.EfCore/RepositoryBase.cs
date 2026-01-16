@@ -522,16 +522,34 @@ public abstract class RepositoryBase<TEntity, TDbContext> : IRepositoryBase<TEnt
             .ConfigureAwait(false);
     }
 
-    public virtual Task<bool> EveryAsync(Expression<Func<TEntity, bool>> condition,
+    public Task<bool> EveryAsync(Expression<Func<TEntity, bool>> filteringCondition,
+        Expression<Func<TEntity, bool>> matchingCondition,
         CancellationToken cancellationToken = default)
     {
-        return EntityDbSet.AllAsync(condition, cancellationToken);
+        return EntityDbSet
+            .Where(filteringCondition)
+            .AllAsync(matchingCondition, cancellationToken);
     }
 
-    public virtual Task<bool> ExistsAsync(Expression<Func<TEntity, bool>> condition,
+    public Task<bool> ExistsAsync(Expression<Func<TEntity, bool>> filteringCondition,
+        Expression<Func<TEntity, bool>> matchingCondition,
         CancellationToken cancellationToken = default)
     {
-        return EntityDbSet.AnyAsync(condition, cancellationToken);
+        return EntityDbSet
+            .Where(filteringCondition)
+            .AnyAsync(matchingCondition, cancellationToken);
+    }
+
+    public virtual Task<bool> EveryAsync(Expression<Func<TEntity, bool>> matchingCondition,
+        CancellationToken cancellationToken = default)
+    {
+        return EntityDbSet.AllAsync(matchingCondition, cancellationToken);
+    }
+
+    public virtual Task<bool> ExistsAsync(Expression<Func<TEntity, bool>> matchingCondition,
+        CancellationToken cancellationToken = default)
+    {
+        return EntityDbSet.AnyAsync(matchingCondition, cancellationToken);
     }
 
     public virtual Task<long> GetCountAsync(Expression<Func<TEntity, bool>> condition,
@@ -553,6 +571,16 @@ public abstract class RepositoryBase<TEntity, TDbContext> : IRepositoryBase<TEnt
     public async Task CreateManyAsync(ICollection<TEntity> entity)
     {
         await EntityDbSet.AddRangeAsync(entity).ConfigureAwait(false);
+    }
+
+    public void Create(TEntity entity)
+    {
+        EntityDbSet.Add(entity);
+    }
+
+    public void CreateMany(ICollection<TEntity> entity)
+    {
+        EntityDbSet.AddRange(entity);
     }
 
     public virtual void Update(TEntity entityToUpdate)
