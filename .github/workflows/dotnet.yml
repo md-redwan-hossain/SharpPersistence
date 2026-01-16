@@ -19,10 +19,10 @@ jobs:
           dotnet-version: "10"
 
       - name: Restore dependencies
-        run: dotnet restore SharpPersistence.slnx"
+        run: dotnet restore "SharpPersistence.slnx"
 
       - name: Build
-        run: dotnet build SharpPersistence.slnx" --configuration Release --no-restore
+        run: dotnet build "SharpPersistence.slnx" --configuration Release --no-restore
 
       - name: Run tests
-        run: dotnet test SharpPersistence.slnx" --configuration Release --no-build
+        run: dotnet test "SharpPersistence.slnx" --configuration Release --no-build
