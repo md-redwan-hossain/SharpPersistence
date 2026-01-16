@@ -1,4 +1,4 @@
-name: DotNet 9
+name: DotNet 10
 
 on:
   push:
@@ -13,16 +13,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup DotNet 9
+      - name: Setup DotNet 10
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "9.0.x"
+          dotnet-version: "10"
 
       - name: Restore dependencies
-        run: dotnet restore "SharpPersistence.sln"
+        run: dotnet restore SharpPersistence.slnx"
 
       - name: Build
-        run: dotnet build "SharpPersistence.sln" --configuration Release --no-restore
+        run: dotnet build SharpPersistence.slnx" --configuration Release --no-restore
 
       - name: Run tests
-        run: dotnet test "SharpPersistence.sln" --configuration Release --no-build
+        run: dotnet test SharpPersistence.slnx" --configuration Release --no-build
