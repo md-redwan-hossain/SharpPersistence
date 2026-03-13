@@ -1,4 +1,5 @@
-﻿using System.Data.Common;
+﻿using System.Data;
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using SharpPersistence.Abstractions;
@@ -26,9 +27,24 @@ public abstract class UnitOfWork<TDbContext> : IUnitOfWork
         return trx.GetDbTransaction();
     }
 
+    public async Task<DbTransaction> BeginTransactionAsync(IsolationLevel isolationLevel)
+    {
+        var trx = await _dbContext.Database
+            .BeginTransactionAsync(isolationLevel)
+            .ConfigureAwait(false);
+        
+        return trx.GetDbTransaction();
+    }
+
     public DbTransaction BeginTransaction()
     {
         var trx = _dbContext.Database.BeginTransaction();
+        return trx.GetDbTransaction();
+    }
+
+    public DbTransaction BeginTransaction(IsolationLevel isolationLevel)
+    {
+        var trx = _dbContext.Database.BeginTransaction(isolationLevel);
         return trx.GetDbTransaction();
     }
 }
