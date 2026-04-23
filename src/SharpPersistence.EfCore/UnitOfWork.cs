@@ -20,6 +20,7 @@ public abstract class UnitOfWork<TDbContext> : IUnitOfWork
     public virtual void Save() => _dbContext.SaveChanges();
 
     public virtual async Task SaveAsync() => await _dbContext.SaveChangesAsync();
+    public DbConnection GetDbConnection() => _dbContext.Database.GetDbConnection();
 
     public async Task<DbTransaction> BeginTransactionAsync()
     {
@@ -32,7 +33,7 @@ public abstract class UnitOfWork<TDbContext> : IUnitOfWork
         var trx = await _dbContext.Database
             .BeginTransactionAsync(isolationLevel)
             .ConfigureAwait(false);
-        
+
         return trx.GetDbTransaction();
     }
 
