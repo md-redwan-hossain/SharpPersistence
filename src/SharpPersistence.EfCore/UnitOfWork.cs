@@ -13,14 +13,22 @@ public abstract class UnitOfWork<TDbContext> : IUnitOfWork
 
     protected UnitOfWork(TDbContext dbContext) => _dbContext = dbContext;
 
-    public virtual void Dispose() => _dbContext.Dispose();
+    public virtual void Dispose()
+    {
+        _dbContext.Dispose();
+        GC.SuppressFinalize(this);
+    }
 
-    public virtual ValueTask DisposeAsync() => _dbContext.DisposeAsync();
+    public virtual async ValueTask DisposeAsync()
+    {
+        await _dbContext.DisposeAsync().ConfigureAwait(false);
+        GC.SuppressFinalize(this);
+    }
 
     public virtual void Save() => _dbContext.SaveChanges();
 
-    public virtual async Task SaveAsync() => await _dbContext.SaveChangesAsync();
-    public DbConnection GetDbConnection() => _dbContext.Database.GetDbConnection();
+    public virtual async Task SaveAsync() => await _dbContext.SaveChangesAsync().ConfigureAwait(false);
+    public DbTransaction? CurrentTransaction => _dbContext.Database.CurrentTransaction?.GetDbTransaction();
 
     public async Task<DbTransaction> BeginTransactionAsync()
     {
