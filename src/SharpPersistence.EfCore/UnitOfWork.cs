@@ -28,6 +28,8 @@ public abstract class UnitOfWork<TDbContext> : IUnitOfWork
     public virtual void Save() => _dbContext.SaveChanges();
 
     public virtual async Task SaveAsync() => await _dbContext.SaveChangesAsync().ConfigureAwait(false);
+    
+
     public DbTransaction? CurrentTransaction => _dbContext.Database.CurrentTransaction?.GetDbTransaction();
 
     public async Task<DbTransaction> BeginTransactionAsync()
@@ -36,12 +38,26 @@ public abstract class UnitOfWork<TDbContext> : IUnitOfWork
         return trx.GetDbTransaction();
     }
 
+    public async Task<DbTransaction> BeginTransactionAsync(CancellationToken cancellationToken)
+    {
+        var trx = await _dbContext.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        return trx.GetDbTransaction();
+    }
+
     public async Task<DbTransaction> BeginTransactionAsync(IsolationLevel isolationLevel)
     {
         var trx = await _dbContext.Database
             .BeginTransactionAsync(isolationLevel)
             .ConfigureAwait(false);
+        return trx.GetDbTransaction();
+    }
 
+    public async Task<DbTransaction> BeginTransactionAsync(IsolationLevel isolationLevel,
+        CancellationToken cancellationToken)
+    {
+        var trx = await _dbContext.Database
+            .BeginTransactionAsync(isolationLevel, cancellationToken)
+            .ConfigureAwait(false);
         return trx.GetDbTransaction();
     }
 
@@ -55,5 +71,20 @@ public abstract class UnitOfWork<TDbContext> : IUnitOfWork
     {
         var trx = _dbContext.Database.BeginTransaction(isolationLevel);
         return trx.GetDbTransaction();
+    }
+
+    public void UseTransaction(DbTransaction transaction)
+    {
+        _dbContext.Database.UseTransaction(transaction);
+    }
+
+    public async Task UseTransactionAsync(DbTransaction transaction)
+    {
+        await _dbContext.Database.UseTransactionAsync(transaction).ConfigureAwait(false);
+    }
+
+    public async Task UseTransactionAsync(DbTransaction transaction, CancellationToken cancellationToken)
+    {
+        await _dbContext.Database.UseTransactionAsync(transaction, cancellationToken).ConfigureAwait(false);
     }
 }
