@@ -1,0 +1,3 @@
+﻿namespace SharpPersistence.Abstractions;
+
+public interface IJsonDeserializable;
