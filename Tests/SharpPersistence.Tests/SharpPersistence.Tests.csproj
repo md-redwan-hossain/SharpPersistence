@@ -42,6 +42,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\..\SharpPersistence.Dapper\SharpPersistence.Dapper.csproj" />
       <ProjectReference Include="..\..\src\SharpPersistence.Abstractions\SharpPersistence.Abstractions.csproj" />
       <ProjectReference Include="..\..\src\SharpPersistence.EfCore\SharpPersistence.EfCore.csproj" />
       <ProjectReference Include="..\..\src\SharpPersistence\SharpPersistence.csproj" />

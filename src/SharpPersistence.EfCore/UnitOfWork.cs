@@ -28,7 +28,7 @@ public abstract class UnitOfWork<TDbContext> : IUnitOfWork
     public virtual void Save() => _dbContext.SaveChanges();
 
     public virtual async Task SaveAsync() => await _dbContext.SaveChangesAsync().ConfigureAwait(false);
-    
+
 
     public DbTransaction? CurrentTransaction => _dbContext.Database.CurrentTransaction?.GetDbTransaction();
 
@@ -49,6 +49,7 @@ public abstract class UnitOfWork<TDbContext> : IUnitOfWork
         var trx = await _dbContext.Database
             .BeginTransactionAsync(isolationLevel)
             .ConfigureAwait(false);
+        
         return trx.GetDbTransaction();
     }
 
@@ -58,6 +59,7 @@ public abstract class UnitOfWork<TDbContext> : IUnitOfWork
         var trx = await _dbContext.Database
             .BeginTransactionAsync(isolationLevel, cancellationToken)
             .ConfigureAwait(false);
+        
         return trx.GetDbTransaction();
     }
 
