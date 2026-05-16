@@ -38,23 +38,4 @@ public static class Utils
             SqlMapper.AddTypeHandler(targetType, handler);
         }
     }
-
-    public static void RegisterJsonTypeHandlersFromAssembly(Assembly assembly, params Type[] otherTypes)
-    {
-        var types = assembly
-            .GetTypes()
-            .Where(IsJsonDeserializableImplementor);
-
-        List<Type> finalTypes = [..types, ..otherTypes];
-
-        foreach (var targetType in finalTypes)
-        {
-            var instance = Activator.CreateInstance(typeof(JsonTypeHandler<>).MakeGenericType(targetType));
-
-            if (instance is SqlMapper.ITypeHandler handler)
-            {
-                SqlMapper.AddTypeHandler(targetType, handler);
-            }
-        }
-    }
 }
