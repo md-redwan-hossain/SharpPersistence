@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
@@ -8,22 +8,22 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="coverlet.collector" Version="10.0.1">
+        <PackageReference Include="coverlet.collector">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.8" />
-        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.5.1" />
-        <PackageReference Include="Shouldly" Version="4.3.0" />
-        <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="Shouldly" />
+        <PackageReference Include="xunit.runner.visualstudio">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="xunit.v3" Version="3.2.2" />
+        <PackageReference Include="xunit.v3" />
     </ItemGroup>
 
     <ItemGroup>
-        <Using Include="Xunit"/>
+        <Using Include="Xunit" />
     </ItemGroup>
     
     <PropertyGroup>
@@ -33,12 +33,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <Content
-                Include="**\*.sql"
-                Exclude="$(DefaultItemExcludes);$(DefaultExcludesInProjectFolder)"
-                CopyToOutputDirectory="PreserveNewest"
-                TargetPath="sharp_persistence_sql_files\%(RecursiveDir)\%(Filename)%(Extension)"
-        />
+        <Content Include="**\*.sql" Exclude="$(DefaultItemExcludes);$(DefaultExcludesInProjectFolder)" CopyToOutputDirectory="PreserveNewest" TargetPath="sharp_persistence_sql_files\%(RecursiveDir)\%(Filename)%(Extension)" />
     </ItemGroup>
 
     <ItemGroup>
