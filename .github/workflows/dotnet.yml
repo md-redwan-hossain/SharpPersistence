@@ -1,6 +1,7 @@
-name: DotNet 10
+name: dotnet-check
 
 on:
+  workflow_dispatch:
   push:
     branches: [ "main", "develop" ]
   pull_request:
@@ -11,18 +12,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - name: Setup DotNet 10
-        uses: actions/setup-dotnet@v4
+      - name: Setup DotNet
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "10"
+          cache: true
+          cache-dependency-path: "**/packages.lock.json"
 
       - name: Restore dependencies
-        run: dotnet restore "SharpPersistence.slnx"
+        run: dotnet restore "SharpPersistence.slnx" --locked-mode
 
       - name: Build
         run: dotnet build "SharpPersistence.slnx" --configuration Release --no-restore
 
       - name: Run tests
-        run: dotnet test "SharpPersistence.slnx" --configuration Release --no-build
+        run: dotnet test "SharpPersistence.slnx" --configuration Release --no-build --no-restore --verbosity normal

@@ -4,8 +4,7 @@
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
-        <Version>10.0.3</Version>
+        <Version>10.0.4</Version>
         <Title>SharpPersistence.EfCore</Title>
         <Authors>Md. Redwan Hossain</Authors>
         <Copyright>Copyright (c) Md. Redwan Hossain</Copyright>
