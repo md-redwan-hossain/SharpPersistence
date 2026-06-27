@@ -8,24 +8,34 @@ namespace SharpPersistence.Generators;
 
 /// <summary>
 /// <c>SqlCheckConstrainGenerator</c> is a utility class for generating raw sql code for check-constrains in a type-safe manner.
-/// It can be useful with Entity Framework Core since it doesn't have strongly-typed check-constrain support and requires raw sql code.
+/// It can be useful with Entity Framework Core since it doesn't have strongly-typed check-constrain support and requires raw SQL code.
 /// </summary>
 public class SqlCheckConstrainGenerator
 {
-    private readonly bool _delimitStringGlobalLevel;
+    private readonly bool _delimitString;
     private readonly SqlNamingConvention _sqlNamingConvention;
     private readonly Rdbms _rdbms;
 
-    /// <param name="rdbms">determines the delimitStringGlobalLevel symbols based on database.</param>
+    /// <param name="rdbms">determines the delimitString symbols based on database.</param>
     /// <param name="sqlNamingConvention">denotes the case of the generated SQL</param>
-    /// <param name="delimitStringGlobalLevel">any method parameter of this class which is related to string delimitation will override <c>delimitStringGlobal</c> </param>
     public SqlCheckConstrainGenerator(Rdbms rdbms,
-        SqlNamingConvention sqlNamingConvention,
-        bool delimitStringGlobalLevel = true)
+        SqlNamingConvention sqlNamingConvention)
     {
         _rdbms = rdbms;
         _sqlNamingConvention = sqlNamingConvention;
-        _delimitStringGlobalLevel = delimitStringGlobalLevel;
+        _delimitString = true;
+    }
+
+    /// <param name="rdbms">determines the delimitString symbols based on database.</param>
+    /// <param name="sqlNamingConvention">denotes the case of the generated SQL.</param>
+    /// <param name="delimitString">any method parameter of this class which is related to string delimitation will override class level <c>delimitString</c> set by constructor. </param>
+    public SqlCheckConstrainGenerator(Rdbms rdbms,
+        SqlNamingConvention sqlNamingConvention,
+        bool delimitString)
+    {
+        _rdbms = rdbms;
+        _sqlNamingConvention = sqlNamingConvention;
+        _delimitString = delimitString;
     }
 
     private const string EqualSign = " = ";
@@ -128,7 +138,7 @@ public class SqlCheckConstrainGenerator
         var transformed = TransformCase(leftOperand);
 
         return string.Concat(
-            OperandHandler(transformed, delimitLeftOperand ?? _delimitStringGlobalLevel),
+            OperandHandler(transformed, delimitLeftOperand ?? _delimitString),
             InSign,
             WrapWithParentheses(CommaSeparatedCollectionData(rightOperands))
         );
@@ -138,7 +148,7 @@ public class SqlCheckConstrainGenerator
     {
         var transformed = TransformCase(leftOperand);
         return string.Concat(
-            OperandHandler(transformed, delimitLeftOperand ?? _delimitStringGlobalLevel),
+            OperandHandler(transformed, delimitLeftOperand ?? _delimitString),
             InSign,
             WrapWithParentheses(CommaSeparatedCollectionData(rightOperands))
         );
@@ -148,7 +158,7 @@ public class SqlCheckConstrainGenerator
     {
         var transformed = TransformCase(leftOperand);
         return string.Concat(
-            OperandHandler(transformed, delimitLeftOperand ?? _delimitStringGlobalLevel),
+            OperandHandler(transformed, delimitLeftOperand ?? _delimitString),
             InSign,
             WrapWithParentheses(CommaSeparatedCollectionData(rightOperands))
         );
@@ -158,7 +168,7 @@ public class SqlCheckConstrainGenerator
     {
         var transformed = TransformCase(leftOperand);
         return string.Concat(
-            OperandHandler(transformed, delimitLeftOperand ?? _delimitStringGlobalLevel),
+            OperandHandler(transformed, delimitLeftOperand ?? _delimitString),
             NotInSign,
             WrapWithParentheses(CommaSeparatedCollectionData(rightOperands))
         );
@@ -168,7 +178,7 @@ public class SqlCheckConstrainGenerator
     {
         var transformed = TransformCase(leftOperand);
         return string.Concat(
-            OperandHandler(transformed, delimitLeftOperand ?? _delimitStringGlobalLevel),
+            OperandHandler(transformed, delimitLeftOperand ?? _delimitString),
             NotInSign,
             WrapWithParentheses(CommaSeparatedCollectionData(rightOperands))
         );
@@ -178,7 +188,7 @@ public class SqlCheckConstrainGenerator
     {
         var transformed = TransformCase(leftOperand);
         return string.Concat(
-            OperandHandler(transformed, delimitLeftOperand ?? _delimitStringGlobalLevel),
+            OperandHandler(transformed, delimitLeftOperand ?? _delimitString),
             NotInSign,
             WrapWithParentheses(CommaSeparatedCollectionData(rightOperands))
         );
@@ -190,10 +200,10 @@ public class SqlCheckConstrainGenerator
         var transformed = TransformCase(leftOperand, rightOperand);
 
         return string.Concat(
-            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitStringGlobalLevel),
+            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString),
             NotEqualSign,
             rightOperandType == SqlOperandType.Column
-                ? OperandHandler(transformed.right, delimitRightOperand ?? _delimitStringGlobalLevel)
+                ? OperandHandler(transformed.right, delimitRightOperand ?? _delimitString)
                 : SqlString(transformed.right)
         );
     }
@@ -203,7 +213,7 @@ public class SqlCheckConstrainGenerator
         var transformed = TransformCase(leftOperand, EnumValueToString(rightOperand));
 
         return string.Concat(
-            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitStringGlobalLevel),
+            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString),
             NotEqualSign,
             transformed.right
         );
@@ -214,7 +224,7 @@ public class SqlCheckConstrainGenerator
     {
         var transformed = TransformCase(leftOperand);
 
-        var leftOperandWithLogic = OperandHandler(transformed, delimitLeftOperand ?? _delimitStringGlobalLevel);
+        var leftOperandWithLogic = OperandHandler(transformed, delimitLeftOperand ?? _delimitString);
         if (leftOperandSqlDataType is SqlDataType.VarChar or SqlDataType.Text)
         {
             leftOperandWithLogic = LengthOperatorHandler(leftOperandWithLogic);
@@ -232,7 +242,7 @@ public class SqlCheckConstrainGenerator
     {
         var transformed = TransformCase(leftOperand);
         return string.Concat(
-            OperandHandler(transformed, delimitLeftOperand ?? _delimitStringGlobalLevel),
+            OperandHandler(transformed, delimitLeftOperand ?? _delimitString),
             useIsNotOperator ? IsNot : NotEqualSign,
             rightOperand ? bool.TrueString.ToUpperInvariant() : bool.FalseString.ToUpperInvariant()
         );
@@ -243,7 +253,7 @@ public class SqlCheckConstrainGenerator
     {
         var transformed = TransformCase(leftOperand);
         return string.Concat(
-            OperandHandler(transformed, delimitLeftOperand ?? _delimitStringGlobalLevel),
+            OperandHandler(transformed, delimitLeftOperand ?? _delimitString),
             useIsOperator ? Is : EqualSign,
             rightOperand ? bool.TrueString.ToUpperInvariant() : bool.FalseString.ToUpperInvariant()
         );
@@ -254,10 +264,10 @@ public class SqlCheckConstrainGenerator
     {
         var transformed = TransformCase(leftOperand, rightOperand);
         return string.Concat(
-            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitStringGlobalLevel),
+            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString),
             EqualSign,
             rightOperandType == SqlOperandType.Column
-                ? OperandHandler(transformed.right, delimitRightOperand ?? _delimitStringGlobalLevel)
+                ? OperandHandler(transformed.right, delimitRightOperand ?? _delimitString)
                 : SqlString(transformed.right)
         );
     }
@@ -266,7 +276,7 @@ public class SqlCheckConstrainGenerator
         bool? delimitLeftOperand = null)
     {
         var transformed = TransformCase(leftOperand);
-        var leftOperandWithLogic = OperandHandler(transformed, delimitLeftOperand ?? _delimitStringGlobalLevel);
+        var leftOperandWithLogic = OperandHandler(transformed, delimitLeftOperand ?? _delimitString);
         if (leftOperandSqlDataType is SqlDataType.VarChar or SqlDataType.Text)
         {
             leftOperandWithLogic = LengthOperatorHandler(leftOperandWithLogic);
@@ -284,7 +294,7 @@ public class SqlCheckConstrainGenerator
         var transformed = TransformCase(leftOperand, EnumValueToString(rightOperand));
 
         return string.Concat(
-            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitStringGlobalLevel),
+            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString),
             EqualSign,
             transformed.right
         );
@@ -296,10 +306,10 @@ public class SqlCheckConstrainGenerator
         var transformed = TransformCase(leftOperand, rightOperand);
 
         return string.Concat(
-            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitStringGlobalLevel),
+            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString),
             GreaterThanSign,
             rightOperandType == SqlOperandType.Column
-                ? OperandHandler(transformed.right, delimitRightOperand ?? _delimitStringGlobalLevel)
+                ? OperandHandler(transformed.right, delimitRightOperand ?? _delimitString)
                 : SqlString(transformed.right)
         );
     }
@@ -308,7 +318,7 @@ public class SqlCheckConstrainGenerator
     {
         var transformed = TransformCase(leftOperand, EnumValueToString(rightOperand));
         return string.Concat(
-            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitStringGlobalLevel),
+            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString),
             GreaterThanSign,
             transformed.right
         );
@@ -318,7 +328,7 @@ public class SqlCheckConstrainGenerator
         bool? delimitLeftOperand = null)
     {
         var transformed = TransformCase(leftOperand);
-        var leftOperandWithLogic = OperandHandler(transformed, delimitLeftOperand ?? _delimitStringGlobalLevel);
+        var leftOperandWithLogic = OperandHandler(transformed, delimitLeftOperand ?? _delimitString);
         if (leftOperandSqlDataType is SqlDataType.VarChar or SqlDataType.Text)
         {
             leftOperandWithLogic = LengthOperatorHandler(leftOperandWithLogic);
@@ -336,10 +346,10 @@ public class SqlCheckConstrainGenerator
     {
         var transformed = TransformCase(leftOperand, rightOperand);
         return string.Concat(
-            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitStringGlobalLevel),
+            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString),
             GreaterThanOrEqualSign,
             rightOperandType == SqlOperandType.Column
-                ? OperandHandler(transformed.right, delimitRightOperand ?? _delimitStringGlobalLevel)
+                ? OperandHandler(transformed.right, delimitRightOperand ?? _delimitString)
                 : SqlString(transformed.right)
         );
     }
@@ -348,7 +358,7 @@ public class SqlCheckConstrainGenerator
     {
         var transformed = TransformCase(leftOperand, EnumValueToString(rightOperand));
         return string.Concat(
-            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitStringGlobalLevel),
+            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString),
             GreaterThanOrEqualSign,
             transformed.right
         );
@@ -358,7 +368,7 @@ public class SqlCheckConstrainGenerator
         bool? delimitLeftOperand = null)
     {
         var transformed = TransformCase(leftOperand);
-        var leftOperandWithLogic = OperandHandler(transformed, delimitLeftOperand ?? _delimitStringGlobalLevel);
+        var leftOperandWithLogic = OperandHandler(transformed, delimitLeftOperand ?? _delimitString);
         if (leftOperandSqlDataType is SqlDataType.VarChar or SqlDataType.Text)
         {
             leftOperandWithLogic = LengthOperatorHandler(leftOperandWithLogic);
@@ -376,10 +386,10 @@ public class SqlCheckConstrainGenerator
     {
         var transformed = TransformCase(leftOperand, rightOperand);
         return string.Concat(
-            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitStringGlobalLevel),
+            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString),
             LessThanSign,
             rightOperandType == SqlOperandType.Column
-                ? OperandHandler(transformed.right, delimitRightOperand ?? _delimitStringGlobalLevel)
+                ? OperandHandler(transformed.right, delimitRightOperand ?? _delimitString)
                 : SqlString(transformed.right)
         );
     }
@@ -388,7 +398,7 @@ public class SqlCheckConstrainGenerator
     {
         var transformed = TransformCase(leftOperand, EnumValueToString(rightOperand));
         return string.Concat(
-            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitStringGlobalLevel),
+            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString),
             LessThanSign,
             transformed.right
         );
@@ -398,7 +408,7 @@ public class SqlCheckConstrainGenerator
         bool? delimitLeftOperand = null)
     {
         var transformed = TransformCase(leftOperand);
-        var leftOperandWithLogic = OperandHandler(transformed, delimitLeftOperand ?? _delimitStringGlobalLevel);
+        var leftOperandWithLogic = OperandHandler(transformed, delimitLeftOperand ?? _delimitString);
         if (leftOperandSqlDataType is SqlDataType.VarChar or SqlDataType.Text)
         {
             leftOperandWithLogic = LengthOperatorHandler(leftOperandWithLogic);
@@ -416,10 +426,10 @@ public class SqlCheckConstrainGenerator
     {
         var transformed = TransformCase(leftOperand, rightOperand);
         return string.Concat(
-            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitStringGlobalLevel),
+            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString),
             LessThanOrEqualSign,
             rightOperandType == SqlOperandType.Column
-                ? OperandHandler(transformed.right, delimitRightOperand ?? _delimitStringGlobalLevel)
+                ? OperandHandler(transformed.right, delimitRightOperand ?? _delimitString)
                 : SqlString(transformed.right)
         );
     }
@@ -428,7 +438,7 @@ public class SqlCheckConstrainGenerator
     {
         var transformed = TransformCase(leftOperand, EnumValueToString(rightOperand));
         return string.Concat(
-            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitStringGlobalLevel),
+            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString),
             LessThanOrEqualSign,
             transformed.right
         );
@@ -438,7 +448,7 @@ public class SqlCheckConstrainGenerator
         bool? delimitLeftOperand = null)
     {
         var transformed = TransformCase(leftOperand);
-        var leftOperandWithLogic = OperandHandler(transformed, delimitLeftOperand ?? _delimitStringGlobalLevel);
+        var leftOperandWithLogic = OperandHandler(transformed, delimitLeftOperand ?? _delimitString);
         if (leftOperandSqlDataType is SqlDataType.VarChar or SqlDataType.Text)
         {
             leftOperandWithLogic = LengthOperatorHandler(leftOperandWithLogic);
@@ -456,7 +466,7 @@ public class SqlCheckConstrainGenerator
     {
         var transformed = TransformCase(columnName);
         return string.Concat(
-            OperandHandler(transformed, delimitColumnName ?? _delimitStringGlobalLevel),
+            OperandHandler(transformed, delimitColumnName ?? _delimitString),
             BetweenSign,
             SqlString(leftOperand),
             AndSign,
@@ -469,7 +479,7 @@ public class SqlCheckConstrainGenerator
     {
         var transformed = TransformCase(columnName);
         return string.Concat(
-            OperandHandler(transformed, delimitColumnName ?? _delimitStringGlobalLevel),
+            OperandHandler(transformed, delimitColumnName ?? _delimitString),
             BetweenSign,
             leftOperand,
             AndSign,
@@ -482,7 +492,7 @@ public class SqlCheckConstrainGenerator
     {
         var transformed = TransformCase(columnName);
         return string.Concat(
-            OperandHandler(transformed, delimitColumnName ?? _delimitStringGlobalLevel),
+            OperandHandler(transformed, delimitColumnName ?? _delimitString),
             BetweenSign,
             leftOperand,
             AndSign,
@@ -495,7 +505,7 @@ public class SqlCheckConstrainGenerator
     {
         var transformed = TransformCase(columnName);
         return string.Concat(
-            OperandHandler(transformed, delimitColumnName ?? _delimitStringGlobalLevel),
+            OperandHandler(transformed, delimitColumnName ?? _delimitString),
             NotBetweenSign,
             SqlString(leftOperand),
             AndSign,
@@ -508,7 +518,7 @@ public class SqlCheckConstrainGenerator
     {
         var transformed = TransformCase(columnName);
         return string.Concat(
-            OperandHandler(transformed, delimitColumnName ?? _delimitStringGlobalLevel),
+            OperandHandler(transformed, delimitColumnName ?? _delimitString),
             NotBetweenSign,
             leftOperand,
             AndSign,
@@ -521,7 +531,7 @@ public class SqlCheckConstrainGenerator
     {
         var transformed = TransformCase(columnName);
         return string.Concat(
-            OperandHandler(transformed, delimitColumnName ?? _delimitStringGlobalLevel),
+            OperandHandler(transformed, delimitColumnName ?? _delimitString),
             NotBetweenSign,
             leftOperand,
             AndSign,
@@ -532,7 +542,7 @@ public class SqlCheckConstrainGenerator
     public string IsNull(string leftOperand, bool? delimitLeftOperand = null)
     {
         var transformed = TransformCase(leftOperand);
-        var leftOperandWithLogic = OperandHandler(transformed, delimitLeftOperand ?? _delimitStringGlobalLevel);
+        var leftOperandWithLogic = OperandHandler(transformed, delimitLeftOperand ?? _delimitString);
         return NormalizeAndTrim(
             string.Concat(
                 leftOperandWithLogic,
@@ -545,7 +555,7 @@ public class SqlCheckConstrainGenerator
     public string IsNotNull(string leftOperand, bool? delimitLeftOperand = null)
     {
         var transformed = TransformCase(leftOperand);
-        var leftOperandWithLogic = OperandHandler(transformed, delimitLeftOperand ?? _delimitStringGlobalLevel);
+        var leftOperandWithLogic = OperandHandler(transformed, delimitLeftOperand ?? _delimitString);
         return NormalizeAndTrim(
             string.Concat(
                 leftOperandWithLogic,
@@ -561,7 +571,7 @@ public class SqlCheckConstrainGenerator
     {
         var transformed = columnWithOperators.Select(x => x with
         {
-            column = OperandHandler(TransformCase(x.column), delimitColumns ?? _delimitStringGlobalLevel)
+            column = OperandHandler(TransformCase(x.column), delimitColumns ?? _delimitString)
         });
 
         var sb = new StringBuilder();

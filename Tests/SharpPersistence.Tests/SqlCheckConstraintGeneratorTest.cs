@@ -11,7 +11,7 @@ public class SqlCheckConstraintGeneratorTest
     public void AndCheckWithFourParams()
     {
         var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
-            delimitStringGlobalLevel: false);
+            delimitString: false);
 
         var sql =
             "((is_cash = TRUE AND is_bank = FALSE AND is_mobile_bank = FALSE) OR (is_cash = FALSE AND is_bank = TRUE AND is_mobile_bank = FALSE) OR (is_cash = FALSE AND is_bank = FALSE AND is_mobile_bank = TRUE) OR (is_cash = FALSE AND is_bank = FALSE AND is_mobile_bank = FALSE))";
@@ -47,7 +47,7 @@ public class SqlCheckConstraintGeneratorTest
     public void AndCheckWithFourParamsWithIsOperator()
     {
         var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
-            delimitStringGlobalLevel: false);
+            delimitString: false);
 
         const string sql =
             "((is_cash IS TRUE AND is_bank IS FALSE AND is_mobile_bank IS FALSE) OR (is_cash IS FALSE AND is_bank IS TRUE AND is_mobile_bank IS FALSE) OR (is_cash IS FALSE AND is_bank IS FALSE AND is_mobile_bank IS TRUE) OR (is_cash IS FALSE AND is_bank IS FALSE AND is_mobile_bank IS FALSE))";
@@ -82,7 +82,7 @@ public class SqlCheckConstraintGeneratorTest
     public void AndCheckWithParams()
     {
         var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
-            delimitStringGlobalLevel: false);
+            delimitString: false);
         var sql =
             $"((is_verified = {bool.FalseString.ToUpperInvariant()} AND phone IS NULL AND otp IS NULL) OR (is_verified = {bool.TrueString.ToUpperInvariant()} AND phone IS NOT NULL AND otp IS NOT NULL))";
 
@@ -98,7 +98,7 @@ public class SqlCheckConstraintGeneratorTest
     public void AndCheckWithoutParams()
     {
         var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
-            delimitStringGlobalLevel: false);
+            delimitString: false);
         var sql =
             $"((is_verified = {bool.FalseString.ToUpperInvariant()} AND phone IS NULL) OR (is_verified = {bool.TrueString.ToUpperInvariant()} AND phone IS NOT NULL))";
 
@@ -114,7 +114,7 @@ public class SqlCheckConstraintGeneratorTest
     public void TrueStringCheck_String()
     {
         var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
-            delimitStringGlobalLevel: false);
+            delimitString: false);
         var sql = $"address = {bool.TrueString.ToUpperInvariant()}";
         var testSql = cc.EqualTo("address", true);
         testSql.ShouldBe(sql);
@@ -124,7 +124,7 @@ public class SqlCheckConstraintGeneratorTest
     public void Math_Equal()
     {
         var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, 
-            SqlNamingConvention.LowerSnakeCase, delimitStringGlobalLevel: false);
+            SqlNamingConvention.LowerSnakeCase, delimitString: false);
 
         const string sql = "balance + remaining - tax = 50";
         var testSql = cc.Math(
@@ -142,7 +142,7 @@ public class SqlCheckConstraintGeneratorTest
     public void FalseStringCheck_String()
     {
         var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
-            delimitStringGlobalLevel: false);
+            delimitString: false);
         var sql = $"address = {bool.FalseString.ToUpperInvariant()}";
         var testSql = cc.EqualTo("address", false);
         testSql.ShouldBe(sql);
@@ -152,7 +152,7 @@ public class SqlCheckConstraintGeneratorTest
     public void NotTrueCheck_String()
     {
         var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
-            delimitStringGlobalLevel: false);
+            delimitString: false);
         var sql = $"address <> {bool.TrueString.ToUpperInvariant()}";
         var testSql = cc.NotEqualTo("address", true);
         testSql.ShouldBe(sql);
@@ -162,7 +162,7 @@ public class SqlCheckConstraintGeneratorTest
     public void IsNullCheck_String()
     {
         var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
-            delimitStringGlobalLevel: false);
+            delimitString: false);
         const string sql = "address IS NULL";
         var testSql = cc.IsNull("address");
         testSql.ShouldBe(sql);
@@ -172,7 +172,7 @@ public class SqlCheckConstraintGeneratorTest
     public void IsNotNullCheck_String()
     {
         var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
-            delimitStringGlobalLevel: false);
+            delimitString: false);
         const string sql = "address IS NOT NULL";
         var testSql = cc.IsNotNull("address");
         testSql.ShouldBe(sql);
@@ -182,7 +182,7 @@ public class SqlCheckConstraintGeneratorTest
     public void InCheck_String()
     {
         var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
-            delimitStringGlobalLevel: false);
+            delimitString: false);
         const string sql = "job_title IN ('Design Engineer', 'Tool Designer')";
         var testSql = cc.In("job_title", ["Design Engineer", "Tool Designer"]);
         testSql.ShouldBe(sql);
@@ -192,7 +192,7 @@ public class SqlCheckConstraintGeneratorTest
     public void BetweenCheck_String_GlobalDelimitFalse()
     {
         var cc = new SqlCheckConstrainGenerator(Rdbms.MySql, SqlNamingConvention.LowerSnakeCase,
-            delimitStringGlobalLevel: false);
+            delimitString: false);
         const string sql = "buy_price BETWEEN 90 AND 100";
         var testSql = cc.Between("buy_price", 90, 100);
         testSql.ShouldBe(sql);
@@ -202,7 +202,7 @@ public class SqlCheckConstraintGeneratorTest
     public void BetweenCheck_String_MethodDelimitTrue()
     {
         var cc = new SqlCheckConstrainGenerator(Rdbms.MySql, SqlNamingConvention.LowerSnakeCase,
-            delimitStringGlobalLevel: false);
+            delimitString: false);
         const string sql = "`buy_price` BETWEEN 90 AND 100";
         var testSql = cc.Between("buy_price", 90, 100, delimitColumnName: true);
         testSql.ShouldBe(sql);
