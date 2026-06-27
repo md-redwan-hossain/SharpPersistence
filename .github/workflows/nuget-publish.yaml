@@ -1,4 +1,5 @@
 name: nuget-publish
+run-name: "${{ github.workflow }} | ${{ inputs.project }}"
 
 on:
   workflow_dispatch:
