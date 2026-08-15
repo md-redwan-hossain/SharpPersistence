@@ -10,7 +10,7 @@ public class SqlCheckConstraintGeneratorTest
     [Fact]
     public void AndCheckWithFourParams()
     {
-        var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
+        var cc = new SqlCheckConstraintGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
             delimitString: false);
 
         var sql =
@@ -46,7 +46,7 @@ public class SqlCheckConstraintGeneratorTest
     [Fact]
     public void AndCheckWithFourParamsWithIsOperator()
     {
-        var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
+        var cc = new SqlCheckConstraintGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
             delimitString: false);
 
         const string sql =
@@ -81,7 +81,7 @@ public class SqlCheckConstraintGeneratorTest
     [Fact]
     public void AndCheckWithParams()
     {
-        var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
+        var cc = new SqlCheckConstraintGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
             delimitString: false);
         var sql =
             $"((is_verified = {bool.FalseString.ToUpperInvariant()} AND phone IS NULL AND otp IS NULL) OR (is_verified = {bool.TrueString.ToUpperInvariant()} AND phone IS NOT NULL AND otp IS NOT NULL))";
@@ -97,7 +97,7 @@ public class SqlCheckConstraintGeneratorTest
     [Fact]
     public void AndCheckWithoutParams()
     {
-        var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
+        var cc = new SqlCheckConstraintGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
             delimitString: false);
         var sql =
             $"((is_verified = {bool.FalseString.ToUpperInvariant()} AND phone IS NULL) OR (is_verified = {bool.TrueString.ToUpperInvariant()} AND phone IS NOT NULL))";
@@ -113,7 +113,7 @@ public class SqlCheckConstraintGeneratorTest
     [Fact]
     public void TrueStringCheck_String()
     {
-        var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
+        var cc = new SqlCheckConstraintGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
             delimitString: false);
         var sql = $"address = {bool.TrueString.ToUpperInvariant()}";
         var testSql = cc.EqualTo("address", true);
@@ -123,7 +123,7 @@ public class SqlCheckConstraintGeneratorTest
     [Fact]
     public void Math_Equal()
     {
-        var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, 
+        var cc = new SqlCheckConstraintGenerator(Rdbms.PostgreSql, 
             SqlNamingConvention.LowerSnakeCase, delimitString: false);
 
         const string sql = "balance + remaining - tax = 50";
@@ -133,7 +133,7 @@ public class SqlCheckConstraintGeneratorTest
                 ("remaining", SqlMathOperator.Subtract),
                 ("tax", null)
             ],
-            SqlComparisionOperator.Equal, 50);
+            SqlComparisonOperator.Equal, 50);
 
         testSql.ShouldBe(sql);
     }
@@ -141,7 +141,7 @@ public class SqlCheckConstraintGeneratorTest
     [Fact]
     public void FalseStringCheck_String()
     {
-        var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
+        var cc = new SqlCheckConstraintGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
             delimitString: false);
         var sql = $"address = {bool.FalseString.ToUpperInvariant()}";
         var testSql = cc.EqualTo("address", false);
@@ -151,7 +151,7 @@ public class SqlCheckConstraintGeneratorTest
     [Fact]
     public void NotTrueCheck_String()
     {
-        var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
+        var cc = new SqlCheckConstraintGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
             delimitString: false);
         var sql = $"address <> {bool.TrueString.ToUpperInvariant()}";
         var testSql = cc.NotEqualTo("address", true);
@@ -161,7 +161,7 @@ public class SqlCheckConstraintGeneratorTest
     [Fact]
     public void IsNullCheck_String()
     {
-        var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
+        var cc = new SqlCheckConstraintGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
             delimitString: false);
         const string sql = "address IS NULL";
         var testSql = cc.IsNull("address");
@@ -171,7 +171,7 @@ public class SqlCheckConstraintGeneratorTest
     [Fact]
     public void IsNotNullCheck_String()
     {
-        var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
+        var cc = new SqlCheckConstraintGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
             delimitString: false);
         const string sql = "address IS NOT NULL";
         var testSql = cc.IsNotNull("address");
@@ -181,7 +181,7 @@ public class SqlCheckConstraintGeneratorTest
     [Fact]
     public void InCheck_String()
     {
-        var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
+        var cc = new SqlCheckConstraintGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
             delimitString: false);
         const string sql = "job_title IN ('Design Engineer', 'Tool Designer')";
         var testSql = cc.In("job_title", ["Design Engineer", "Tool Designer"]);
@@ -191,7 +191,7 @@ public class SqlCheckConstraintGeneratorTest
     [Fact]
     public void BetweenCheck_String_GlobalDelimitFalse()
     {
-        var cc = new SqlCheckConstrainGenerator(Rdbms.MySql, SqlNamingConvention.LowerSnakeCase,
+        var cc = new SqlCheckConstraintGenerator(Rdbms.MySql, SqlNamingConvention.LowerSnakeCase,
             delimitString: false);
         const string sql = "buy_price BETWEEN 90 AND 100";
         var testSql = cc.Between("buy_price", 90, 100);
@@ -201,7 +201,7 @@ public class SqlCheckConstraintGeneratorTest
     [Fact]
     public void BetweenCheck_String_MethodDelimitTrue()
     {
-        var cc = new SqlCheckConstrainGenerator(Rdbms.MySql, SqlNamingConvention.LowerSnakeCase,
+        var cc = new SqlCheckConstraintGenerator(Rdbms.MySql, SqlNamingConvention.LowerSnakeCase,
             delimitString: false);
         const string sql = "`buy_price` BETWEEN 90 AND 100";
         var testSql = cc.Between("buy_price", 90, 100, delimitColumnName: true);
@@ -211,7 +211,7 @@ public class SqlCheckConstraintGeneratorTest
     [Fact]
     public void GreaterThanCheck_String_As_Value()
     {
-        var cc = new SqlCheckConstrainGenerator(Rdbms.MySql, SqlNamingConvention.LowerSnakeCase);
+        var cc = new SqlCheckConstraintGenerator(Rdbms.MySql, SqlNamingConvention.LowerSnakeCase);
         const string sql = "CHAR_LENGTH(`sell_price`) > 100";
         var testSql = cc.GreaterThan("sell_price", 100, SqlDataType.VarChar);
         testSql.ShouldBe(sql);
@@ -220,7 +220,7 @@ public class SqlCheckConstraintGeneratorTest
     [Fact]
     public void GreaterThanCheck_Int_As_Value()
     {
-        var cc = new SqlCheckConstrainGenerator(Rdbms.MySql, SqlNamingConvention.LowerSnakeCase);
+        var cc = new SqlCheckConstraintGenerator(Rdbms.MySql, SqlNamingConvention.LowerSnakeCase);
         const string sql = "`sell_price` > 100";
         var testSql = cc.GreaterThan("sell_price", 100, SqlDataType.Int);
         testSql.ShouldBe(sql);
@@ -229,7 +229,7 @@ public class SqlCheckConstraintGeneratorTest
     [Fact]
     public void GreaterThanCheck_String_As_Column_DelimitLeftOperand()
     {
-        var cc = new SqlCheckConstrainGenerator(Rdbms.MySql, SqlNamingConvention.LowerSnakeCase);
+        var cc = new SqlCheckConstraintGenerator(Rdbms.MySql, SqlNamingConvention.LowerSnakeCase);
         const string sql = "sell_price > `buy_price`";
         var testSql = cc.GreaterThan("sell_price", "buy_price", SqlOperandType.Column, delimitLeftOperand: false);
         testSql.ShouldBe(sql);
@@ -241,7 +241,7 @@ public class SqlCheckConstraintGeneratorTest
     [InlineData(Rdbms.MySql, SqlNamingConvention.UpperSnakeCase)]
     public void And_Or_Should_Generate_Correct_Sql(Rdbms rdbms, SqlNamingConvention naming)
     {
-        var gen = new SqlCheckConstrainGenerator(rdbms, naming);
+        var gen = new SqlCheckConstraintGenerator(rdbms, naming);
         gen.And("A", "B").ShouldContain("AND");
         gen.Or("A", "B").ShouldContain("OR");
         gen.And("A", "B", "C", "D").ShouldContain("AND");
@@ -254,19 +254,17 @@ public class SqlCheckConstraintGeneratorTest
     [InlineData(Rdbms.MySql)]
     public void In_NotIn_Should_Handle_Collections(Rdbms rdbms)
     {
-        var gen = new SqlCheckConstrainGenerator(rdbms, SqlNamingConvention.PascalCase);
+        var gen = new SqlCheckConstraintGenerator(rdbms, SqlNamingConvention.PascalCase);
         gen.In("Col", new List<int> { 1, 2, 3 }).ShouldContain("IN");
         gen.In("Col", new List<string> { "a", "b" }).ShouldContain("IN");
         gen.In("Col", new List<Enum> { DayOfWeek.Monday, DayOfWeek.Tuesday }).ShouldContain("IN");
         gen.NotIn("Col", new List<int> { 1 }).ShouldContain("NOT IN");
-        gen.NotIn("Col", new List<string>()).ShouldContain("NOT IN");
-        gen.NotIn("Col", new List<Enum>()).ShouldContain("NOT IN");
     }
 
     [Fact]
     public void EqualTo_NotEqualTo_Should_Handle_All_Types()
     {
-        var gen = new SqlCheckConstrainGenerator(Rdbms.SqlServer, SqlNamingConvention.PascalCase);
+        var gen = new SqlCheckConstraintGenerator(Rdbms.SqlServer, SqlNamingConvention.PascalCase);
         gen.EqualTo("Col", true).ShouldContain("= TRUE");
         gen.NotEqualTo("Col", false).ShouldContain("<> FALSE");
         gen.EqualTo("Col", 5, SqlDataType.Int).ShouldContain("= 5");
@@ -280,7 +278,7 @@ public class SqlCheckConstraintGeneratorTest
     [Fact]
     public void Comparison_Operators_Should_Work_For_All_Overloads()
     {
-        var gen = new SqlCheckConstrainGenerator(Rdbms.MySql, SqlNamingConvention.UpperSnakeCase);
+        var gen = new SqlCheckConstraintGenerator(Rdbms.MySql, SqlNamingConvention.UpperSnakeCase);
         gen.GreaterThan("Col", "Other", SqlOperandType.Column).ShouldContain("> ");
         gen.GreaterThan("Col", 10, SqlDataType.Int).ShouldContain("> 10");
         gen.GreaterThan("Col", DayOfWeek.Monday).ShouldContain(((int)DayOfWeek.Monday).ToString());
@@ -298,7 +296,7 @@ public class SqlCheckConstraintGeneratorTest
     [Fact]
     public void Between_NotBetween_Should_Handle_All_Types()
     {
-        var gen = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase);
+        var gen = new SqlCheckConstraintGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase);
         gen.Between("Col", "a", "b").ShouldContain("BETWEEN");
         gen.Between("Col", 1, 2).ShouldContain("BETWEEN");
         gen.Between("Col", 1.1, 2.2).ShouldContain("BETWEEN");
@@ -310,7 +308,7 @@ public class SqlCheckConstraintGeneratorTest
     [Fact]
     public void IsNull_IsNotNull_Should_Work()
     {
-        var gen = new SqlCheckConstrainGenerator(Rdbms.SqlServer, SqlNamingConvention.PascalCase);
+        var gen = new SqlCheckConstraintGenerator(Rdbms.SqlServer, SqlNamingConvention.PascalCase);
         gen.IsNull("Col").ShouldContain("IS NULL");
         gen.IsNotNull("Col").ShouldContain("IS NOT NULL");
     }
@@ -318,21 +316,32 @@ public class SqlCheckConstraintGeneratorTest
     [Fact]
     public void Handles_Empty_And_Null_Inputs_Gracefully()
     {
-        var gen = new SqlCheckConstrainGenerator(Rdbms.SqlServer, SqlNamingConvention.PascalCase);
+        var gen = new SqlCheckConstraintGenerator(Rdbms.SqlServer, SqlNamingConvention.PascalCase);
         gen.And("", "").ShouldContain("AND");
         gen.Or("", "").ShouldContain("OR");
-        gen.In("Col", new List<int>()).ShouldContain("IN");
-        gen.NotIn("Col", new List<string>()).ShouldContain("NOT IN");
         gen.Between("Col", 0, 0).ShouldContain("BETWEEN");
         gen.NotBetween("Col", 0, 0).ShouldContain("NOT BETWEEN");
     }
 
     [Fact]
+    public void In_And_NotIn_Should_Throw_On_Empty_Collections()
+    {
+        var gen = new SqlCheckConstraintGenerator(Rdbms.SqlServer, SqlNamingConvention.PascalCase);
+
+        Should.Throw<ArgumentException>(() => gen.In("Col", new List<int>()));
+        Should.Throw<ArgumentException>(() => gen.In("Col", new List<string>()));
+        Should.Throw<ArgumentException>(() => gen.In("Col", new List<Enum>()));
+        Should.Throw<ArgumentException>(() => gen.NotIn("Col", new List<int>()));
+        Should.Throw<ArgumentException>(() => gen.NotIn("Col", new List<string>()));
+        Should.Throw<ArgumentException>(() => gen.NotIn("Col", new List<Enum>()));
+    }
+
+    [Fact]
     public void DelimitString_Should_Use_Correct_Symbols()
     {
-        var genPg = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.PascalCase);
-        var genMy = new SqlCheckConstrainGenerator(Rdbms.MySql, SqlNamingConvention.PascalCase);
-        var genSql = new SqlCheckConstrainGenerator(Rdbms.SqlServer, SqlNamingConvention.PascalCase);
+        var genPg = new SqlCheckConstraintGenerator(Rdbms.PostgreSql, SqlNamingConvention.PascalCase);
+        var genMy = new SqlCheckConstraintGenerator(Rdbms.MySql, SqlNamingConvention.PascalCase);
+        var genSql = new SqlCheckConstraintGenerator(Rdbms.SqlServer, SqlNamingConvention.PascalCase);
         genPg.IsNull("Col").ShouldContain("\"Col\"");
         genMy.IsNull("Col").ShouldContain("`Col`");
         genSql.IsNull("Col").ShouldContain("[Col]");
@@ -341,9 +350,9 @@ public class SqlCheckConstraintGeneratorTest
     [Fact]
     public void TransformCase_Should_Respect_Naming_Convention()
     {
-        var genLower = new SqlCheckConstrainGenerator(Rdbms.SqlServer, SqlNamingConvention.LowerSnakeCase);
-        var genUpper = new SqlCheckConstrainGenerator(Rdbms.SqlServer, SqlNamingConvention.UpperSnakeCase);
-        var genPascal = new SqlCheckConstrainGenerator(Rdbms.SqlServer, SqlNamingConvention.PascalCase);
+        var genLower = new SqlCheckConstraintGenerator(Rdbms.SqlServer, SqlNamingConvention.LowerSnakeCase);
+        var genUpper = new SqlCheckConstraintGenerator(Rdbms.SqlServer, SqlNamingConvention.UpperSnakeCase);
+        var genPascal = new SqlCheckConstraintGenerator(Rdbms.SqlServer, SqlNamingConvention.PascalCase);
         genUpper.In("TestColumn", new List<int> { 1 }).ShouldContain("TEST_COLUMN");
         genPascal.In("test_column", new List<int> { 1 }).ShouldContain("TestColumn");
         genLower.In("TestColumn", new List<int> { 1 }).ShouldContain("test_column");
@@ -352,7 +361,7 @@ public class SqlCheckConstraintGeneratorTest
     [Fact]
     public void SqlString_Should_Escape_Single_Quotes()
     {
-        var gen = new SqlCheckConstrainGenerator(Rdbms.SqlServer, SqlNamingConvention.PascalCase);
+        var gen = new SqlCheckConstraintGenerator(Rdbms.SqlServer, SqlNamingConvention.PascalCase);
         var sql = gen.EqualTo("Col", "O'Reilly", SqlOperandType.Value);
         sql.ShouldContain("'O''Reilly'");
     }
@@ -360,7 +369,7 @@ public class SqlCheckConstraintGeneratorTest
     [Fact]
     public void LengthOperatorHandler_Should_Apply_For_Text_Types()
     {
-        var gen = new SqlCheckConstrainGenerator(Rdbms.SqlServer, SqlNamingConvention.PascalCase);
+        var gen = new SqlCheckConstraintGenerator(Rdbms.SqlServer, SqlNamingConvention.PascalCase);
         var sql = gen.EqualTo("Col", 5, SqlDataType.VarChar);
         sql.ShouldContain("LEN(");
         sql = gen.NotEqualTo("Col", 5, SqlDataType.Text);

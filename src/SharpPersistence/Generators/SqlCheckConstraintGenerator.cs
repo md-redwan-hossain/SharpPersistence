@@ -7,10 +7,10 @@ using SharpPersistence.Enums;
 namespace SharpPersistence.Generators;
 
 /// <summary>
-/// <c>SqlCheckConstrainGenerator</c> is a utility class for generating raw sql code for check-constrains in a type-safe manner.
-/// It can be useful with Entity Framework Core since it doesn't have strongly-typed check-constrain support and requires raw SQL code.
+/// <c>SqlCheckConstraintGenerator</c> is a utility class for generating raw sql code for check-constraints in a type-safe manner.
+/// It can be useful with Entity Framework Core since it doesn't have strongly-typed check-constraint support and requires raw SQL code.
 /// </summary>
-public class SqlCheckConstrainGenerator
+public class SqlCheckConstraintGenerator
 {
     private readonly bool _delimitString;
     private readonly SqlNamingConvention _sqlNamingConvention;
@@ -18,7 +18,7 @@ public class SqlCheckConstrainGenerator
 
     /// <param name="rdbms">determines the delimitString symbols based on database.</param>
     /// <param name="sqlNamingConvention">denotes the case of the generated SQL</param>
-    public SqlCheckConstrainGenerator(Rdbms rdbms,
+    public SqlCheckConstraintGenerator(Rdbms rdbms,
         SqlNamingConvention sqlNamingConvention)
     {
         _rdbms = rdbms;
@@ -29,7 +29,7 @@ public class SqlCheckConstrainGenerator
     /// <param name="rdbms">determines the delimitString symbols based on database.</param>
     /// <param name="sqlNamingConvention">denotes the case of the generated SQL.</param>
     /// <param name="delimitString">any method parameter of this class which is related to string delimitation will override class level <c>delimitString</c> set by constructor. </param>
-    public SqlCheckConstrainGenerator(Rdbms rdbms,
+    public SqlCheckConstraintGenerator(Rdbms rdbms,
         SqlNamingConvention sqlNamingConvention,
         bool delimitString)
     {
@@ -104,17 +104,17 @@ public class SqlCheckConstrainGenerator
         }
     }
 
-    private static string GetComparisionOperatorString(SqlComparisionOperator comparisionOperator)
+    private static string GetComparisonOperatorString(SqlComparisonOperator comparisonOperator)
     {
-        return comparisionOperator switch
+        return comparisonOperator switch
         {
-            SqlComparisionOperator.Equal => EqualSign,
-            SqlComparisionOperator.GreaterThan => GreaterThanSign,
-            SqlComparisionOperator.LessThan => LessThanSign,
-            SqlComparisionOperator.GreaterThanOrEqual => GreaterThanOrEqualSign,
-            SqlComparisionOperator.LessThanOrEqual => LessThanOrEqualSign,
-            SqlComparisionOperator.NotEqual => NotEqualSign,
-            _ => throw new ArgumentOutOfRangeException(nameof(comparisionOperator))
+            SqlComparisonOperator.Equal => EqualSign,
+            SqlComparisonOperator.GreaterThan => GreaterThanSign,
+            SqlComparisonOperator.LessThan => LessThanSign,
+            SqlComparisonOperator.GreaterThanOrEqual => GreaterThanOrEqualSign,
+            SqlComparisonOperator.LessThanOrEqual => LessThanOrEqualSign,
+            SqlComparisonOperator.NotEqual => NotEqualSign,
+            _ => throw new ArgumentOutOfRangeException(nameof(comparisonOperator))
         };
     }
 
@@ -135,6 +135,7 @@ public class SqlCheckConstrainGenerator
 
     public string In(string leftOperand, ICollection<int> rightOperands, bool? delimitLeftOperand = null)
     {
+        ThrowIfEmptyCollection(rightOperands, nameof(rightOperands));
         var transformed = TransformCase(leftOperand);
 
         return string.Concat(
@@ -146,6 +147,7 @@ public class SqlCheckConstrainGenerator
 
     public string In(string leftOperand, ICollection<string> rightOperands, bool? delimitLeftOperand = null)
     {
+        ThrowIfEmptyCollection(rightOperands, nameof(rightOperands));
         var transformed = TransformCase(leftOperand);
         return string.Concat(
             OperandHandler(transformed, delimitLeftOperand ?? _delimitString),
@@ -156,6 +158,7 @@ public class SqlCheckConstrainGenerator
 
     public string In(string leftOperand, ICollection<Enum> rightOperands, bool? delimitLeftOperand = null)
     {
+        ThrowIfEmptyCollection(rightOperands, nameof(rightOperands));
         var transformed = TransformCase(leftOperand);
         return string.Concat(
             OperandHandler(transformed, delimitLeftOperand ?? _delimitString),
@@ -166,6 +169,7 @@ public class SqlCheckConstrainGenerator
 
     public string NotIn(string leftOperand, ICollection<int> rightOperands, bool? delimitLeftOperand = null)
     {
+        ThrowIfEmptyCollection(rightOperands, nameof(rightOperands));
         var transformed = TransformCase(leftOperand);
         return string.Concat(
             OperandHandler(transformed, delimitLeftOperand ?? _delimitString),
@@ -176,6 +180,7 @@ public class SqlCheckConstrainGenerator
 
     public string NotIn(string leftOperand, ICollection<string> rightOperands, bool? delimitLeftOperand = null)
     {
+        ThrowIfEmptyCollection(rightOperands, nameof(rightOperands));
         var transformed = TransformCase(leftOperand);
         return string.Concat(
             OperandHandler(transformed, delimitLeftOperand ?? _delimitString),
@@ -186,6 +191,7 @@ public class SqlCheckConstrainGenerator
 
     public string NotIn(string leftOperand, ICollection<Enum> rightOperands, bool? delimitLeftOperand = null)
     {
+        ThrowIfEmptyCollection(rightOperands, nameof(rightOperands));
         var transformed = TransformCase(leftOperand);
         return string.Concat(
             OperandHandler(transformed, delimitLeftOperand ?? _delimitString),
@@ -566,7 +572,7 @@ public class SqlCheckConstrainGenerator
     }
 
     public string Math<T>(ICollection<(string column, SqlMathOperator? mathOperator)> columnWithOperators,
-        SqlComparisionOperator comparisionOperator, T value, bool? delimitColumns = null)
+        SqlComparisonOperator comparisonOperator, T value, bool? delimitColumns = null)
         where T : struct, INumber<T>
     {
         var transformed = columnWithOperators.Select(x => x with
@@ -610,7 +616,7 @@ public class SqlCheckConstrainGenerator
 
         return NormalizeAndTrim(string.Concat(
             str,
-            GetComparisionOperatorString(comparisionOperator),
+            GetComparisonOperatorString(comparisonOperator),
             value
         ));
     }
@@ -668,6 +674,14 @@ public class SqlCheckConstrainGenerator
         }
 
         return sb.ToString();
+    }
+
+    private static void ThrowIfEmptyCollection<T>(ICollection<T> collection, string paramName)
+    {
+        if (collection.Count == 0)
+        {
+            throw new ArgumentException("Collection cannot be empty.", paramName);
+        }
     }
 
     private static string WrapWithParentheses(string text) => $"({text})";

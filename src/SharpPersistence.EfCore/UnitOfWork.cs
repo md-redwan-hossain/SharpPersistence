@@ -75,11 +75,6 @@ public abstract class UnitOfWork<TDbContext> : IUnitOfWork
         return trx.GetDbTransaction();
     }
 
-    public void UseTransaction(DbTransaction transaction)
-    {
-        _dbContext.Database.UseTransaction(transaction);
-    }
-
     public async Task UseTransactionAsync(DbTransaction transaction)
     {
         await _dbContext.Database.UseTransactionAsync(transaction).ConfigureAwait(false);

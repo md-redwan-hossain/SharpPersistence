@@ -110,14 +110,6 @@ public class RepositoryBaseTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetOneSubsetAsync_SelectorAndCancellationTokenOnly_ReturnsFirstProjection()
-    {
-        // Should return the NumericValue of the first entity (Name = "A", NumericValue = 1)
-        var value = await _repository.GetOneSubsetAsync(e => e.NumericValue, TestContext.Current.CancellationToken);
-        value.ShouldBe(1);
-    }
-
-    [Fact]
     public async Task GetAllSortedAndPaginatedSubsetAsync_ReturnsCorrectPage()
     {
         var result = await _repository.GetAllSortedAndPaginatedSubsetAsync<string, int>

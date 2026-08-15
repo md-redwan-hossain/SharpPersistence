@@ -4,7 +4,7 @@ layout: default
 
 | Branch | Status                                                                                                                |
 | ------ | --------------------------------------------------------------------------------------------------------------------- |
-| main   | ![Dotnet 9](https://github.com/md-redwan-hossain/SharpPersistence/actions/workflows/dotnet.yml/badge.svg?branch=main) |
+| main   | ![Dotnet 10](https://github.com/md-redwan-hossain/SharpPersistence/actions/workflows/dotnet.yaml/badge.svg?branch=main) |
 
 # SharpPersistence
 
@@ -139,7 +139,7 @@ public class UserService
     private readonly IDbConnectionFactory _dbConnectionFactory;
     private readonly IParsedSqlStorage _parsedSqlStorage;
 
-    public UserService(IDbConnectionFactory dbConnectionFactory, IParsedSqlStorage sqlStorage)
+    public UserService(IDbConnectionFactory dbConnectionFactory, IParsedSqlStorage parsedSqlStorage)
     {
         _dbConnectionFactory = dbConnectionFactory;
         _parsedSqlStorage = parsedSqlStorage;
@@ -166,9 +166,9 @@ SqlParser validates your SQL files at startup and throws detailed error messages
 - Duplicate tag names
 - Invalid tag formats
 
-### **`SqlCheckConstrainGenerator`**
+### **`SqlCheckConstraintGenerator`**
 
-- `SqlCheckConstrainGenerator` is available in `SharpPersistence`
+- `SqlCheckConstraintGenerator` is available in `SharpPersistence`
 - Type-safe, raw SQL check constraint generation
 - Supports multiple RDBMS (SQL Server, PostgreSQL, MySQL)
 - Naming convention support (PascalCase, lower_snake_case, UPPER_SNAKE_CASE)
@@ -179,8 +179,8 @@ SqlParser validates your SQL files at startup and throws detailed error messages
 Some examples with `IEntityTypeConfiguration` of Ef Core are given below:
 
 ```csharp
-  var cc = new SqlCheckConstrainGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
-      delimitStringGlobalLevel: false);
+  var cc = new SqlCheckConstraintGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
+      delimitString: false);
 
   builder.ToTable(x => x.HasCheckConstraint(
       "valid_product_sell_price_in_sales_invoice",

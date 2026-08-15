@@ -35,10 +35,6 @@ public interface IRepositoryBase<TEntity>
         Expression<Func<TEntity, TResult>> subsetSelector,
         CancellationToken cancellationToken = default);
 
-    Task<TResult?> GetOneSubsetAsync<TResult>(
-        Expression<Func<TEntity, TResult>> subsetSelector,
-        CancellationToken cancellationToken = default);
-
     Task<TResult?> GetOneSortedSubsetAsync<TSorter, TResult>(
         Expression<Func<TEntity, bool>> condition,
         Expression<Func<TEntity, TResult>> subsetSelector,
