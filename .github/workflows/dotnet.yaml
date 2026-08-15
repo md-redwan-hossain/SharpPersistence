@@ -17,7 +17,7 @@ jobs:
       - name: Setup DotNet
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: "10"
+          global-json-file: global.json
           cache: true
           cache-dependency-path: "**/packages.lock.json"
 
@@ -28,4 +28,4 @@ jobs:
         run: dotnet build "SharpPersistence.slnx" --configuration Release --no-restore
 
       - name: Run tests
-        run: dotnet test "SharpPersistence.slnx" --configuration Release --no-build --no-restore --verbosity normal --test-runner Microsoft.Testing.Platform
+        run: dotnet test "SharpPersistence.slnx" --configuration Release --no-build --no-restore --verbosity normal
