@@ -4,7 +4,7 @@ layout: default
 
 | Branch | Status                                                                                                                |
 | ------ | --------------------------------------------------------------------------------------------------------------------- |
-| main   | ![Dotnet 10](https://github.com/md-redwan-hossain/SharpPersistence/actions/workflows/dotnet.yml/badge.svg?branch=main) |
+| main   | ![Dotnet 10](https://github.com/md-redwan-hossain/SharpPersistence/actions/workflows/dotnet.yaml/badge.svg?branch=main) |
 
 # SharpPersistence
 
