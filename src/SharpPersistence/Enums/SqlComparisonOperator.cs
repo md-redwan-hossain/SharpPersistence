@@ -1,6 +1,6 @@
 namespace SharpPersistence.Enums;
 
-public enum SqlComparisionOperator : byte
+public enum SqlComparisonOperator : byte
 {
     Equal,
     GreaterThan,

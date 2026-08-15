@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <Version>10.0.5</Version>
@@ -19,9 +19,17 @@
         <Description>SharpPersistence.EfCore contains utility classes to work with relational database systems</Description>
     </PropertyGroup>
 
+    <PropertyGroup Condition="'$(TargetFramework)' == 'net8.0'">
+        <EfCoreVersion>8.0.11</EfCoreVersion>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0'">
+        <EfCoreVersion>10.0.10</EfCoreVersion>
+    </PropertyGroup>
+
     <ItemGroup>
-        <PackageReference Include="Microsoft.EntityFrameworkCore" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore" VersionOverride="$(EfCoreVersion)" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" VersionOverride="$(EfCoreVersion)" />
     </ItemGroup>
 
     <ItemGroup>

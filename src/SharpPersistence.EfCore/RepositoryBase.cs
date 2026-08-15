@@ -117,15 +117,6 @@ public abstract class RepositoryBase<TEntity, TDbContext> : IRepositoryBase<TEnt
         return GetOneSubsetAsync(condition, subsetSelector, enableTracking: false, cancellationToken);
     }
 
-    public Task<TResult?> GetOneSubsetAsync<TResult>(Expression<Func<TEntity, TResult>> subsetSelector,
-        CancellationToken cancellationToken = default)
-    {
-        return EntityDbSet
-            .AsNoTracking()
-            .Select(subsetSelector)
-            .FirstOrDefaultAsync(cancellationToken);
-    }
-
     public async Task<ICollection<TResult>> GetAllSortedAndPaginatedSubsetAsync<TResult, TSorter>(int page, int limit,
         Expression<Func<TEntity, TResult>> subsetSelector,
         (Expression<Func<TEntity, TSorter>> orderBy, bool desc) sorter,
