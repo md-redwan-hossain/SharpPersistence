@@ -170,7 +170,7 @@ SqlParser validates your SQL files at startup and throws detailed error messages
 
 - `SqlCheckConstraintGenerator` is available in `SharpPersistence`
 - Type-safe, raw SQL check constraint generation
-- Supports multiple RDBMS (SQL Server, PostgreSQL, MySQL)
+- Supports multiple RDBMS (SQL Server, PostgreSQL, MySQL, Oracle)
 - Naming convention support (PascalCase, lower_snake_case, UPPER_SNAKE_CASE)
 - Handles all SQL comparison, logical, and set operators
 - Proper string escaping and identifier delimiting

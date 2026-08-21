@@ -17,6 +17,7 @@ jobs:
       - name: Setup DotNet
         uses: actions/setup-dotnet@v6
         with:
+          dotnet-version: "10"
           global-json-file: global.json
           cache: true
           cache-dependency-path: "**/packages.lock.json"

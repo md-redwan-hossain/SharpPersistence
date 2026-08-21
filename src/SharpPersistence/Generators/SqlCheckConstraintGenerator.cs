@@ -628,6 +628,7 @@ public class SqlCheckConstraintGenerator
             Rdbms.SqlServer => $"LEN({data})",
             Rdbms.PostgreSql => $"length({data})",
             Rdbms.MySql => $"CHAR_LENGTH({data})",
+            Rdbms.Oracle => $"LENGTH({data})",
             _ => data
         };
     }
@@ -695,6 +696,7 @@ public class SqlCheckConstraintGenerator
             Rdbms.PostgreSql => $"\"{text}\"",
             Rdbms.MySql => $"`{text}`",
             Rdbms.SqlServer => $"[{text}]",
+            Rdbms.Oracle => $"\"{text}\"",
             _ => text
         };
     }

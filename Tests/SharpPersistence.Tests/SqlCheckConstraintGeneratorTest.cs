@@ -13,7 +13,7 @@ public class SqlCheckConstraintGeneratorTest
         var cc = new SqlCheckConstraintGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
             delimitString: false);
 
-        var sql =
+        const string sql =
             "((is_cash = TRUE AND is_bank = FALSE AND is_mobile_bank = FALSE) OR (is_cash = FALSE AND is_bank = TRUE AND is_mobile_bank = FALSE) OR (is_cash = FALSE AND is_bank = FALSE AND is_mobile_bank = TRUE) OR (is_cash = FALSE AND is_bank = FALSE AND is_mobile_bank = FALSE))";
 
         var testSql = cc.Or(
@@ -239,6 +239,7 @@ public class SqlCheckConstraintGeneratorTest
     [InlineData(Rdbms.SqlServer, SqlNamingConvention.PascalCase)]
     [InlineData(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase)]
     [InlineData(Rdbms.MySql, SqlNamingConvention.UpperSnakeCase)]
+    [InlineData(Rdbms.Oracle, SqlNamingConvention.UpperSnakeCase)]
     public void And_Or_Should_Generate_Correct_Sql(Rdbms rdbms, SqlNamingConvention naming)
     {
         var gen = new SqlCheckConstraintGenerator(rdbms, naming);
@@ -252,13 +253,14 @@ public class SqlCheckConstraintGeneratorTest
     [InlineData(Rdbms.SqlServer)]
     [InlineData(Rdbms.PostgreSql)]
     [InlineData(Rdbms.MySql)]
+    [InlineData(Rdbms.Oracle)]
     public void In_NotIn_Should_Handle_Collections(Rdbms rdbms)
     {
         var gen = new SqlCheckConstraintGenerator(rdbms, SqlNamingConvention.PascalCase);
-        gen.In("Col", new List<int> { 1, 2, 3 }).ShouldContain("IN");
-        gen.In("Col", new List<string> { "a", "b" }).ShouldContain("IN");
-        gen.In("Col", new List<Enum> { DayOfWeek.Monday, DayOfWeek.Tuesday }).ShouldContain("IN");
-        gen.NotIn("Col", new List<int> { 1 }).ShouldContain("NOT IN");
+        gen.In("Col", [1, 2, 3]).ShouldContain("IN");
+        gen.In("Col", ["a", "b"]).ShouldContain("IN");
+        gen.In("Col", [DayOfWeek.Monday, DayOfWeek.Tuesday]).ShouldContain("IN");
+        gen.NotIn("Col", [1]).ShouldContain("NOT IN");
     }
 
     [Fact]
@@ -342,9 +344,15 @@ public class SqlCheckConstraintGeneratorTest
         var genPg = new SqlCheckConstraintGenerator(Rdbms.PostgreSql, SqlNamingConvention.PascalCase);
         var genMy = new SqlCheckConstraintGenerator(Rdbms.MySql, SqlNamingConvention.PascalCase);
         var genSql = new SqlCheckConstraintGenerator(Rdbms.SqlServer, SqlNamingConvention.PascalCase);
-        genPg.IsNull("Col").ShouldContain("\"Col\"");
+        var genOra = new SqlCheckConstraintGenerator(Rdbms.Oracle, SqlNamingConvention.PascalCase);
+        genPg.IsNull("Col").ShouldContain("""
+                                          "Col"
+                                          """);
         genMy.IsNull("Col").ShouldContain("`Col`");
         genSql.IsNull("Col").ShouldContain("[Col]");
+        genOra.IsNull("Col").ShouldContain("""
+                                           "Col"
+                                           """);
     }
 
     [Fact]
@@ -374,5 +382,186 @@ public class SqlCheckConstraintGeneratorTest
         sql.ShouldContain("LEN(");
         sql = gen.NotEqualTo("Col", 5, SqlDataType.Text);
         sql.ShouldContain("LEN(");
+    }
+
+    [Fact]
+    public void LengthOperatorHandler_Oracle_Should_Use_Length()
+    {
+        var gen = new SqlCheckConstraintGenerator(Rdbms.Oracle, SqlNamingConvention.PascalCase);
+        gen.EqualTo("Name", 5, SqlDataType.VarChar).ShouldContain("LENGTH(");
+        gen.NotEqualTo("Name", 5, SqlDataType.Text).ShouldContain("LENGTH(");
+    }
+
+    [Fact]
+    public void Default_Ctor_Should_Render_True_False()
+    {
+        var gen = new SqlCheckConstraintGenerator(Rdbms.SqlServer, SqlNamingConvention.PascalCase);
+        gen.EqualTo("Col", true).ShouldContain("= TRUE");
+        gen.EqualTo("Col", false).ShouldContain("= FALSE");
+    }
+
+    [Fact]
+    public void Oracle_UpperSnakeCase_Should_Delimit_With_Double_Quotes()
+    {
+        var cc = new SqlCheckConstraintGenerator(Rdbms.Oracle, SqlNamingConvention.UpperSnakeCase);
+        cc.EqualTo("IsActive", 1, SqlDataType.Int).ShouldBe("""
+                                                            "IS_ACTIVE" = 1
+                                                            """);
+    }
+
+    [Fact]
+    public void Oracle_GreaterThan_VarChar_Should_Use_Length()
+    {
+        var cc = new SqlCheckConstraintGenerator(Rdbms.Oracle, SqlNamingConvention.UpperSnakeCase);
+        cc.GreaterThan("SellPrice", 100, SqlDataType.VarChar).ShouldBe("""
+                                                                       LENGTH("SELL_PRICE") > 100
+                                                                       """);
+    }
+
+    [Fact]
+    public void Oracle_Flag_Column_As_Int_Should_Render_Numeric_Literals()
+    {
+        var cc = new SqlCheckConstraintGenerator(Rdbms.Oracle, SqlNamingConvention.UpperSnakeCase,
+            delimitString: false);
+        cc.EqualTo("IsActive", 1, SqlDataType.Int).ShouldBe("IS_ACTIVE = 1");
+        cc.NotEqualTo("IsActive", 0, SqlDataType.Int).ShouldBe("IS_ACTIVE <> 0");
+    }
+
+    [Fact]
+    public void Oracle_Flag_Column_As_Char_Should_Render_Quoted_Literals()
+    {
+        var cc = new SqlCheckConstraintGenerator(Rdbms.Oracle, SqlNamingConvention.UpperSnakeCase,
+            delimitString: false);
+        cc.EqualTo("IsCash", "Y", SqlOperandType.Value).ShouldBe("IS_CASH = 'Y'");
+        cc.EqualTo("IsCash", "N", SqlOperandType.Value).ShouldBe("IS_CASH = 'N'");
+    }
+
+    [Fact]
+    public void Oracle_Between_With_Method_Delimit_Override()
+    {
+        var cc = new SqlCheckConstraintGenerator(Rdbms.Oracle, SqlNamingConvention.UpperSnakeCase,
+            delimitString: false);
+        cc.Between("BuyPrice", 90, 100, delimitColumnName: true).ShouldBe("""
+                                                                          "BUY_PRICE" BETWEEN 90 AND 100
+                                                                          """);
+    }
+
+    [Fact]
+    public void Oracle_AndOr_FourWay_AccountHead_Flags()
+    {
+        var cc = new SqlCheckConstraintGenerator(Rdbms.Oracle, SqlNamingConvention.UpperSnakeCase,
+            delimitString: false);
+
+        const string sql =
+            "((IS_CASH = 1 AND IS_BANK = 0 AND IS_MOBILE_BANK = 0) OR (IS_CASH = 0 AND IS_BANK = 1 AND IS_MOBILE_BANK = 0) OR (IS_CASH = 0 AND IS_BANK = 0 AND IS_MOBILE_BANK = 1) OR (IS_CASH = 0 AND IS_BANK = 0 AND IS_MOBILE_BANK = 0))";
+
+        var testSql = cc.Or(
+            cc.And(
+                cc.EqualTo(nameof(AccountHead.IsCash), 1, SqlDataType.Int),
+                cc.EqualTo(nameof(AccountHead.IsBank), 0, SqlDataType.Int),
+                cc.EqualTo(nameof(AccountHead.IsMobileBank), 0, SqlDataType.Int)
+            ),
+            cc.And(
+                cc.EqualTo(nameof(AccountHead.IsCash), 0, SqlDataType.Int),
+                cc.EqualTo(nameof(AccountHead.IsBank), 1, SqlDataType.Int),
+                cc.EqualTo(nameof(AccountHead.IsMobileBank), 0, SqlDataType.Int)
+            ),
+            cc.And(
+                cc.EqualTo(nameof(AccountHead.IsCash), 0, SqlDataType.Int),
+                cc.EqualTo(nameof(AccountHead.IsBank), 0, SqlDataType.Int),
+                cc.EqualTo(nameof(AccountHead.IsMobileBank), 1, SqlDataType.Int)
+            ),
+            cc.And(
+                cc.EqualTo(nameof(AccountHead.IsCash), 0, SqlDataType.Int),
+                cc.EqualTo(nameof(AccountHead.IsBank), 0, SqlDataType.Int),
+                cc.EqualTo(nameof(AccountHead.IsMobileBank), 0, SqlDataType.Int)
+            )
+        );
+
+        testSql.ShouldBe(sql);
+    }
+
+    [Fact]
+    public void Oracle_AndOr_Verified_Phone_Otp()
+    {
+        var cc = new SqlCheckConstraintGenerator(Rdbms.Oracle, SqlNamingConvention.UpperSnakeCase,
+            delimitString: false);
+
+        const string sql =
+            "((IS_VERIFIED = 0 AND PHONE IS NULL AND OTP IS NULL) OR (IS_VERIFIED = 1 AND PHONE IS NOT NULL AND OTP IS NOT NULL))";
+
+        var testSql = cc.Or(
+            cc.And(
+                cc.EqualTo("IsVerified", 0, SqlDataType.Int),
+                cc.IsNull("Phone"),
+                cc.IsNull("Otp")
+            ),
+            cc.And(
+                cc.EqualTo("IsVerified", 1, SqlDataType.Int),
+                cc.IsNotNull("Phone"),
+                cc.IsNotNull("Otp")
+            )
+        );
+
+        testSql.ShouldBe(sql);
+    }
+
+    [Fact]
+    public void Oracle_AndOr_Debit_Credit_Entry()
+    {
+        var cc = new SqlCheckConstraintGenerator(Rdbms.Oracle, SqlNamingConvention.UpperSnakeCase,
+            delimitString: false);
+
+        const string sql =
+            "((CREDIT_AMOUNT >= 0 AND DEBIT_AMOUNT = 0) OR (DEBIT_AMOUNT >= 0 AND CREDIT_AMOUNT = 0))";
+
+        var testSql = cc.Or(
+            cc.And(
+                cc.GreaterThanOrEqual("CreditAmount", 0, SqlDataType.Decimal),
+                cc.EqualTo("DebitAmount", 0, SqlDataType.Decimal)
+            ),
+            cc.And(
+                cc.GreaterThanOrEqual("DebitAmount", 0, SqlDataType.Decimal),
+                cc.EqualTo("CreditAmount", 0, SqlDataType.Decimal)
+            )
+        );
+
+        testSql.ShouldBe(sql);
+    }
+
+    [Fact]
+    public void Oracle_AndOr_FourWay_With_Delimiters()
+    {
+        var cc = new SqlCheckConstraintGenerator(Rdbms.Oracle, SqlNamingConvention.UpperSnakeCase);
+
+        const string sql =
+            """
+            (("IS_CASH" = 1 AND "IS_BANK" = 0 AND "IS_MOBILE_BANK" = 0) OR ("IS_CASH" = 0 AND "IS_BANK" = 1 AND "IS_MOBILE_BANK" = 0) OR ("IS_CASH" = 0 AND "IS_BANK" = 0 AND "IS_MOBILE_BANK" = 1) OR ("IS_CASH" = 0 AND "IS_BANK" = 0 AND "IS_MOBILE_BANK" = 0))
+            """;
+
+        var testSql = cc.Or(
+            cc.And(
+                cc.EqualTo(nameof(AccountHead.IsCash), 1, SqlDataType.Int),
+                cc.EqualTo(nameof(AccountHead.IsBank), 0, SqlDataType.Int),
+                cc.EqualTo(nameof(AccountHead.IsMobileBank), 0, SqlDataType.Int)
+            ),
+            cc.And(
+                cc.EqualTo(nameof(AccountHead.IsCash), 0, SqlDataType.Int),
+                cc.EqualTo(nameof(AccountHead.IsBank), 1, SqlDataType.Int),
+                cc.EqualTo(nameof(AccountHead.IsMobileBank), 0, SqlDataType.Int)
+            ),
+            cc.And(
+                cc.EqualTo(nameof(AccountHead.IsCash), 0, SqlDataType.Int),
+                cc.EqualTo(nameof(AccountHead.IsBank), 0, SqlDataType.Int),
+                cc.EqualTo(nameof(AccountHead.IsMobileBank), 1, SqlDataType.Int)
+            ),
+            cc.And(
+                cc.EqualTo(nameof(AccountHead.IsCash), 0, SqlDataType.Int),
+                cc.EqualTo(nameof(AccountHead.IsBank), 0, SqlDataType.Int),
+                cc.EqualTo(nameof(AccountHead.IsMobileBank), 0, SqlDataType.Int)
+            )
+        );
+
+        testSql.ShouldBe(sql);
     }
 }
