@@ -223,24 +223,17 @@ Some examples with `IEntityTypeConfiguration` of Ef Core are given below:
 ));
 ```
 
-### **`RepositoryBase` with `IRepositoryBase`**
+### **`SlimRepositoryBase` with `ISlimRepositoryBase`**
 
-- `IRepositoryBase` is available in `SharpPersistence.Abstractions`
-- `RepositoryBase` is available in `SharpPersistence.EfCore`
-- All CRUD operations with async support
-- Multiple overloads for flexible querying
+- `ISlimRepositoryBase` is available in `SharpPersistence.Abstractions`
+- `SlimRepositoryBase` is available in `SharpPersistence.EfCore`
+- Prefer this for new code: CRUD + tracking + `FluentQuery()` only (no Get* overload grid)
 - `FluentQuery()` returns `IEntityQuery<T>` for composable reads (filter, sort, page, project, tracking)
 - Set tracking on the entity query before `Select`; after projection, tracking methods do nothing
 - NET10+: `IgnoreQueryFilters(filterKeys)` on the entity query (before `Select`) to skip named query filters
-- Proper EF Core tracking management
-- Dependency injection ready
-- Readable, maintainable, and well-formatted code
 
 ```csharp
-// Existing overload style
-var user = await repo.GetOneAsync(u => u.IsActive);
-
-// Fluent query style (default: no tracking)
+// Register / inject ISlimRepositoryBase<User> (or your derived interface)
 var page = await repo.FluentQuery()
     .Where(u => u.IsActive)
     .OrderBy(u => u.Name)
@@ -248,11 +241,30 @@ var page = await repo.FluentQuery()
     .Paginate(page: 1, limit: 20)
     .ToListAsync();
 
-// Tracking applies to the entity query (before Select)
 var tracked = await repo.FluentQuery()
     .Where(u => u.Id == id)
     .AsTracking()
     .FirstOrDefaultAsync();
+```
+
+### **`RepositoryBase` with `IRepositoryBase`**
+
+- `IRepositoryBase` extends `ISlimRepositoryBase` (same FluentQuery + CRUD surface, plus Get* helpers)
+- `RepositoryBase` extends `SlimRepositoryBase` and implements `IRepositoryBase`
+- All CRUD operations with async support
+- Multiple Get* overloads for flexible querying (legacy / convenience path)
+- Existing consumers of `IRepositoryBase` / `RepositoryBase` keep working unchanged
+
+```csharp
+// Overload style (still available on IRepositoryBase)
+var user = await repo.GetOneAsync(u => u.IsActive);
+
+// Fluent query style (also on IRepositoryBase via ISlimRepositoryBase)
+var page = await repo.FluentQuery()
+    .Where(u => u.IsActive)
+    .OrderBy(u => u.Name)
+    .Paginate(page: 1, limit: 20)
+    .ToListAsync();
 ```
 
 ### **`UnitOfWork` with `IUnitOfWork`**
