@@ -5,6 +5,8 @@ namespace SharpPersistence.Abstractions;
 public interface IRepositoryBase<TEntity>
     where TEntity : class
 {
+    IEntityQuery<TEntity> FluentQuery();
+
     void Create(TEntity entity);
     void CreateMany(ICollection<TEntity> entity);
     Task CreateAsync(TEntity entity);

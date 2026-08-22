@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using SharpPersistence.Abstractions;
+using SharpPersistence.EfCore.Internals;
 
 namespace SharpPersistence.EfCore;
 
@@ -17,6 +18,11 @@ public abstract class RepositoryBase<TEntity, TDbContext> : IRepositoryBase<TEnt
         EntityDbSet = DatabaseContext.Set<TEntity>();
     }
 
+    public IEntityQuery<TEntity> FluentQuery()
+    {
+        return new EntityQuery<TEntity>(EntityDbSet);
+    }
+    
     public async Task<TEntity?> GetOneAsync(Expression<Func<TEntity, bool>> condition,
         CancellationToken cancellationToken = default)
     {

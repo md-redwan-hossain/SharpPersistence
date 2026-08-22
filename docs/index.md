@@ -229,9 +229,31 @@ Some examples with `IEntityTypeConfiguration` of Ef Core are given below:
 - `RepositoryBase` is available in `SharpPersistence.EfCore`
 - All CRUD operations with async support
 - Multiple overloads for flexible querying
+- `FluentQuery()` returns `IEntityQuery<T>` for composable reads (filter, sort, page, project, tracking)
+- Set tracking on the entity query before `Select`; after projection, tracking methods do nothing
+- NET10+: `IgnoreQueryFilters(filterKeys)` on the entity query (before `Select`) to skip named query filters
 - Proper EF Core tracking management
 - Dependency injection ready
 - Readable, maintainable, and well-formatted code
+
+```csharp
+// Existing overload style
+var user = await repo.GetOneAsync(u => u.IsActive);
+
+// Fluent query style (default: no tracking)
+var page = await repo.FluentQuery()
+    .Where(u => u.IsActive)
+    .OrderBy(u => u.Name)
+    .Select(u => new { u.Id, u.Name })
+    .Paginate(page: 1, limit: 20)
+    .ToListAsync();
+
+// Tracking applies to the entity query (before Select)
+var tracked = await repo.FluentQuery()
+    .Where(u => u.Id == id)
+    .AsTracking()
+    .FirstOrDefaultAsync();
+```
 
 ### **`UnitOfWork` with `IUnitOfWork`**
 
