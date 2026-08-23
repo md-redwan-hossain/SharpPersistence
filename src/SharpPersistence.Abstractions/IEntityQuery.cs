@@ -31,7 +31,7 @@ public interface IEntityQuery<T>
 
     Task<bool> ExistsAsync(CancellationToken cancellationToken = default);
 
-    Task<bool> ExistsAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default);
+    Task<bool> ExistsAsync(Expression<Func<T, bool>> condition, CancellationToken cancellationToken = default);
 
-    Task<bool> EveryAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default);
+    Task<bool> EveryAsync(Expression<Func<T, bool>> condition, CancellationToken cancellationToken = default);
 }
