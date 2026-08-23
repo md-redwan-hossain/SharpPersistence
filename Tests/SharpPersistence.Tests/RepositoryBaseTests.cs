@@ -270,7 +270,7 @@ public class RepositoryBaseTests : IAsyncLifetime
 
         all.ShouldBeTrue();
     }
-    
+
     [Fact]
     public async Task ExistsAsync_WithFilter_ReturnsTrueIfNoneMatch()
     {
@@ -722,4 +722,159 @@ public class RepositoryBaseTests : IAsyncLifetime
             cancellationToken: TestContext.Current.CancellationToken);
         value.ShouldBe(4);
     }
+
+    [Fact]
+    public async Task Query_Where_FirstOrDefaultAsync_ReturnsEntity()
+    {
+        var entity = await _repository.Query()
+            .Where(e => e.Name == "A")
+            .GetOneAsync(TestContext.Current.CancellationToken);
+
+        entity.ShouldNotBeNull();
+        entity.NumericValue.ShouldBe(1);
+        _dbContext.Entry(entity).State.ShouldBe(EntityState.Detached);
+    }
+
+    [Fact]
+    public async Task Query_AsTracking_TracksEntity()
+    {
+        var entity = await _repository.Query()
+            .Where(e => e.Name == "A")
+            .EnableTracking()
+            .GetOneAsync(TestContext.Current.CancellationToken);
+
+        entity.ShouldNotBeNull();
+        _dbContext.Entry(entity).State.ShouldBe(EntityState.Unchanged);
+    }
+
+    [Fact]
+    public async Task Query_ChainedOrderBy_AppliesThenBy()
+    {
+        var entities = await _repository.Query()
+            .OrderBy(e => e.NumericValue)
+            .OrderBy(e => e.Name)
+            .GetAllAsync(TestContext.Current.CancellationToken);
+
+        entities.Count.ShouldBe(4);
+        entities.Select(e => e.Name).ShouldBe(["A", "B", "C", "D"]);
+    }
+
+    [Fact]
+    public async Task Query_OrderByDesc_Page_ReturnsPage()
+    {
+        var entities = await _repository.Query()
+            .OrderByDesc(e => e.NumericValue)
+            .OffsetPaginate(1, 2)
+            .GetAllAsync(TestContext.Current.CancellationToken);
+
+        entities.Count.ShouldBe(2);
+        entities.ElementAt(0).Name.ShouldBe("D");
+        entities.ElementAt(1).Name.ShouldBe("C");
+    }
+
+    [Fact]
+    public async Task Query_Select_Page_ReturnsProjection()
+    {
+        var names = await _repository.Query()
+            .Where(e => e.NumericValue > 1)
+            .OrderBy(e => e.Name)
+            .Select(e => e.Name)
+            .OffsetPaginate(1, 2)
+            .GetAllAsync(TestContext.Current.CancellationToken);
+
+        names.Count.ShouldBe(2);
+        names.ShouldBe(["B", "C"]);
+    }
+
+    [Fact]
+    public async Task Query_Select_ValueType_ReturnsProjection()
+    {
+        var values = await _repository.Query()
+            .OrderBy(e => e.NumericValue)
+            .Select(e => e.NumericValue)
+            .GetAllAsync(TestContext.Current.CancellationToken);
+
+        values.Count.ShouldBe(4);
+        values.ShouldBe([1, 2, 3, 4]);
+    }
+
+    [Fact]
+    public async Task Query_Select_ThenWhere_FiltersProjection()
+    {
+        var names = await _repository.Query()
+            .Select(e => e.Name)
+            .Where(n => n == "A" || n == "C")
+            .OrderBy(n => n)
+            .GetAllAsync(TestContext.Current.CancellationToken);
+
+        names.ShouldBe(["A", "C"]);
+    }
+
+    [Fact]
+    public async Task Query_CountAsync_WithWhere()
+    {
+        var count = await _repository.Query()
+            .Where(e => e.NumericValue > 2)
+            .GetCountAsync(TestContext.Current.CancellationToken);
+
+        count.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task Query_AnyAsync_WithPredicate()
+    {
+        var exists = await _repository.Query()
+            .ExistsAsync(e => e.Name == "A", TestContext.Current.CancellationToken);
+
+        exists.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Query_AllAsync_ReturnsExpected()
+    {
+        var allPositive = await _repository.Query()
+            .EveryAsync(e => e.NumericValue > 0, TestContext.Current.CancellationToken);
+
+        allPositive.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Query_OffsetPaginate_ClampsNonPositiveValues()
+    {
+        var entities = await _repository.Query()
+            .OrderBy(e => e.NumericValue)
+            .OffsetPaginate(0, 0)
+            .GetAllAsync(TestContext.Current.CancellationToken);
+
+        entities.Count.ShouldBe(1);
+        entities.ElementAt(0).Name.ShouldBe("A");
+    }
+
+#if NET10_0_OR_GREATER
+    [Fact]
+    public async Task Query_IgnoreQueryFilters_IncludesSoftDeleted()
+    {
+        var deleted = await _repository.Query()
+            .Where(e => e.Name == "A")
+            .EnableTracking()
+            .GetOneAsync(TestContext.Current.CancellationToken);
+        
+        deleted.ShouldNotBeNull();
+        deleted.IsDeleted = true;
+        await _dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
+        _dbContext.ChangeTracker.Clear();
+
+        var withoutIgnore = await _repository.Query()
+            .GetAllAsync(TestContext.Current.CancellationToken);
+        withoutIgnore.Count.ShouldBe(3);
+        withoutIgnore.Any(e => e.Name == "A").ShouldBeFalse();
+
+        var withIgnore = await _repository.Query()
+            .IgnoreQueryFilters([TestDbContext.SoftDeleteFilter])
+            .GetAllAsync(TestContext.Current.CancellationToken);
+        withIgnore.Count.ShouldBe(4);
+        withIgnore.Any(e => e is { Name: "A", IsDeleted: true }).ShouldBeTrue();
+    }
+#endif
+
 }

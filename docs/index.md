@@ -223,15 +223,49 @@ Some examples with `IEntityTypeConfiguration` of Ef Core are given below:
 ));
 ```
 
+### **`RepositoryCore` with `IRepositoryCore`**
+
+- `IRepositoryCore` is available in `SharpPersistence.Abstractions`
+- `RepositoryCore` is available in `SharpPersistence.EfCore`
+- Prefer this for new code: CRUD + tracking + `Query()` only (no Get* overload grid)
+- `Query()` returns `IEntityQuery<T>` for composable reads (filter, sort, page, project, tracking)
+- Set tracking on the entity query before `Select`; after projection, tracking methods do nothing
+- NET10+: `IgnoreQueryFilters(filterKeys)` on the entity query (before `Select`) to skip named query filters
+
+```csharp
+// Register / inject IRepositoryCore<User> (or your derived interface)
+var allData = await repo.Query()
+    .Where(u => u.IsActive)
+    .OrderBy(u => u.Name)
+    .Select(u => new { u.Id, u.Name })
+    .OffsetPaginate(page: 1, limit: 20)
+    .GetAllAsync();
+
+var singleData = await repo.Query()
+    .Where(u => u.Id == id)
+    .EnableTracking()
+    .GetOneAsync();
+```
+
 ### **`RepositoryBase` with `IRepositoryBase`**
 
-- `IRepositoryBase` is available in `SharpPersistence.Abstractions`
-- `RepositoryBase` is available in `SharpPersistence.EfCore`
+- `IRepositoryBase` extends `IRepositoryCore` (same Query + CRUD surface, plus Get* helpers)
+- `RepositoryBase` extends `RepositoryCore` and implements `IRepositoryBase`
 - All CRUD operations with async support
-- Multiple overloads for flexible querying
-- Proper EF Core tracking management
-- Dependency injection ready
-- Readable, maintainable, and well-formatted code
+- Multiple Get* overloads for flexible querying (legacy / convenience path)
+- Existing consumers of `IRepositoryBase` / `RepositoryBase` keep working unchanged
+
+```csharp
+// Overload style (still available on IRepositoryBase)
+var user = await repo.GetOneAsync(u => u.IsActive);
+
+// Fluent query style (also on IRepositoryBase via IRepositoryCore)
+var page = await repo.Query()
+    .Where(u => u.IsActive)
+    .OrderBy(u => u.Name)
+    .Paginate(page: 1, limit: 20)
+    .ToListAsync();
+```
 
 ### **`UnitOfWork` with `IUnitOfWork`**
 

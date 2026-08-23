@@ -4,19 +4,15 @@ using SharpPersistence.Abstractions;
 
 namespace SharpPersistence.EfCore;
 
-public abstract class RepositoryBase<TEntity, TDbContext> : IRepositoryBase<TEntity>
+public abstract class RepositoryBase<TEntity, TDbContext> : RepositoryCore<TEntity, TDbContext>,
+    IRepositoryBase<TEntity>
     where TEntity : class
     where TDbContext : DbContext
 {
-    protected readonly TDbContext DatabaseContext;
-    protected readonly DbSet<TEntity> EntityDbSet;
-
-    protected RepositoryBase(TDbContext context)
+    protected RepositoryBase(TDbContext context) : base(context)
     {
-        DatabaseContext = context;
-        EntityDbSet = DatabaseContext.Set<TEntity>();
     }
-
+    
     public async Task<TEntity?> GetOneAsync(Expression<Func<TEntity, bool>> condition,
         CancellationToken cancellationToken = default)
     {
@@ -553,64 +549,7 @@ public abstract class RepositoryBase<TEntity, TDbContext> : IRepositoryBase<TEnt
     {
         return EntityDbSet.LongCountAsync(cancellationToken);
     }
-
-    public async Task CreateAsync(TEntity entity)
-    {
-        await EntityDbSet.AddAsync(entity).ConfigureAwait(false);
-    }
-
-    public async Task CreateManyAsync(ICollection<TEntity> entity)
-    {
-        await EntityDbSet.AddRangeAsync(entity).ConfigureAwait(false);
-    }
-
-    public void Create(TEntity entity)
-    {
-        EntityDbSet.Add(entity);
-    }
-
-    public void CreateMany(ICollection<TEntity> entity)
-    {
-        EntityDbSet.AddRange(entity);
-    }
-
-    public virtual void Update(TEntity entityToUpdate)
-    {
-        EntityDbSet.Update(entityToUpdate);
-    }
-
-    public virtual void UpdateMany(ICollection<TEntity> entitiesToUpdate)
-    {
-        EntityDbSet.UpdateRange(entitiesToUpdate);
-    }
-
-    public virtual void Remove(TEntity entityToDelete)
-    {
-        EntityDbSet.Remove(entityToDelete);
-    }
-
-    public virtual void RemoveMany(ICollection<TEntity> entitiesToUpdate)
-    {
-        EntityDbSet.RemoveRange(entitiesToUpdate);
-    }
-
-    public virtual Task<int> RemoveManyDirectAsync(Expression<Func<TEntity, bool>> condition)
-    {
-        return EntityDbSet
-            .Where(condition)
-            .ExecuteDeleteAsync();
-    }
-
-    public void TrackEntity(TEntity entity)
-    {
-        DatabaseContext.Set<TEntity>().Attach(entity);
-    }
-
-    public void TrackEntities(IEnumerable<TEntity> entities)
-    {
-        DatabaseContext.Set<TEntity>().AttachRange(entities);
-    }
-
+    
     private static (int page, int limit) AvoidNegativeOrZeroPagination(int page, int limit)
     {
         var pagination = (page, limit);
