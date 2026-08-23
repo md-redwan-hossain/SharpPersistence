@@ -2,7 +2,7 @@ using System.Linq.Expressions;
 
 namespace SharpPersistence.Abstractions;
 
-public interface IRepositoryBase<TEntity> : ISlimRepositoryBase<TEntity>
+public interface IRepositoryBase<TEntity> : IRepositoryCore<TEntity>
     where TEntity : class
 {
     Task<TEntity?> GetOneAsync(Expression<Func<TEntity, bool>> condition,

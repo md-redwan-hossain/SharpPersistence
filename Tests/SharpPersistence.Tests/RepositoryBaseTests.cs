@@ -724,9 +724,9 @@ public class RepositoryBaseTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task FluentQuery_Where_FirstOrDefaultAsync_ReturnsEntity()
+    public async Task Query_Where_FirstOrDefaultAsync_ReturnsEntity()
     {
-        var entity = await _repository.FluentQuery()
+        var entity = await _repository.Query()
             .Where(e => e.Name == "A")
             .FirstOrDefaultAsync(TestContext.Current.CancellationToken);
 
@@ -736,11 +736,11 @@ public class RepositoryBaseTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task FluentQuery_AsTracking_TracksEntity()
+    public async Task Query_AsTracking_TracksEntity()
     {
-        var entity = await _repository.FluentQuery()
+        var entity = await _repository.Query()
             .Where(e => e.Name == "A")
-            .AsTracking()
+            .EnableTracking()
             .FirstOrDefaultAsync(TestContext.Current.CancellationToken);
 
         entity.ShouldNotBeNull();
@@ -748,9 +748,9 @@ public class RepositoryBaseTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task FluentQuery_ChainedOrderBy_AppliesThenBy()
+    public async Task Query_ChainedOrderBy_AppliesThenBy()
     {
-        var entities = await _repository.FluentQuery()
+        var entities = await _repository.Query()
             .OrderBy(e => e.NumericValue)
             .OrderBy(e => e.Name)
             .ToListAsync(TestContext.Current.CancellationToken);
@@ -760,9 +760,9 @@ public class RepositoryBaseTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task FluentQuery_OrderByDesc_Page_ReturnsPage()
+    public async Task Query_OrderByDesc_Page_ReturnsPage()
     {
-        var entities = await _repository.FluentQuery()
+        var entities = await _repository.Query()
             .OrderByDesc(e => e.NumericValue)
             .OffsetPaginate(1, 2)
             .ToListAsync(TestContext.Current.CancellationToken);
@@ -773,9 +773,9 @@ public class RepositoryBaseTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task FluentQuery_Select_Page_ReturnsProjection()
+    public async Task Query_Select_Page_ReturnsProjection()
     {
-        var names = await _repository.FluentQuery()
+        var names = await _repository.Query()
             .Where(e => e.NumericValue > 1)
             .OrderBy(e => e.Name)
             .Select(e => e.Name)
@@ -787,9 +787,9 @@ public class RepositoryBaseTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task FluentQuery_Select_ValueType_ReturnsProjection()
+    public async Task Query_Select_ValueType_ReturnsProjection()
     {
-        var values = await _repository.FluentQuery()
+        var values = await _repository.Query()
             .OrderBy(e => e.NumericValue)
             .Select(e => e.NumericValue)
             .ToListAsync(TestContext.Current.CancellationToken);
@@ -799,9 +799,9 @@ public class RepositoryBaseTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task FluentQuery_Select_ThenWhere_FiltersProjection()
+    public async Task Query_Select_ThenWhere_FiltersProjection()
     {
-        var names = await _repository.FluentQuery()
+        var names = await _repository.Query()
             .Select(e => e.Name)
             .Where(n => n == "A" || n == "C")
             .OrderBy(n => n)
@@ -811,9 +811,9 @@ public class RepositoryBaseTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task FluentQuery_CountAsync_WithWhere()
+    public async Task Query_CountAsync_WithWhere()
     {
-        var count = await _repository.FluentQuery()
+        var count = await _repository.Query()
             .Where(e => e.NumericValue > 2)
             .CountAsync(TestContext.Current.CancellationToken);
 
@@ -821,27 +821,27 @@ public class RepositoryBaseTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task FluentQuery_AnyAsync_WithPredicate()
+    public async Task Query_AnyAsync_WithPredicate()
     {
-        var exists = await _repository.FluentQuery()
-            .AnyAsync(e => e.Name == "A", TestContext.Current.CancellationToken);
+        var exists = await _repository.Query()
+            .ExistsAsync(e => e.Name == "A", TestContext.Current.CancellationToken);
 
         exists.ShouldBeTrue();
     }
 
     [Fact]
-    public async Task FluentQuery_AllAsync_ReturnsExpected()
+    public async Task Query_AllAsync_ReturnsExpected()
     {
-        var allPositive = await _repository.FluentQuery()
-            .AllAsync(e => e.NumericValue > 0, TestContext.Current.CancellationToken);
+        var allPositive = await _repository.Query()
+            .EveryAsync(e => e.NumericValue > 0, TestContext.Current.CancellationToken);
 
         allPositive.ShouldBeTrue();
     }
 
     [Fact]
-    public async Task FluentQuery_OffsetPaginate_ClampsNonPositiveValues()
+    public async Task Query_OffsetPaginate_ClampsNonPositiveValues()
     {
-        var entities = await _repository.FluentQuery()
+        var entities = await _repository.Query()
             .OrderBy(e => e.NumericValue)
             .OffsetPaginate(0, 0)
             .ToListAsync(TestContext.Current.CancellationToken);
@@ -852,11 +852,11 @@ public class RepositoryBaseTests : IAsyncLifetime
 
 #if NET10_0_OR_GREATER
     [Fact]
-    public async Task FluentQuery_IgnoreQueryFilters_IncludesSoftDeleted()
+    public async Task Query_IgnoreQueryFilters_IncludesSoftDeleted()
     {
-        var deleted = await _repository.FluentQuery()
+        var deleted = await _repository.Query()
             .Where(e => e.Name == "A")
-            .AsTracking()
+            .EnableTracking()
             .FirstOrDefaultAsync(TestContext.Current.CancellationToken);
         
         deleted.ShouldNotBeNull();
@@ -864,12 +864,12 @@ public class RepositoryBaseTests : IAsyncLifetime
         await _dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
         _dbContext.ChangeTracker.Clear();
 
-        var withoutIgnore = await _repository.FluentQuery()
+        var withoutIgnore = await _repository.Query()
             .ToListAsync(TestContext.Current.CancellationToken);
         withoutIgnore.Count.ShouldBe(3);
         withoutIgnore.Any(e => e.Name == "A").ShouldBeFalse();
 
-        var withIgnore = await _repository.FluentQuery()
+        var withIgnore = await _repository.Query()
             .IgnoreQueryFilters([TestDbContext.SoftDeleteFilter])
             .ToListAsync(TestContext.Current.CancellationToken);
         withIgnore.Count.ShouldBe(4);

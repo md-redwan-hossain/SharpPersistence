@@ -53,10 +53,8 @@ internal abstract class EntityQueryBase<T> : IEntityQuery<T>
         return this;
     }
 
-    public abstract IEntityQuery<T> AsTracking();
-
-    public abstract IEntityQuery<T> AsNoTracking();
-
+    public abstract IEntityQuery<T> EnableTracking();
+    
 #if NET10_0_OR_GREATER
     public abstract IEntityQuery<T> IgnoreQueryFilters(IReadOnlyCollection<string> filterKeys);
 #endif
@@ -88,17 +86,17 @@ internal abstract class EntityQueryBase<T> : IEntityQuery<T>
         return Query.LongCountAsync(cancellationToken);
     }
 
-    public Task<bool> AnyAsync(CancellationToken cancellationToken = default)
+    public Task<bool> ExistsAsync(CancellationToken cancellationToken = default)
     {
         return Query.AnyAsync(cancellationToken);
     }
 
-    public Task<bool> AnyAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default)
+    public Task<bool> ExistsAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default)
     {
         return Query.AnyAsync(predicate, cancellationToken);
     }
 
-    public Task<bool> AllAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default)
+    public Task<bool> EveryAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default)
     {
         return Query.AllAsync(predicate, cancellationToken);
     }

@@ -4,7 +4,7 @@ using SharpPersistence.Abstractions;
 
 namespace SharpPersistence.EfCore;
 
-public abstract class RepositoryBase<TEntity, TDbContext> : SlimRepositoryBase<TEntity, TDbContext>,
+public abstract class RepositoryBase<TEntity, TDbContext> : RepositoryCore<TEntity, TDbContext>,
     IRepositoryBase<TEntity>
     where TEntity : class
     where TDbContext : DbContext

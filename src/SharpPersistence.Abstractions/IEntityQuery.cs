@@ -13,10 +13,8 @@ public interface IEntityQuery<T>
 
     IEntityQuery<T> OrderByDesc<TKey>(Expression<Func<T, TKey>> keySelector);
 
-    IEntityQuery<T> AsTracking();
-
-    IEntityQuery<T> AsNoTracking();
-
+    IEntityQuery<T> EnableTracking();
+    
 #if NET10_0_OR_GREATER
     IEntityQuery<T> IgnoreQueryFilters(IReadOnlyCollection<string> filterKeys);
 #endif
@@ -31,9 +29,9 @@ public interface IEntityQuery<T>
 
     Task<long> CountAsync(CancellationToken cancellationToken = default);
 
-    Task<bool> AnyAsync(CancellationToken cancellationToken = default);
+    Task<bool> ExistsAsync(CancellationToken cancellationToken = default);
 
-    Task<bool> AnyAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default);
+    Task<bool> ExistsAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default);
 
-    Task<bool> AllAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default);
+    Task<bool> EveryAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default);
 }

@@ -5,20 +5,20 @@ using SharpPersistence.EfCore.Internals;
 
 namespace SharpPersistence.EfCore;
 
-public abstract class SlimRepositoryBase<TEntity, TDbContext> : ISlimRepositoryBase<TEntity>
+public abstract class RepositoryCore<TEntity, TDbContext> : IRepositoryCore<TEntity>
     where TEntity : class
     where TDbContext : DbContext
 {
     protected readonly TDbContext DatabaseContext;
     protected readonly DbSet<TEntity> EntityDbSet;
 
-    protected SlimRepositoryBase(TDbContext context)
+    protected RepositoryCore(TDbContext context)
     {
         DatabaseContext = context;
         EntityDbSet = DatabaseContext.Set<TEntity>();
     }
 
-    public IEntityQuery<TEntity> FluentQuery()
+    public IEntityQuery<TEntity> Query()
     {
         return new EntityQuery<TEntity>(EntityDbSet);
     }

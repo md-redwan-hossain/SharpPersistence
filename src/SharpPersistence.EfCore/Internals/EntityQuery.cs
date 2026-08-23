@@ -3,28 +3,16 @@ using SharpPersistence.Abstractions;
 
 namespace SharpPersistence.EfCore.Internals;
 
-/// <summary>
-/// Fluent query over mapped entities. EF tracking APIs require a class type, so this type
-/// is constrained to <typeparamref name="T"/> : class. After <see cref="EntityQueryBase{T}.Select{TResult}"/>,
-/// control moves to <see cref="EntityProjectedQuery{TResult}"/>, which supports any projection type.
-/// </summary>
 internal sealed class EntityQuery<T> : EntityQueryBase<T>
     where T : class
 {
-    public EntityQuery(IQueryable<T> query)
-        : base(query.AsNoTracking())
+    public EntityQuery(IQueryable<T> query) : base(query.AsNoTracking())
     {
     }
 
-    public override IEntityQuery<T> AsTracking()
+    public override IEntityQuery<T> EnableTracking()
     {
         Query = Query.AsTracking();
-        return this;
-    }
-
-    public override IEntityQuery<T> AsNoTracking()
-    {
-        Query = Query.AsNoTracking();
         return this;
     }
 

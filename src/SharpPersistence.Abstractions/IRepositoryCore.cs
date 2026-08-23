@@ -2,10 +2,10 @@ using System.Linq.Expressions;
 
 namespace SharpPersistence.Abstractions;
 
-public interface ISlimRepositoryBase<TEntity>
+public interface IRepositoryCore<TEntity>
     where TEntity : class
 {
-    IEntityQuery<TEntity> FluentQuery();
+    IEntityQuery<TEntity> Query();
     void Create(TEntity entity);
     void CreateMany(ICollection<TEntity> entity);
     Task CreateAsync(TEntity entity);
