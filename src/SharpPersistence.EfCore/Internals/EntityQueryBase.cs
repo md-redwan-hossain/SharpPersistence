@@ -71,17 +71,17 @@ internal abstract class EntityQueryBase<T> : IEntityQuery<T>
         return new EntityProjectedQuery<TResult>(Query.Select(selector));
     }
 
-    public Task<T?> FirstOrDefaultAsync(CancellationToken cancellationToken = default)
+    public Task<T?> GetOneAsync(CancellationToken cancellationToken = default)
     {
         return Query.FirstOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<IList<T>> ToListAsync(CancellationToken cancellationToken = default)
+    public async Task<IList<T>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         return await Query.ToListAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    public Task<long> CountAsync(CancellationToken cancellationToken = default)
+    public Task<long> GetCountAsync(CancellationToken cancellationToken = default)
     {
         return Query.LongCountAsync(cancellationToken);
     }
@@ -90,7 +90,7 @@ internal abstract class EntityQueryBase<T> : IEntityQuery<T>
     {
         return Query.AnyAsync(cancellationToken);
     }
-
+    
     public Task<bool> ExistsAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default)
     {
         return Query.AnyAsync(predicate, cancellationToken);

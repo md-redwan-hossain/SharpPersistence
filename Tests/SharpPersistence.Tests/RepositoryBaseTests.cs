@@ -728,7 +728,7 @@ public class RepositoryBaseTests : IAsyncLifetime
     {
         var entity = await _repository.Query()
             .Where(e => e.Name == "A")
-            .FirstOrDefaultAsync(TestContext.Current.CancellationToken);
+            .GetOneAsync(TestContext.Current.CancellationToken);
 
         entity.ShouldNotBeNull();
         entity.NumericValue.ShouldBe(1);
@@ -741,7 +741,7 @@ public class RepositoryBaseTests : IAsyncLifetime
         var entity = await _repository.Query()
             .Where(e => e.Name == "A")
             .EnableTracking()
-            .FirstOrDefaultAsync(TestContext.Current.CancellationToken);
+            .GetOneAsync(TestContext.Current.CancellationToken);
 
         entity.ShouldNotBeNull();
         _dbContext.Entry(entity).State.ShouldBe(EntityState.Unchanged);
@@ -753,7 +753,7 @@ public class RepositoryBaseTests : IAsyncLifetime
         var entities = await _repository.Query()
             .OrderBy(e => e.NumericValue)
             .OrderBy(e => e.Name)
-            .ToListAsync(TestContext.Current.CancellationToken);
+            .GetAllAsync(TestContext.Current.CancellationToken);
 
         entities.Count.ShouldBe(4);
         entities.Select(e => e.Name).ShouldBe(["A", "B", "C", "D"]);
@@ -765,7 +765,7 @@ public class RepositoryBaseTests : IAsyncLifetime
         var entities = await _repository.Query()
             .OrderByDesc(e => e.NumericValue)
             .OffsetPaginate(1, 2)
-            .ToListAsync(TestContext.Current.CancellationToken);
+            .GetAllAsync(TestContext.Current.CancellationToken);
 
         entities.Count.ShouldBe(2);
         entities.ElementAt(0).Name.ShouldBe("D");
@@ -780,7 +780,7 @@ public class RepositoryBaseTests : IAsyncLifetime
             .OrderBy(e => e.Name)
             .Select(e => e.Name)
             .OffsetPaginate(1, 2)
-            .ToListAsync(TestContext.Current.CancellationToken);
+            .GetAllAsync(TestContext.Current.CancellationToken);
 
         names.Count.ShouldBe(2);
         names.ShouldBe(["B", "C"]);
@@ -792,7 +792,7 @@ public class RepositoryBaseTests : IAsyncLifetime
         var values = await _repository.Query()
             .OrderBy(e => e.NumericValue)
             .Select(e => e.NumericValue)
-            .ToListAsync(TestContext.Current.CancellationToken);
+            .GetAllAsync(TestContext.Current.CancellationToken);
 
         values.Count.ShouldBe(4);
         values.ShouldBe([1, 2, 3, 4]);
@@ -805,7 +805,7 @@ public class RepositoryBaseTests : IAsyncLifetime
             .Select(e => e.Name)
             .Where(n => n == "A" || n == "C")
             .OrderBy(n => n)
-            .ToListAsync(TestContext.Current.CancellationToken);
+            .GetAllAsync(TestContext.Current.CancellationToken);
 
         names.ShouldBe(["A", "C"]);
     }
@@ -815,7 +815,7 @@ public class RepositoryBaseTests : IAsyncLifetime
     {
         var count = await _repository.Query()
             .Where(e => e.NumericValue > 2)
-            .CountAsync(TestContext.Current.CancellationToken);
+            .GetCountAsync(TestContext.Current.CancellationToken);
 
         count.ShouldBe(2);
     }
@@ -844,7 +844,7 @@ public class RepositoryBaseTests : IAsyncLifetime
         var entities = await _repository.Query()
             .OrderBy(e => e.NumericValue)
             .OffsetPaginate(0, 0)
-            .ToListAsync(TestContext.Current.CancellationToken);
+            .GetAllAsync(TestContext.Current.CancellationToken);
 
         entities.Count.ShouldBe(1);
         entities.ElementAt(0).Name.ShouldBe("A");
@@ -857,7 +857,7 @@ public class RepositoryBaseTests : IAsyncLifetime
         var deleted = await _repository.Query()
             .Where(e => e.Name == "A")
             .EnableTracking()
-            .FirstOrDefaultAsync(TestContext.Current.CancellationToken);
+            .GetOneAsync(TestContext.Current.CancellationToken);
         
         deleted.ShouldNotBeNull();
         deleted.IsDeleted = true;
@@ -865,15 +865,15 @@ public class RepositoryBaseTests : IAsyncLifetime
         _dbContext.ChangeTracker.Clear();
 
         var withoutIgnore = await _repository.Query()
-            .ToListAsync(TestContext.Current.CancellationToken);
+            .GetAllAsync(TestContext.Current.CancellationToken);
         withoutIgnore.Count.ShouldBe(3);
         withoutIgnore.Any(e => e.Name == "A").ShouldBeFalse();
 
         var withIgnore = await _repository.Query()
             .IgnoreQueryFilters([TestDbContext.SoftDeleteFilter])
-            .ToListAsync(TestContext.Current.CancellationToken);
+            .GetAllAsync(TestContext.Current.CancellationToken);
         withIgnore.Count.ShouldBe(4);
-        withIgnore.Any(e => e.Name == "A" && e.IsDeleted).ShouldBeTrue();
+        withIgnore.Any(e => e is { Name: "A", IsDeleted: true }).ShouldBeTrue();
     }
 #endif
 

@@ -14,7 +14,7 @@ public interface IEntityQuery<T>
     IEntityQuery<T> OrderByDesc<TKey>(Expression<Func<T, TKey>> keySelector);
 
     IEntityQuery<T> EnableTracking();
-    
+
 #if NET10_0_OR_GREATER
     IEntityQuery<T> IgnoreQueryFilters(IReadOnlyCollection<string> filterKeys);
 #endif
@@ -23,11 +23,11 @@ public interface IEntityQuery<T>
 
     IEntityQuery<TResult> Select<TResult>(Expression<Func<T, TResult>> selector);
 
-    Task<T?> FirstOrDefaultAsync(CancellationToken cancellationToken = default);
+    Task<T?> GetOneAsync(CancellationToken cancellationToken = default);
 
-    Task<IList<T>> ToListAsync(CancellationToken cancellationToken = default);
+    Task<IList<T>> GetAllAsync(CancellationToken cancellationToken = default);
 
-    Task<long> CountAsync(CancellationToken cancellationToken = default);
+    Task<long> GetCountAsync(CancellationToken cancellationToken = default);
 
     Task<bool> ExistsAsync(CancellationToken cancellationToken = default);
 
