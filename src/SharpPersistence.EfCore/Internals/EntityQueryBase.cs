@@ -91,14 +91,14 @@ internal abstract class EntityQueryBase<T> : IEntityQuery<T>
         return Query.AnyAsync(cancellationToken);
     }
     
-    public Task<bool> ExistsAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default)
+    public Task<bool> ExistsAsync(Expression<Func<T, bool>> condition, CancellationToken cancellationToken = default)
     {
-        return Query.AnyAsync(predicate, cancellationToken);
+        return Query.AnyAsync(condition, cancellationToken);
     }
 
-    public Task<bool> EveryAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default)
+    public Task<bool> EveryAsync(Expression<Func<T, bool>> condition, CancellationToken cancellationToken = default)
     {
-        return Query.AllAsync(predicate, cancellationToken);
+        return Query.AllAsync(condition, cancellationToken);
     }
 
     private static (int page, int limit) NormalizePagination(int page, int limit)
