@@ -59,6 +59,11 @@ public class SqlCheckConstraintGenerator
     private const string MathDivide = " / ";
     private const string MathModulo = " % ";
 
+    /// <summary>
+    /// Starts building a SQL <c>CASE</c> expression for use in a check constraint.
+    /// </summary>
+    public ISqlCaseInitiator Case() => new SqlCaseBuilder();
+
     public string And(string firstOperand, string secondOperand, params string[] otherOperands)
     {
         var sb = new StringBuilder(string.Concat(firstOperand, AndSign, secondOperand));

@@ -173,6 +173,7 @@ SqlParser validates your SQL files at startup and throws detailed error messages
 - Supports multiple RDBMS (SQL Server, PostgreSQL, MySQL, Oracle)
 - Naming convention support (PascalCase, lower_snake_case, UPPER_SNAKE_CASE)
 - Handles all SQL comparison, logical, and set operators
+- Fluent `CASE` expression builder with compile-time-safe `When` / `End` / `EndWithElse` chaining
 - Proper string escaping and identifier delimiting
 - Fully tested for edge cases and all method combinations
 
@@ -220,6 +221,19 @@ Some examples with `IEntityTypeConfiguration` of Ef Core are given below:
                 0, SqlDataType.Decimal)
         )
     )
+));
+```
+
+  builder.ToTable(x => x.HasCheckConstraint(
+    "valid_amount_by_status",
+    cc.Case()
+        .When(
+            cc.EqualTo(nameof(Invoice.Status), "paid", SqlOperandType.Value),
+            cc.GreaterThan(nameof(Invoice.Amount), 0, SqlDataType.Decimal))
+        .When(
+            cc.EqualTo(nameof(Invoice.Status), "void", SqlOperandType.Value),
+            cc.EqualTo(nameof(Invoice.Amount), 0, SqlDataType.Decimal))
+        .EndWithElse(cc.GreaterThanOrEqual(nameof(Invoice.Amount), 0, SqlDataType.Decimal))
 ));
 ```
 
