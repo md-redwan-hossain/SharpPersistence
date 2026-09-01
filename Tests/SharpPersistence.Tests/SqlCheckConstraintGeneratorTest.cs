@@ -564,4 +564,111 @@ public class SqlCheckConstraintGeneratorTest
 
         testSql.ShouldBe(sql);
     }
+
+    [Fact]
+    public void Case_SingleWhen_End_GeneratesCorrectSql()
+    {
+        var cc = new SqlCheckConstraintGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
+            delimitString: false);
+
+        const string sql =
+            """
+            CASE
+              WHEN status = 'paid' THEN amount > 0
+            END
+            """;
+
+        var testSql = cc.Case()
+            .When(
+                cc.EqualTo("status", "paid", SqlOperandType.Value),
+                cc.GreaterThan("amount", 0, SqlDataType.Decimal))
+            .End();
+
+        testSql.ShouldBe(sql);
+    }
+
+    [Fact]
+    public void Case_MultipleWhen_End_GeneratesCorrectSql()
+    {
+        var cc = new SqlCheckConstraintGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
+            delimitString: false);
+
+        const string sql =
+            """
+            CASE
+              WHEN status = 'paid' THEN amount > 0
+              WHEN status = 'void' THEN amount = 0
+            END
+            """;
+
+        var testSql = cc.Case()
+            .When(
+                cc.EqualTo("status", "paid", SqlOperandType.Value),
+                cc.GreaterThan("amount", 0, SqlDataType.Decimal))
+            .When(
+                cc.EqualTo("status", "void", SqlOperandType.Value),
+                cc.EqualTo("amount", 0, SqlDataType.Decimal))
+            .End();
+
+        testSql.ShouldBe(sql);
+    }
+
+    [Fact]
+    public void Case_EndWithElse_GeneratesCorrectSql()
+    {
+        var cc = new SqlCheckConstraintGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
+            delimitString: false);
+
+        const string sql =
+            """
+            CASE
+              WHEN status = 'paid' THEN amount > 0
+              WHEN status = 'void' THEN amount = 0
+              ELSE amount >= 0
+            END
+            """;
+
+        var testSql = cc.Case()
+            .When(
+                cc.EqualTo("status", "paid", SqlOperandType.Value),
+                cc.GreaterThan("amount", 0, SqlDataType.Decimal))
+            .When(
+                cc.EqualTo("status", "void", SqlOperandType.Value),
+                cc.EqualTo("amount", 0, SqlDataType.Decimal))
+            .EndWithElse(cc.GreaterThanOrEqual("amount", 0, SqlDataType.Decimal));
+
+        testSql.ShouldBe(sql);
+    }
+
+    [Fact]
+    public void Case_When_NullWhen_Throws()
+    {
+        var cc = new SqlCheckConstraintGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
+            delimitString: false);
+
+        Should.Throw<ArgumentNullException>(() =>
+            cc.Case().When(null!, "amount > 0"));
+    }
+
+    [Fact]
+    public void Case_When_NullThen_Throws()
+    {
+        var cc = new SqlCheckConstraintGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
+            delimitString: false);
+
+        Should.Throw<ArgumentNullException>(() =>
+            cc.Case().When("status = 'paid'", null!));
+    }
+
+    [Fact]
+    public void Case_EndWithElse_NullElse_Throws()
+    {
+        var cc = new SqlCheckConstraintGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
+            delimitString: false);
+
+        Should.Throw<ArgumentNullException>(() =>
+            cc.Case()
+                .When(cc.EqualTo("status", "paid", SqlOperandType.Value), cc.GreaterThan("amount", 0, SqlDataType.Decimal))
+                .EndWithElse(null!));
+    }
 }
