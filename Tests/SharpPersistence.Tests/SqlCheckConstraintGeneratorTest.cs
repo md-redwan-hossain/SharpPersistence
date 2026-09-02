@@ -571,12 +571,7 @@ public class SqlCheckConstraintGeneratorTest
         var cc = new SqlCheckConstraintGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
             delimitString: false);
 
-        const string sql =
-            """
-            CASE
-              WHEN status = 'paid' THEN amount > 0
-            END
-            """;
+        const string sql = "CASE WHEN status = 'paid' THEN amount > 0 END";
 
         var testSql = cc.Case()
             .When(
@@ -594,12 +589,7 @@ public class SqlCheckConstraintGeneratorTest
             delimitString: false);
 
         const string sql =
-            """
-            CASE
-              WHEN status = 'paid' THEN amount > 0
-              WHEN status = 'void' THEN amount = 0
-            END
-            """;
+            "CASE WHEN status = 'paid' THEN amount > 0 WHEN status = 'void' THEN amount = 0 END";
 
         var testSql = cc.Case()
             .When(
@@ -620,13 +610,7 @@ public class SqlCheckConstraintGeneratorTest
             delimitString: false);
 
         const string sql =
-            """
-            CASE
-              WHEN status = 'paid' THEN amount > 0
-              WHEN status = 'void' THEN amount = 0
-              ELSE amount >= 0
-            END
-            """;
+            "CASE WHEN status = 'paid' THEN amount > 0 WHEN status = 'void' THEN amount = 0 ELSE amount >= 0 END";
 
         var testSql = cc.Case()
             .When(
