@@ -5,23 +5,23 @@ namespace SharpPersistence.Generators;
 /// <summary>
 /// CASE expression started; at least one WHEN branch is required.
 /// </summary>
-public interface ISqlCaseInitiator
+public interface IInitializedSqlCase
 {
     /// <summary>
     /// Adds a <c>WHEN ... THEN ...</c> branch.
     /// </summary>
-    ISqlCaseBuildable When(string condition, string then);
+    IBuildableSqlCase When(string condition, string then);
 }
 
 /// <summary>
 /// CASE expression with at least one branch; may add more WHEN branches or terminate.
 /// </summary>
-public interface ISqlCaseBuildable
+public interface IBuildableSqlCase
 {
     /// <summary>
     /// Adds a <c>WHEN ... THEN ...</c> branch.
     /// </summary>
-    ISqlCaseBuildable When(string condition, string then);
+    IBuildableSqlCase When(string condition, string then);
 
     /// <summary>
     /// Completes the CASE expression without an ELSE branch.
@@ -34,13 +34,11 @@ public interface ISqlCaseBuildable
     string EndWithElse(string elseExpression);
 }
 
-internal sealed class SqlCaseBuilder : ISqlCaseInitiator, ISqlCaseBuildable
+internal sealed class SqlCaseBuilder : IInitializedSqlCase, IBuildableSqlCase
 {
-    private const string Indent = "  ";
-
     private readonly List<(string condition, string then)> _branches = [];
 
-    public ISqlCaseBuildable When(string condition, string then)
+    public IBuildableSqlCase When(string condition, string then)
     {
         ArgumentNullException.ThrowIfNull(condition);
         ArgumentNullException.ThrowIfNull(then);
@@ -58,26 +56,23 @@ internal sealed class SqlCaseBuilder : ISqlCaseInitiator, ISqlCaseBuildable
 
     private string BuildSql(string? elseExpression)
     {
-        var sb = new StringBuilder();
-        sb.AppendLine("CASE");
+        var sb = new StringBuilder("CASE");
 
         foreach (var (condition, then) in _branches)
         {
-            sb.Append(Indent);
-            sb.Append("WHEN ");
+            sb.Append(" WHEN ");
             sb.Append(condition);
             sb.Append(" THEN ");
-            sb.AppendLine(then);
+            sb.Append(then);
         }
 
         if (elseExpression is not null)
         {
-            sb.Append(Indent);
-            sb.Append("ELSE ");
-            sb.AppendLine(elseExpression);
+            sb.Append(" ELSE ");
+            sb.Append(elseExpression);
         }
 
-        sb.Append("END");
+        sb.Append(" END");
         return sb.ToString();
     }
 }

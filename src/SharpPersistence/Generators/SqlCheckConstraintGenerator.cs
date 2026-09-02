@@ -62,7 +62,7 @@ public class SqlCheckConstraintGenerator
     /// <summary>
     /// Starts building a SQL <c>CASE</c> expression for use in a check constraint.
     /// </summary>
-    public ISqlCaseInitiator Case() => new SqlCaseBuilder();
+    public IInitializedSqlCase Case() => new SqlCaseBuilder();
 
     public string And(string firstOperand, string secondOperand, params string[] otherOperands)
     {
