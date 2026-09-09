@@ -32,6 +32,11 @@ public interface IBuildableSqlCase
     /// Completes the CASE expression with an ELSE branch.
     /// </summary>
     string EndWithElse(string elseExpression);
+
+    /// <summary>
+    /// Completes the CASE expression with a boolean ELSE branch.
+    /// </summary>
+    string EndWithElse(bool elseExpression);
 }
 
 internal sealed class SqlCaseBuilder : IInitializedSqlCase, IBuildableSqlCase
@@ -53,6 +58,11 @@ internal sealed class SqlCaseBuilder : IInitializedSqlCase, IBuildableSqlCase
         ArgumentNullException.ThrowIfNull(elseExpression);
         return BuildSql(elseExpression);
     }
+
+    public string EndWithElse(bool elseExpression) =>
+        EndWithElse(elseExpression
+            ? bool.TrueString.ToUpperInvariant()
+            : bool.FalseString.ToUpperInvariant());
 
     private string BuildSql(string? elseExpression)
     {
