@@ -624,6 +624,21 @@ public class SqlCheckConstraintGeneratorTest
         testSql.ShouldBe(sql);
     }
 
+    [Theory]
+    [InlineData(true, "TRUE")]
+    [InlineData(false, "FALSE")]
+    public void Case_EndWithElse_Boolean_GeneratesCorrectSql(bool elseExpression, string expected)
+    {
+        var cc = new SqlCheckConstraintGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
+            delimitString: false);
+
+        var testSql = cc.Case()
+            .When(cc.EqualTo("status", "paid", SqlOperandType.Value), cc.EqualTo("amount", 1, SqlDataType.Int))
+            .EndWithElse(elseExpression);
+
+        testSql.ShouldBe($"CASE WHEN status = 'paid' THEN amount = 1 ELSE {expected} END");
+    }
+
     [Fact]
     public void Case_When_NullWhen_Throws()
     {
