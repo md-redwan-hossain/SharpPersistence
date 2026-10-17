@@ -19,17 +19,9 @@
         <Description>SharpPersistence.EfCore contains utility classes to work with relational database systems</Description>
     </PropertyGroup>
 
-    <PropertyGroup Condition="'$(TargetFramework)' == 'net8.0'">
-        <EfCoreVersion>8.0.11</EfCoreVersion>
-    </PropertyGroup>
-
-    <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0'">
-        <EfCoreVersion>10.0.12</EfCoreVersion>
-    </PropertyGroup>
-
     <ItemGroup>
-        <PackageReference Include="Microsoft.EntityFrameworkCore" VersionOverride="$(EfCoreVersion)" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" VersionOverride="$(EfCoreVersion)" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational"/>
     </ItemGroup>
 
     <ItemGroup>
@@ -50,7 +42,7 @@
 
 
     <ItemGroup>
-        <ProjectReference Include="..\SharpPersistence.Abstractions\SharpPersistence.Abstractions.csproj" />
+        <ProjectReference Include="..\SharpPersistence.Abstractions\SharpPersistence.Abstractions.csproj"/>
     </ItemGroup>
 
 </Project>
