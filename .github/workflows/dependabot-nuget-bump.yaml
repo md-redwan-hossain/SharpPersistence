@@ -1,0 +1,53 @@
+name: Dependabot Bump & Publish
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    paths:
+      - "Directory.Packages.props"
+
+jobs:
+  bump-and-publish:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      projects: ${{ steps.bump.outputs.projects }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Detect changed dependencies and bump consuming projects
+        id: bump
+        env:
+          PYTHONPATH: .github/scripts
+        run: python .github/scripts/bump_package_versions.py
+
+      - name: Wait for CI and merge
+        if: steps.bump.outputs.projects != '[]'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          BRANCH: ${{ github.head_ref }}
+          PYTHONPATH: .github/scripts
+        run: python .github/scripts/wait_ci_and_merge.py
+
+  publish:
+    needs: bump-and-publish
+    if: needs.bump-and-publish.outputs.projects != '[]'
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        project: ${{ fromJson(needs.bump-and-publish.outputs.projects) }}
+    uses: ./.github/workflows/nuget-publish.yaml
+    with:
+      project: ${{ matrix.project }}
+    secrets: inherit
