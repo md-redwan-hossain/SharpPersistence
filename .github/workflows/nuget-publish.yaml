@@ -12,9 +12,14 @@ on:
           - SharpPersistence
           - SharpPersistence.Abstractions
           - SharpPersistence.EfCore
+  workflow_call:
+    inputs:
+      project:
+        required: true
+        type: string
 
 concurrency:
-  group: nuget-publish
+  group: nuget-publish-${{ inputs.project }}
   cancel-in-progress: false
 
 jobs:
@@ -28,6 +33,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: main
 
       - name: Setup DotNet
         uses: actions/setup-dotnet@v5
