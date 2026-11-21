@@ -21,10 +21,29 @@ public sealed class SqlColumnBuilder<TEntity, TProp>
 
     public SqlPredicate EqualTo(TProp value) => Compare(SqlOperators.Equal, new SqlLiteralExpression(value));
     public SqlPredicate NotEqualTo(TProp value) => Compare(SqlOperators.NotEqual, new SqlLiteralExpression(value));
-    public SqlPredicate GreaterThan(TProp value) => Compare(SqlOperators.GreaterThan, new SqlLiteralExpression(value));
-    public SqlPredicate GreaterThanOrEqual(TProp value) => Compare(SqlOperators.GreaterThanOrEqual, new SqlLiteralExpression(value));
-    public SqlPredicate LessThan(TProp value) => Compare(SqlOperators.LessThan, new SqlLiteralExpression(value));
-    public SqlPredicate LessThanOrEqual(TProp value) => Compare(SqlOperators.LessThanOrEqual, new SqlLiteralExpression(value));
+    public SqlPredicate GreaterThan(TProp value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return Compare(SqlOperators.GreaterThan, new SqlLiteralExpression(value));
+    }
+
+    public SqlPredicate GreaterThanOrEqual(TProp value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return Compare(SqlOperators.GreaterThanOrEqual, new SqlLiteralExpression(value));
+    }
+
+    public SqlPredicate LessThan(TProp value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return Compare(SqlOperators.LessThan, new SqlLiteralExpression(value));
+    }
+
+    public SqlPredicate LessThanOrEqual(TProp value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return Compare(SqlOperators.LessThanOrEqual, new SqlLiteralExpression(value));
+    }
 
     public SqlPredicate EqualToColumn<TOther>(
         Expression<Func<TEntity, TOther>> other,
@@ -89,10 +108,18 @@ public sealed class SqlColumnBuilder<TEntity, TProp>
     public SqlPredicate NotIn(IEnumerable<TProp> values) => BuildIn(values, negated: true);
 
     public SqlPredicate Between(TProp lower, TProp upper)
-        => new(new SqlBetweenExpression(Node, new SqlLiteralExpression(lower), new SqlLiteralExpression(upper), Negated: false), Context);
+    {
+        ArgumentNullException.ThrowIfNull(lower);
+        ArgumentNullException.ThrowIfNull(upper);
+        return new SqlPredicate(new SqlBetweenExpression(Node, new SqlLiteralExpression(lower), new SqlLiteralExpression(upper), Negated: false), Context);
+    }
 
     public SqlPredicate NotBetween(TProp lower, TProp upper)
-        => new(new SqlBetweenExpression(Node, new SqlLiteralExpression(lower), new SqlLiteralExpression(upper), Negated: true), Context);
+    {
+        ArgumentNullException.ThrowIfNull(lower);
+        ArgumentNullException.ThrowIfNull(upper);
+        return new SqlPredicate(new SqlBetweenExpression(Node, new SqlLiteralExpression(lower), new SqlLiteralExpression(upper), Negated: true), Context);
+    }
 
     public SqlPredicate IsNull() => new(new SqlNullCheckExpression(Node, Negated: false), Context);
 
@@ -119,7 +146,17 @@ public sealed class SqlColumnBuilder<TEntity, TProp>
     private SqlPredicate BuildIn(IEnumerable<TProp> values, bool negated)
     {
         ArgumentNullException.ThrowIfNull(values);
-        var items = values.Select(v => (SqlExpression)new SqlLiteralExpression(v)).ToList();
+        var items = new List<SqlExpression>();
+        foreach (var value in values)
+        {
+            if (value is null)
+            {
+                throw new ArgumentException("Collection cannot contain null values.", nameof(values));
+            }
+
+            items.Add(new SqlLiteralExpression(value));
+        }
+
         if (items.Count == 0)
         {
             throw new ArgumentException("Collection cannot be empty.", nameof(values));
@@ -187,16 +224,57 @@ public sealed class SqlNumericExpression<TEntity>
 
     public SqlPredicate EqualTo(SqlNumericValue value) => Cmp(SqlOperators.Equal, value.Expression);
     public SqlPredicate EqualTo(SqlNumericExpression<TEntity> expression) => Cmp(SqlOperators.Equal, expression.Node);
+    public SqlPredicate EqualTo<TProp>(
+        Expression<Func<TEntity, TProp>> col,
+        bool? delimit = null,
+        bool includeParentNames = true)
+        where TProp : INumber<TProp>
+        => Cmp(SqlOperators.Equal, ColExpression(col, delimit, includeParentNames));
+
     public SqlPredicate NotEqualTo(SqlNumericValue value) => Cmp(SqlOperators.NotEqual, value.Expression);
     public SqlPredicate NotEqualTo(SqlNumericExpression<TEntity> expression) => Cmp(SqlOperators.NotEqual, expression.Node);
+    public SqlPredicate NotEqualTo<TProp>(
+        Expression<Func<TEntity, TProp>> col,
+        bool? delimit = null,
+        bool includeParentNames = true)
+        where TProp : INumber<TProp>
+        => Cmp(SqlOperators.NotEqual, ColExpression(col, delimit, includeParentNames));
+
     public SqlPredicate GreaterThan(SqlNumericValue value) => Cmp(SqlOperators.GreaterThan, value.Expression);
     public SqlPredicate GreaterThan(SqlNumericExpression<TEntity> expression) => Cmp(SqlOperators.GreaterThan, expression.Node);
+    public SqlPredicate GreaterThan<TProp>(
+        Expression<Func<TEntity, TProp>> col,
+        bool? delimit = null,
+        bool includeParentNames = true)
+        where TProp : INumber<TProp>
+        => Cmp(SqlOperators.GreaterThan, ColExpression(col, delimit, includeParentNames));
+
     public SqlPredicate GreaterThanOrEqual(SqlNumericValue value) => Cmp(SqlOperators.GreaterThanOrEqual, value.Expression);
     public SqlPredicate GreaterThanOrEqual(SqlNumericExpression<TEntity> expression) => Cmp(SqlOperators.GreaterThanOrEqual, expression.Node);
+    public SqlPredicate GreaterThanOrEqual<TProp>(
+        Expression<Func<TEntity, TProp>> col,
+        bool? delimit = null,
+        bool includeParentNames = true)
+        where TProp : INumber<TProp>
+        => Cmp(SqlOperators.GreaterThanOrEqual, ColExpression(col, delimit, includeParentNames));
+
     public SqlPredicate LessThan(SqlNumericValue value) => Cmp(SqlOperators.LessThan, value.Expression);
     public SqlPredicate LessThan(SqlNumericExpression<TEntity> expression) => Cmp(SqlOperators.LessThan, expression.Node);
+    public SqlPredicate LessThan<TProp>(
+        Expression<Func<TEntity, TProp>> col,
+        bool? delimit = null,
+        bool includeParentNames = true)
+        where TProp : INumber<TProp>
+        => Cmp(SqlOperators.LessThan, ColExpression(col, delimit, includeParentNames));
+
     public SqlPredicate LessThanOrEqual(SqlNumericValue value) => Cmp(SqlOperators.LessThanOrEqual, value.Expression);
     public SqlPredicate LessThanOrEqual(SqlNumericExpression<TEntity> expression) => Cmp(SqlOperators.LessThanOrEqual, expression.Node);
+    public SqlPredicate LessThanOrEqual<TProp>(
+        Expression<Func<TEntity, TProp>> col,
+        bool? delimit = null,
+        bool includeParentNames = true)
+        where TProp : INumber<TProp>
+        => Cmp(SqlOperators.LessThanOrEqual, ColExpression(col, delimit, includeParentNames));
 
     public SqlPredicate Between(SqlNumericValue lower, SqlNumericValue upper)
         => new(new SqlBetweenExpression(Node, lower.Expression, upper.Expression, Negated: false), _context);
@@ -283,11 +361,11 @@ public sealed class SqlCheckCaseBuilder
 
     internal SqlCheckCaseBuilder(SqlRenderContext context) => _context = context;
 
-    public SqlCheckCaseBuilder When(SqlExpression condition, SqlExpression then)
+    public SqlCheckCaseBuilder When(SqlPredicate condition, SqlExpression then)
     {
         ArgumentNullException.ThrowIfNull(condition);
         ArgumentNullException.ThrowIfNull(then);
-        _branches.Add((condition, then));
+        _branches.Add((condition.Node, then));
         return this;
     }
 

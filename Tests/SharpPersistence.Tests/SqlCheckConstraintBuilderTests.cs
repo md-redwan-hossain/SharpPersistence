@@ -212,11 +212,11 @@ public class SqlCheckConstraintBuilderTests
 
     [Theory]
     [InlineData(true, """
-        "is_active" IS TRUE
+        "is_active" = TRUE
         """, """
         "tenant_id" IS NOT NULL
         """)]
-    [InlineData(false, "is_active IS TRUE", "tenant_id IS NOT NULL")]
+    [InlineData(false, "is_active = TRUE", "tenant_id IS NOT NULL")]
     public void Boolean_And_RawStringColumnFallback_GenerateExpectedSql(
         bool delimitIdentifiers,
         string expectedBool,
@@ -224,11 +224,85 @@ public class SqlCheckConstraintBuilderTests
     {
         var cc = CreateBuilder(delimitIdentifiers: delimitIdentifiers);
         var policy = cc.For<AppPolicy>();
-        
-        policy.Column(x => x.IsActive).IsTrue(useIsOperator: true).Build()
+
+        policy.Column(x => x.IsActive).EqualTo(true).Build()
             .ShouldBe(expectedBool);
 
-        cc.Column("tenant_id").IsNotNull().Build()
+        cc.RawColumn<Guid>("tenant_id").IsNotNull().Build()
             .ShouldBe(expectedFallback);
+    }
+
+    [Theory]
+    [InlineData(true, "[is_active] = 1", "[is_active] = 0")]
+    [InlineData(false, "is_active = 1", "is_active = 0")]
+    public void SqlServer_Boolean_GeneratesBitLiterals(
+        bool delimitIdentifiers,
+        string expectedTrue,
+        string expectedFalse)
+    {
+        var cc = CreateBuilder(SqlDialect.SqlServer, delimitIdentifiers);
+        var policy = cc.For<AppPolicy>();
+
+        policy.Column(x => x.IsActive).EqualTo(true).Build().ShouldBe(expectedTrue);
+        policy.Column(x => x.IsActive).EqualTo(false).Build().ShouldBe(expectedFalse);
+    }
+
+    [Fact]
+    public void EqualToNull_And_NotEqualToNull_GenerateIsNullAndIsNotNull()
+    {
+        var cc = CreateBuilder(delimitIdentifiers: false);
+        var shipment = cc.For<Shipment>();
+
+        shipment.Column(x => x.DispatchedAt).EqualTo(null).Build().ShouldBe("dispatched_at IS NULL");
+        shipment.Column(x => x.DispatchedAt).NotEqualTo(null).Build().ShouldBe("dispatched_at IS NOT NULL");
+    }
+
+    [Fact]
+    public void TemporalLiterals_AreFormattedAsQuotedIsoStrings()
+    {
+        var cc = CreateBuilder(delimitIdentifiers: false);
+        var shipment = cc.For<Shipment>();
+
+        shipment.Column(x => x.DispatchedAt)
+            .GreaterThanOrEqual(new DateTime(2026, 1, 15, 8, 30, 0))
+            .Build()
+            .ShouldBe("dispatched_at >= '2026-01-15 08:30:00'");
+
+        cc.RawColumn<DateOnly>("start_date")
+            .GreaterThan(new DateOnly(2026, 1, 1))
+            .Build()
+            .ShouldBe("start_date > '2026-01-01'");
+    }
+
+    [Fact]
+    public void TypedShadowColumn_SupportsLengthAndMath()
+    {
+        var cc = CreateBuilder(delimitIdentifiers: false);
+
+        cc.RawColumn<string>("code").Length().EqualTo(5).Build().ShouldBe("length(code) = 5");
+        cc.RawColumn<decimal>("price").Math().GreaterThan(0).Build().ShouldBe("price > 0");
+    }
+
+    [Fact]
+    public void Math_ColumnComparison_GeneratesExpectedSql()
+    {
+        var cc = CreateBuilder(delimitIdentifiers: false);
+        var line = cc.For<InvoiceLine>();
+
+        line.Column(x => x.UnitPrice)
+            .Math()
+            .Minus(x => x.Discount)
+            .GreaterThan(x => x.Tax)
+            .Build()
+            .ShouldBe("unit_price - discount > tax");
+    }
+
+    [Fact]
+    public void In_WithNullElement_ThrowsArgumentException()
+    {
+        var cc = CreateBuilder(delimitIdentifiers: false);
+        var policy = cc.For<AppPolicy>();
+
+        Should.Throw<ArgumentException>(() => policy.Column(x => x.Code).In("A", null!));
     }
 }

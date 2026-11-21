@@ -10,7 +10,7 @@ internal static class SqlCheckRenderer
     public static string Render(SqlExpression expression, SqlRenderContext ctx) => expression switch
     {
         SqlRawExpression raw => raw.Sql,
-        SqlLiteralExpression lit => FormatLiteral(lit.Value),
+        SqlLiteralExpression lit => FormatLiteral(lit.Value, ctx.Dialect),
         SqlColumnExpression col => FormatColumn(col, ctx),
         SqlLengthExpression len => FormatLength(FormatColumn(len.Column, ctx), ctx.Dialect),
         SqlNotExpression not => $"{SqlOperators.Not} ({Render(not.Inner, ctx)})",
@@ -28,6 +28,19 @@ internal static class SqlCheckRenderer
         var left = ShouldWrapOperand(bin.Operator, bin.Left, isRightOperand: false)
             ? $"({Render(bin.Left, ctx)})"
             : Render(bin.Left, ctx);
+
+        if (bin.Right is SqlLiteralExpression { Value: null })
+        {
+            if (bin.Operator == SqlOperators.Equal)
+            {
+                return $"{left} {SqlOperators.Is} {SqlOperators.Null}";
+            }
+
+            if (bin.Operator == SqlOperators.NotEqual)
+            {
+                return $"{left} {SqlOperators.IsNot} {SqlOperators.Null}";
+            }
+        }
 
         var right = ShouldWrapOperand(bin.Operator, bin.Right, isRightOperand: true)
             ? $"({Render(bin.Right, ctx)})"
@@ -112,14 +125,20 @@ internal static class SqlCheckRenderer
         _ => columnSql
     };
 
-    private static string FormatLiteral(object? value) => value switch
+    private static string FormatLiteral(object? value, SqlDialect dialect) => value switch
     {
         null => SqlOperators.Null,
-        bool b => b ? "TRUE" : "FALSE",
+        bool b => dialect == SqlDialect.SqlServer
+            ? b ? "1" : "0"
+            : b ? "TRUE" : "FALSE",
         Enum e => Convert.ToInt32(e, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture),
         string s => $"'{s.Replace("'", "''")}'",
         Guid g => $"'{g}'",
+        DateOnly d => $"'{d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}'",
+        TimeOnly t => $"'{t.ToString("HH:mm:ss", CultureInfo.InvariantCulture)}'",
+        DateTime dt => $"'{dt.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}'",
+        DateTimeOffset dto => $"'{dto.ToString("yyyy-MM-dd HH:mm:sszzz", CultureInfo.InvariantCulture)}'",
         IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
-        _ => value.ToString() ?? "NULL"
+        _ => value.ToString() ?? SqlOperators.Null
     };
 }

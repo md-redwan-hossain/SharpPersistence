@@ -30,24 +30,4 @@ public static class SqlColumnBuilderExtensions
         ArgumentNullException.ThrowIfNull(column);
         return new SqlNumericExpression<TEntity>(new SqlLengthExpression(column.Node), column.Context);
     }
-
-    public static SqlPredicate IsTrue<TEntity>(
-        this SqlColumnBuilder<TEntity, bool> column,
-        bool useIsOperator = false)
-    {
-        ArgumentNullException.ThrowIfNull(column);
-        return new SqlPredicate(
-            new SqlBinaryExpression(column.Node, useIsOperator ? SqlOperators.Is : SqlOperators.Equal, new SqlLiteralExpression(true)),
-            column.Context);
-    }
-
-    public static SqlPredicate IsFalse<TEntity>(
-        this SqlColumnBuilder<TEntity, bool> column,
-        bool useIsOperator = false)
-    {
-        ArgumentNullException.ThrowIfNull(column);
-        return new SqlPredicate(
-            new SqlBinaryExpression(column.Node, useIsOperator ? SqlOperators.Is : SqlOperators.Equal, new SqlLiteralExpression(false)),
-            column.Context);
-    }
 }

@@ -20,10 +20,10 @@ public sealed class SqlCheckConstraintBuilder
 
     public SqlEntityScope<TEntity> For<TEntity>() => new(Context);
 
-    public SqlColumnBuilder<object, object> Column(string columnName, bool? delimit = null)
+    public SqlColumnBuilder<object, TProp> RawColumn<TProp>(string columnName, bool? delimit = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
-        return new SqlColumnBuilder<object, object>(new SqlColumnExpression(columnName, delimit), Context);
+        return new SqlColumnBuilder<object, TProp>(new SqlColumnExpression(columnName, delimit), Context);
     }
 
     public SqlCheckCaseBuilder Case() => new(Context);
