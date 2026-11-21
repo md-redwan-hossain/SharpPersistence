@@ -62,9 +62,8 @@ public class SqlCheckConstraintBuilderTests
         var policy = cc.For<AppPolicy>();
 
         cc.Case()
-            .When(
-                condition: policy.Column(x => x.IsOverrideAllowed).EqualTo(0),
-                then: policy.Column(x => x.IsOverridable).EqualTo(0))
+            .When(policy.Column(x => x.IsOverrideAllowed).EqualTo(0))
+            .Then(policy.Column(x => x.IsOverridable).EqualTo(0))
             .EndWithElse(1)
             .ShouldRender(expected);
     }
@@ -376,10 +375,10 @@ public class SqlCheckConstraintBuilderTests
             .ShouldRender("discount BETWEEN tax AND unit_price");
 
         cc.Case()
-            .When(line.Column(x => x.Quantity).GreaterThan(10), 1)
+            .When(line.Column(x => x.Quantity).GreaterThan(10))
+            .Then(1)
             .EndWithElse(0)
-            .GreaterThan(0)
-            .ShouldRender("(CASE WHEN quantity > 10 THEN 1 ELSE 0 END) > 0");
+            .ShouldRender("CASE WHEN quantity > 10 THEN 1 ELSE 0 END");
     }
 
     [Fact]
@@ -408,7 +407,8 @@ public class SqlCheckConstraintBuilderTests
         ).ShouldRender("(is_active = TRUE AND code ~ '^[A-Z0-9_]+$')");
 
         cc.Case()
-            .When(cc.RawPredicate("is_override_allowed = 0"), 1)
+            .When(cc.RawPredicate("is_override_allowed = 0"))
+            .Then(1)
             .EndWithElse(0)
             .ShouldRender("CASE WHEN is_override_allowed = 0 THEN 1 ELSE 0 END");
     }
@@ -459,6 +459,29 @@ public class SqlCheckConstraintBuilderTests
 
         line.Column(x => x.Discount).Coalesce(x => x.Tax).LessThanOrEqual(x => x.UnitPrice)
             .ShouldRender("COALESCE(discount, tax) <= unit_price");
+    }
+
+    [Theory]
+    [InlineData(SqlDialect.PostgreSql, true, """(NOT ("is_override_allowed" = FALSE) OR "is_overridable" = FALSE)""")]
+    [InlineData(SqlDialect.Oracle, true, """(NOT ("is_override_allowed" = 0) OR "is_overridable" = 0)""")]
+    [InlineData(SqlDialect.SqlServer, true, "(NOT ([is_override_allowed] = 0) OR [is_overridable] = 0)")]
+    public void If_Then_GeneratesImplicationPredicate(SqlDialect dialect, bool delimitIdentifiers, string expected)
+    {
+        var cc = CreateBuilder(dialect, delimitIdentifiers);
+        var policy = cc.For<AppPolicy>();
+
+        if (dialect == SqlDialect.Oracle)
+        {
+            cc.If(policy.Column(x => x.IsOverrideAllowed).EqualTo(0))
+                .Then(policy.Column(x => x.IsOverridable).EqualTo(0))
+                .ShouldRender(expected);
+        }
+        else
+        {
+            cc.If(policy.Column(x => x.IsActive).EqualTo(false))
+                .Then(policy.Column(x => x.IsActive).EqualTo(false))
+                .ShouldRender(expected.Replace("is_override_allowed", "is_active").Replace("is_overridable", "is_active"));
+        }
     }
 }
 

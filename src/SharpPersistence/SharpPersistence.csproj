@@ -40,6 +40,14 @@
     </ItemGroup>
 
     <ItemGroup>
+        <None Include="..\..\skills\**\*">
+            <Pack>True</Pack>
+            <Link>skills\%(RecursiveDir)%(Filename)%(Extension)</Link>
+            <PackagePath>skills\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>
+        </None>
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="..\SharpPersistence.Abstractions\SharpPersistence.Abstractions.csproj" />
     </ItemGroup>
 

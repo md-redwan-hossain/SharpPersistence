@@ -39,6 +39,15 @@ public sealed class SqlCheckConstraintBuilder
     public IInitializedSqlCase<SqlPredicate, SqlExpression, SqlBuiltExpression> Case() => new SqlCheckCaseBuilder(Context);
 
     /// <summary>
+    /// Starts a conditional implication predicate (<c>IF condition THEN requirement</c>), rendered as <c>(NOT (condition) OR requirement)</c>.
+    /// </summary>
+    public ISqlIfThen If(SqlPredicate condition)
+    {
+        ArgumentNullException.ThrowIfNull(condition);
+        return new SqlIfBuilder(condition);
+    }
+
+    /// <summary>
     /// Combines two or more predicates with SQL <c>AND</c>.
     /// </summary>
     public SqlPredicate And(SqlPredicate first, SqlPredicate second, params SqlPredicate[] others)

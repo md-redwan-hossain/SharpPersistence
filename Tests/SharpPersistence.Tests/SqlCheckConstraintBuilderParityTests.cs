@@ -612,9 +612,8 @@ public class SqlCheckConstraintBuilderParityTests
         };
 
         cc.Case()
-            .When(
-                cc.RawColumn<string>("status").EqualTo("paid"),
-                cc.RawColumn<decimal>("amount").GreaterThan(0))
+            .When(cc.RawColumn<string>("status").EqualTo("paid"))
+            .Then(cc.RawColumn<decimal>("amount").GreaterThan(0))
             .End()
             .ShouldRender("CASE WHEN status = 'paid' THEN amount > 0 END");
     }
@@ -630,12 +629,10 @@ public class SqlCheckConstraintBuilderParityTests
         };
 
         cc.Case()
-            .When(
-                cc.RawColumn<string>("status").EqualTo("paid"),
-                cc.RawColumn<decimal>("amount").GreaterThan(0))
-            .When(
-                cc.RawColumn<string>("status").EqualTo("void"),
-                cc.RawColumn<decimal>("amount").EqualTo(0))
+            .When(cc.RawColumn<string>("status").EqualTo("paid"))
+            .Then(cc.RawColumn<decimal>("amount").GreaterThan(0))
+            .When(cc.RawColumn<string>("status").EqualTo("void"))
+            .Then(cc.RawColumn<decimal>("amount").EqualTo(0))
             .End()
             .ShouldRender("CASE WHEN status = 'paid' THEN amount > 0 WHEN status = 'void' THEN amount = 0 END");
     }
@@ -651,12 +648,10 @@ public class SqlCheckConstraintBuilderParityTests
         };
 
         cc.Case()
-            .When(
-                cc.RawColumn<string>("status").EqualTo("paid"),
-                cc.RawColumn<decimal>("amount").GreaterThan(0))
-            .When(
-                cc.RawColumn<string>("status").EqualTo("void"),
-                cc.RawColumn<decimal>("amount").EqualTo(0))
+            .When(cc.RawColumn<string>("status").EqualTo("paid"))
+            .Then(cc.RawColumn<decimal>("amount").GreaterThan(0))
+            .When(cc.RawColumn<string>("status").EqualTo("void"))
+            .Then(cc.RawColumn<decimal>("amount").EqualTo(0))
             .EndWithElse(cc.RawColumn<decimal>("amount").GreaterThanOrEqual(0))
             .ShouldRender("CASE WHEN status = 'paid' THEN amount > 0 WHEN status = 'void' THEN amount = 0 ELSE amount >= 0 END");
     }
@@ -674,7 +669,8 @@ public class SqlCheckConstraintBuilderParityTests
         };
 
         cc.Case()
-            .When(cc.RawColumn<string>("status").EqualTo("paid"), cc.RawColumn<int>("amount").EqualTo(1))
+            .When(cc.RawColumn<string>("status").EqualTo("paid"))
+            .Then(cc.RawColumn<int>("amount").EqualTo(1))
             .EndWithElse(elseExpression)
             .ShouldRender($"CASE WHEN status = 'paid' THEN amount = 1 ELSE {expected} END");
     }
@@ -690,7 +686,7 @@ public class SqlCheckConstraintBuilderParityTests
         };
 
         Should.Throw<ArgumentNullException>(() =>
-            cc.Case().When(null!, cc.RawPredicate("amount > 0")));
+            cc.Case().When(null!));
     }
 
     [Fact]
@@ -704,7 +700,7 @@ public class SqlCheckConstraintBuilderParityTests
         };
 
         Should.Throw<ArgumentNullException>(() =>
-            cc.Case().When(cc.RawPredicate("status = 'paid'"), null!));
+            cc.Case().When(cc.RawPredicate("status = 'paid'")).Then(null!));
     }
 
     [Fact]
@@ -719,7 +715,8 @@ public class SqlCheckConstraintBuilderParityTests
 
         Should.Throw<ArgumentNullException>(() =>
             cc.Case()
-                .When(cc.RawColumn<string>("status").EqualTo("paid"), cc.RawColumn<decimal>("amount").GreaterThan(0))
+                .When(cc.RawColumn<string>("status").EqualTo("paid"))
+                .Then(cc.RawColumn<decimal>("amount").GreaterThan(0))
                 .EndWithElse(null!));
     }
 }

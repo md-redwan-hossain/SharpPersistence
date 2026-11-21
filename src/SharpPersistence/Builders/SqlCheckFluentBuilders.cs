@@ -465,52 +465,6 @@ public class SqlBuiltExpression
 
     public override string ToString() => SqlCheckRenderer.Render(Node, Context);
 
-    public SqlPredicate EqualTo(SqlExpression value) =>
-        new(new SqlBinaryExpression(Node, SqlOperators.Equal, value), Context);
-
-    public SqlPredicate NotEqualTo(SqlExpression value) =>
-        new(new SqlBinaryExpression(Node, SqlOperators.NotEqual, value), Context);
-
-    public SqlPredicate GreaterThan(SqlExpression value) =>
-        new(new SqlBinaryExpression(Node, SqlOperators.GreaterThan, value), Context);
-
-    public SqlPredicate GreaterThanOrEqual(SqlExpression value) =>
-        new(new SqlBinaryExpression(Node, SqlOperators.GreaterThanOrEqual, value), Context);
-
-    public SqlPredicate LessThan(SqlExpression value) =>
-        new(new SqlBinaryExpression(Node, SqlOperators.LessThan, value), Context);
-
-    public SqlPredicate LessThanOrEqual(SqlExpression value) =>
-        new(new SqlBinaryExpression(Node, SqlOperators.LessThanOrEqual, value), Context);
-
-    public SqlPredicate Between(SqlExpression lower, SqlExpression upper)
-        => new(new SqlBetweenExpression(Node, lower, upper, Negated: false), Context);
-
-    public SqlPredicate NotBetween(SqlExpression lower, SqlExpression upper)
-        => new(new SqlBetweenExpression(Node, lower, upper, Negated: true), Context);
-
-    public SqlPredicate In(params SqlExpression[] values)
-    {
-        ArgumentNullException.ThrowIfNull(values);
-        if (values.Length == 0)
-        {
-            throw new ArgumentException("Collection cannot be empty.", nameof(values));
-        }
-
-        return new SqlPredicate(new SqlInExpression(Node, values, Negated: false), Context);
-    }
-
-    public SqlPredicate NotIn(params SqlExpression[] values)
-    {
-        ArgumentNullException.ThrowIfNull(values);
-        if (values.Length == 0)
-        {
-            throw new ArgumentException("Collection cannot be empty.", nameof(values));
-        }
-
-        return new SqlPredicate(new SqlInExpression(Node, values, Negated: true), Context);
-    }
-
     public static implicit operator string(SqlBuiltExpression expression) => expression.ToString();
     public static implicit operator SqlExpression(SqlBuiltExpression expression) => expression.Node;
 }
@@ -540,11 +494,19 @@ public sealed class SqlPredicate : SqlBuiltExpression
 }
 
 /// <summary>
-/// Initialized SQL <c>CASE</c> expression requiring at least one <c>WHEN</c> branch.
+/// Initialized SQL <c>CASE</c> expression requiring a <c>WHEN</c> condition.
 /// </summary>
 public interface IInitializedSqlCase<in TCondition, in TValue, out TResult>
 {
-    IBuildableSqlCase<TCondition, TValue, TResult> When(TCondition condition, TValue then);
+    ISqlCaseThen<TCondition, TValue, TResult> When(TCondition condition);
+}
+
+/// <summary>
+/// SQL <c>CASE</c> branch awaiting a <c>THEN</c> expression.
+/// </summary>
+public interface ISqlCaseThen<in TCondition, in TValue, out TResult>
+{
+    IBuildableSqlCase<TCondition, TValue, TResult> Then(TValue then);
 }
 
 /// <summary>
@@ -552,25 +514,34 @@ public interface IInitializedSqlCase<in TCondition, in TValue, out TResult>
 /// </summary>
 public interface IBuildableSqlCase<in TCondition, in TValue, out TResult>
 {
-    IBuildableSqlCase<TCondition, TValue, TResult> When(TCondition condition, TValue then);
+    ISqlCaseThen<TCondition, TValue, TResult> When(TCondition condition);
     TResult EndWithElse(TValue elseValue);
     TResult End();
 }
 
 internal sealed class SqlCheckCaseBuilder :
     IInitializedSqlCase<SqlPredicate, SqlExpression, SqlBuiltExpression>,
+    ISqlCaseThen<SqlPredicate, SqlExpression, SqlBuiltExpression>,
     IBuildableSqlCase<SqlPredicate, SqlExpression, SqlBuiltExpression>
 {
     private readonly SqlRenderContext _context;
     private readonly List<(SqlExpression Condition, SqlExpression Then)> _branches = [];
+    private SqlExpression? _pendingCondition;
 
     internal SqlCheckCaseBuilder(SqlRenderContext context) => _context = context;
 
-    public IBuildableSqlCase<SqlPredicate, SqlExpression, SqlBuiltExpression> When(SqlPredicate condition, SqlExpression then)
+    public ISqlCaseThen<SqlPredicate, SqlExpression, SqlBuiltExpression> When(SqlPredicate condition)
     {
         ArgumentNullException.ThrowIfNull(condition);
+        _pendingCondition = condition.Node;
+        return this;
+    }
+
+    public IBuildableSqlCase<SqlPredicate, SqlExpression, SqlBuiltExpression> Then(SqlExpression then)
+    {
         ArgumentNullException.ThrowIfNull(then);
-        _branches.Add((condition.Node, then));
+        _branches.Add((_pendingCondition!, then));
+        _pendingCondition = null;
         return this;
     }
 
@@ -582,4 +553,21 @@ internal sealed class SqlCheckCaseBuilder :
 
     public SqlBuiltExpression End()
         => new(new SqlCaseExpression(_branches, Else: null), _context);
+}
+
+/// <summary>
+/// Conditional implication builder awaiting a <c>Then</c> requirement predicate.
+/// </summary>
+public interface ISqlIfThen
+{
+    SqlPredicate Then(SqlPredicate requirement);
+}
+
+internal sealed class SqlIfBuilder(SqlPredicate condition) : ISqlIfThen
+{
+    public SqlPredicate Then(SqlPredicate requirement)
+    {
+        ArgumentNullException.ThrowIfNull(requirement);
+        return condition.Not().Or(requirement);
+    }
 }
