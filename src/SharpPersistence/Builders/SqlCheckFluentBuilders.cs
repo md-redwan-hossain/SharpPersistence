@@ -16,12 +16,21 @@ public sealed class SqlColumnBuilder<TEntity, TProp>
     internal SqlExpression Node { get; }
     internal SqlRenderContext Context { get; }
     internal bool EnumAsString { get; }
+    internal bool BoolAsNumeric { get; }
+    internal (string TrueValue, string FalseValue)? BoolStringMap { get; }
 
-    internal SqlColumnBuilder(SqlExpression node, SqlRenderContext context, bool enumAsString = false)
+    internal SqlColumnBuilder(
+        SqlExpression node,
+        SqlRenderContext context,
+        bool enumAsString = false,
+        bool boolAsNumeric = false,
+        (string TrueValue, string FalseValue)? boolStringMap = null)
     {
         Node = node;
         Context = context;
         EnumAsString = enumAsString;
+        BoolAsNumeric = boolAsNumeric;
+        BoolStringMap = boolStringMap;
     }
 
     public SqlColumnBuilder<TEntity, TProp> WithDelimiter()
@@ -31,7 +40,7 @@ public sealed class SqlColumnBuilder<TEntity, TProp>
             throw new InvalidOperationException("Delimiter modifiers can only be applied directly to a column.");
         }
 
-        return new SqlColumnBuilder<TEntity, TProp>(col with { Delimit = true }, Context, EnumAsString);
+        return new SqlColumnBuilder<TEntity, TProp>(col with { Delimit = true }, Context, EnumAsString, BoolAsNumeric, BoolStringMap);
     }
 
     public SqlColumnBuilder<TEntity, TProp> WithoutDelimiter()
@@ -41,7 +50,7 @@ public sealed class SqlColumnBuilder<TEntity, TProp>
             throw new InvalidOperationException("Delimiter modifiers can only be applied directly to a column.");
         }
 
-        return new SqlColumnBuilder<TEntity, TProp>(col with { Delimit = false }, Context, EnumAsString);
+        return new SqlColumnBuilder<TEntity, TProp>(col with { Delimit = false }, Context, EnumAsString, BoolAsNumeric, BoolStringMap);
     }
 
     /// <summary>
@@ -51,20 +60,20 @@ public sealed class SqlColumnBuilder<TEntity, TProp>
     {
         ArgumentNullException.ThrowIfNull(fallback);
         return new SqlColumnBuilder<TEntity, TProp>(new SqlCoalesceExpression(Node, ToLiteral(fallback)),
-            Context, EnumAsString);
+            Context, EnumAsString, BoolAsNumeric, BoolStringMap);
     }
 
     /// <summary>
     /// Wraps the column in <c>COALESCE(column, fallbackColumn)</c> using another column on <typeparamref name="TEntity"/>.
     /// </summary>
     public SqlColumnBuilder<TEntity, TProp> Coalesce<TFallback>(Expression<Func<TEntity, TFallback>> fallbackColumn)
-        => new(new SqlCoalesceExpression(Node, ColExpression(fallbackColumn)), Context, EnumAsString);
+        => new(new SqlCoalesceExpression(Node, ColExpression(fallbackColumn)), Context, EnumAsString, BoolAsNumeric, BoolStringMap);
 
     /// <summary>
     /// Wraps the column in <c>COALESCE(column, fallbackColumn)</c> using another column builder.
     /// </summary>
     public SqlColumnBuilder<TEntity, TProp> Coalesce<TFallback>(SqlColumnBuilder<TEntity, TFallback> fallbackColumn)
-        => new(new SqlCoalesceExpression(Node, RequireOther(fallbackColumn).Node), Context, EnumAsString);
+        => new(new SqlCoalesceExpression(Node, RequireOther(fallbackColumn).Node), Context, EnumAsString, BoolAsNumeric, BoolStringMap);
 
     public SqlPredicate EqualTo(TProp value) => Compare(SqlOperators.Equal, ToLiteral(value));
     public SqlPredicate NotEqualTo(TProp value) => Compare(SqlOperators.NotEqual, ToLiteral(value));
@@ -231,9 +240,27 @@ public sealed class SqlColumnBuilder<TEntity, TProp>
     }
 
     private SqlLiteralExpression ToLiteral(TProp? value)
-        => EnumAsString && value is Enum enumValue
-            ? new SqlLiteralExpression(enumValue.ToString())
-            : new SqlLiteralExpression(value);
+    {
+        if (value is bool boolValue)
+        {
+            if (BoolStringMap is { } map)
+            {
+                return new SqlLiteralExpression(boolValue ? map.TrueValue : map.FalseValue);
+            }
+
+            if (BoolAsNumeric)
+            {
+                return new SqlLiteralExpression(boolValue ? 1 : 0);
+            }
+        }
+
+        if (EnumAsString && value is Enum enumValue)
+        {
+            return new SqlLiteralExpression(enumValue.ToString());
+        }
+
+        return new SqlLiteralExpression(value);
+    }
 
     private SqlPredicate BuildIn(IEnumerable<TProp> values, bool negated)
     {

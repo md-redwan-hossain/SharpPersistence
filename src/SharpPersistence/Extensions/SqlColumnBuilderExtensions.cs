@@ -104,4 +104,40 @@ public static class SqlColumnBuilderExtensions
         ArgumentNullException.ThrowIfNull(column);
         return new SqlColumnBuilder<TEntity, TEnum?>(column.Node, column.Context, enumAsString: false);
     }
+
+    public static SqlColumnBuilder<TEntity, bool> BoolAsNumeric<TEntity>(
+        this SqlColumnBuilder<TEntity, bool> column)
+    {
+        ArgumentNullException.ThrowIfNull(column);
+        return new SqlColumnBuilder<TEntity, bool>(column.Node, column.Context, boolAsNumeric: true);
+    }
+
+    public static SqlColumnBuilder<TEntity, bool?> BoolAsNumeric<TEntity>(
+        this SqlColumnBuilder<TEntity, bool?> column)
+    {
+        ArgumentNullException.ThrowIfNull(column);
+        return new SqlColumnBuilder<TEntity, bool?>(column.Node, column.Context, boolAsNumeric: true);
+    }
+
+    public static SqlColumnBuilder<TEntity, bool> BoolAsString<TEntity>(
+        this SqlColumnBuilder<TEntity, bool> column,
+        string trueValue,
+        string falseValue)
+    {
+        ArgumentNullException.ThrowIfNull(column);
+        ArgumentNullException.ThrowIfNull(trueValue);
+        ArgumentNullException.ThrowIfNull(falseValue);
+        return new SqlColumnBuilder<TEntity, bool>(column.Node, column.Context, boolStringMap: (trueValue, falseValue));
+    }
+
+    public static SqlColumnBuilder<TEntity, bool?> BoolAsString<TEntity>(
+        this SqlColumnBuilder<TEntity, bool?> column,
+        string trueValue,
+        string falseValue)
+    {
+        ArgumentNullException.ThrowIfNull(column);
+        ArgumentNullException.ThrowIfNull(trueValue);
+        ArgumentNullException.ThrowIfNull(falseValue);
+        return new SqlColumnBuilder<TEntity, bool?>(column.Node, column.Context, boolStringMap: (trueValue, falseValue));
+    }
 }

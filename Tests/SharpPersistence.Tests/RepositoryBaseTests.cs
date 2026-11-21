@@ -858,7 +858,7 @@ public class RepositoryBaseTests : IAsyncLifetime
             .Where(e => e.Name == "A")
             .EnableTracking()
             .GetOneAsync(TestContext.Current.CancellationToken);
-        
+
         deleted.ShouldNotBeNull();
         deleted.IsDeleted = true;
         await _dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -876,5 +876,4 @@ public class RepositoryBaseTests : IAsyncLifetime
         withIgnore.Any(e => e is { Name: "A", IsDeleted: true }).ShouldBeTrue();
     }
 #endif
-
 }
