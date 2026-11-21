@@ -3,7 +3,7 @@ using Humanizer;
 using SharpPersistence.Enums;
 using SharpPersistence.Models.Internals;
 
-namespace SharpPersistence.Builders.Internal;
+namespace SharpPersistence.Builders;
 
 internal static class SqlCheckRenderer
 {
@@ -13,10 +13,10 @@ internal static class SqlCheckRenderer
         SqlLiteralExpression lit => FormatLiteral(lit.Value),
         SqlColumnExpression col => FormatColumn(col, ctx),
         SqlLengthExpression len => FormatLength(FormatColumn(len.Column, ctx), ctx.Dialect),
-        SqlNotExpression not => $"NOT ({Render(not.Inner, ctx)})",
-        SqlNullCheckExpression nc => $"{Render(nc.Target, ctx)} {(nc.Negated ? "IS NOT NULL" : "IS NULL")}",
-        SqlBetweenExpression b => $"{Render(b.Target, ctx)} {(b.Negated ? "NOT BETWEEN" : "BETWEEN")} {Render(b.Lower, ctx)} AND {Render(b.Upper, ctx)}",
-        SqlInExpression i => $"{Render(i.Target, ctx)} {(i.Negated ? "NOT IN" : "IN")} ({string.Join(", ", i.Values.Select(v => Render(v, ctx)))})",
+        SqlNotExpression not => $"{SqlOperators.Not} ({Render(not.Inner, ctx)})",
+        SqlNullCheckExpression nc => $"{Render(nc.Target, ctx)} {(nc.Negated ? $"{SqlOperators.IsNot} {SqlOperators.Null}" : $"{SqlOperators.Is} {SqlOperators.Null}")}",
+        SqlBetweenExpression b => $"{Render(b.Target, ctx)} {(b.Negated ? SqlOperators.NotBetween : SqlOperators.Between)} {Render(b.Lower, ctx)} {SqlOperators.And} {Render(b.Upper, ctx)}",
+        SqlInExpression i => $"{Render(i.Target, ctx)} {(i.Negated ? SqlOperators.NotIn : SqlOperators.In)} ({string.Join(", ", i.Values.Select(v => Render(v, ctx)))})",
         SqlLogicalExpression log => $"({string.Join($" {log.Operator} ", log.Operands.Select(o => Render(o, ctx)))})",
         SqlBinaryExpression bin => FormatBinary(bin, ctx),
         SqlCaseExpression c => FormatCase(c, ctx),
@@ -61,13 +61,13 @@ internal static class SqlCheckRenderer
             return true;
         }
 
-        return isRightOperand && childPrec == parentPrec && parentOp is "-" or "/" or "%";
+        return isRightOperand && childPrec == parentPrec && parentOp is SqlOperators.Subtract or SqlOperators.Divide or SqlOperators.Modulo;
     }
 
     private static int GetArithmeticPrecedence(string op) => op switch
     {
-        "+" or "-" => 1,
-        "*" or "/" or "%" => 2,
+        SqlOperators.Add or SqlOperators.Subtract => 1,
+        SqlOperators.Multiply or SqlOperators.Divide or SqlOperators.Modulo => 2,
         _ => 0
     };
 
@@ -114,7 +114,7 @@ internal static class SqlCheckRenderer
 
     private static string FormatLiteral(object? value) => value switch
     {
-        null => "NULL",
+        null => SqlOperators.Null,
         bool b => b ? "TRUE" : "FALSE",
         Enum e => Convert.ToInt32(e, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture),
         string s => $"'{s.Replace("'", "''")}'",

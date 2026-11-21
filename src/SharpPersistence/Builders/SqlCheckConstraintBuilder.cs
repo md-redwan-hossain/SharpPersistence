@@ -2,7 +2,10 @@ using System.Linq.Expressions;
 using SharpPersistence.Enums;
 using SharpPersistence.Models.Internals;
 
+#pragma warning disable IDE0130
+// ReSharper disable once CheckNamespace
 namespace SharpPersistence;
+#pragma warning restore IDE0130
 
 /// <summary>
 /// Fluent builder for generating SQL check-constraint expressions in a type-safe, dialect-aware manner.
@@ -38,7 +41,7 @@ public sealed class SqlCheckConstraintBuilder
             operands.Add(other.Node);
         }
 
-        return new SqlPredicate(new SqlLogicalExpression("AND", operands), Context);
+        return new SqlPredicate(new SqlLogicalExpression(SqlOperators.And, operands), Context);
     }
 
     public SqlPredicate Or(SqlPredicate first, SqlPredicate second, params SqlPredicate[] others)
@@ -54,7 +57,7 @@ public sealed class SqlCheckConstraintBuilder
             operands.Add(other.Node);
         }
 
-        return new SqlPredicate(new SqlLogicalExpression("OR", operands), Context);
+        return new SqlPredicate(new SqlLogicalExpression(SqlOperators.Or, operands), Context);
     }
 
     public SqlBuiltExpression Raw(string sql)

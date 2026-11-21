@@ -1,7 +1,10 @@
 using System.Numerics;
 using SharpPersistence.Models.Internals;
 
+#pragma warning disable IDE0130
+// ReSharper disable once CheckNamespace
 namespace SharpPersistence;
+#pragma warning restore IDE0130
 
 public static class SqlColumnBuilderExtensions
 {
@@ -34,7 +37,7 @@ public static class SqlColumnBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(column);
         return new SqlPredicate(
-            new SqlBinaryExpression(column.Node, useIsOperator ? "IS" : "=", new SqlLiteralExpression(true)),
+            new SqlBinaryExpression(column.Node, useIsOperator ? SqlOperators.Is : SqlOperators.Equal, new SqlLiteralExpression(true)),
             column.Context);
     }
 
@@ -44,7 +47,7 @@ public static class SqlColumnBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(column);
         return new SqlPredicate(
-            new SqlBinaryExpression(column.Node, useIsOperator ? "IS" : "=", new SqlLiteralExpression(false)),
+            new SqlBinaryExpression(column.Node, useIsOperator ? SqlOperators.Is : SqlOperators.Equal, new SqlLiteralExpression(false)),
             column.Context);
     }
 }

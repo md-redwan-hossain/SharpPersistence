@@ -1,6 +1,9 @@
 using SharpPersistence.Models.Internals;
 
+#pragma warning disable IDE0130
+// ReSharper disable once CheckNamespace
 namespace SharpPersistence;
+#pragma warning restore IDE0130
 
 public readonly record struct SqlNumericValue
 {
