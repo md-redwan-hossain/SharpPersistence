@@ -35,4 +35,12 @@
         </None>
     </ItemGroup>
 
+    <ItemGroup>
+        <None Include="..\..\skills\sharp-persistence-abstractions\**\*">
+            <Pack>True</Pack>
+            <Link>skills\sharp-persistence-abstractions\%(RecursiveDir)%(Filename)%(Extension)</Link>
+            <PackagePath>skills\sharp-persistence-abstractions\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>
+        </None>
+    </ItemGroup>
+
 </Project>

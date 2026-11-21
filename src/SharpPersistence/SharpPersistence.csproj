@@ -40,10 +40,10 @@
     </ItemGroup>
 
     <ItemGroup>
-        <None Include="..\..\skills\**\*">
+        <None Include="..\..\skills\sharp-persistence\**\*">
             <Pack>True</Pack>
-            <Link>skills\%(RecursiveDir)%(Filename)%(Extension)</Link>
-            <PackagePath>skills\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>
+            <Link>skills\sharp-persistence\%(RecursiveDir)%(Filename)%(Extension)</Link>
+            <PackagePath>skills\sharp-persistence\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>
         </None>
     </ItemGroup>
 
