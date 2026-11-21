@@ -8,15 +8,20 @@ using SharpPersistence.Models.Internals;
 namespace SharpPersistence;
 #pragma warning restore IDE0130
 
+/// <summary>
+/// Fluent builder for column-level SQL check-constraint predicates and transformations.
+/// </summary>
 public sealed class SqlColumnBuilder<TEntity, TProp>
 {
     internal SqlExpression Node { get; }
     internal SqlRenderContext Context { get; }
+    internal bool EnumAsString { get; }
 
-    internal SqlColumnBuilder(SqlExpression node, SqlRenderContext context)
+    internal SqlColumnBuilder(SqlExpression node, SqlRenderContext context, bool enumAsString = false)
     {
         Node = node;
         Context = context;
+        EnumAsString = enumAsString;
     }
 
     public SqlColumnBuilder<TEntity, TProp> WithDelimiter()
@@ -26,7 +31,7 @@ public sealed class SqlColumnBuilder<TEntity, TProp>
             throw new InvalidOperationException("Delimiter modifiers can only be applied directly to a column.");
         }
 
-        return new SqlColumnBuilder<TEntity, TProp>(col with { Delimit = true }, Context);
+        return new SqlColumnBuilder<TEntity, TProp>(col with { Delimit = true }, Context, EnumAsString);
     }
 
     public SqlColumnBuilder<TEntity, TProp> WithoutDelimiter()
@@ -36,18 +41,33 @@ public sealed class SqlColumnBuilder<TEntity, TProp>
             throw new InvalidOperationException("Delimiter modifiers can only be applied directly to a column.");
         }
 
-        return new SqlColumnBuilder<TEntity, TProp>(col with { Delimit = false }, Context);
+        return new SqlColumnBuilder<TEntity, TProp>(col with { Delimit = false }, Context, EnumAsString);
     }
 
+    /// <summary>
+    /// Wraps the column in <c>COALESCE(column, fallback)</c> using a literal fallback value.
+    /// </summary>
     public SqlColumnBuilder<TEntity, TProp> Coalesce(TProp fallback)
     {
         ArgumentNullException.ThrowIfNull(fallback);
-        return new SqlColumnBuilder<TEntity, TProp>(new SqlCoalesceExpression(Node, new SqlLiteralExpression(fallback)),
-            Context);
+        return new SqlColumnBuilder<TEntity, TProp>(new SqlCoalesceExpression(Node, ToLiteral(fallback)),
+            Context, EnumAsString);
     }
 
-    public SqlPredicate EqualTo(TProp value) => Compare(SqlOperators.Equal, new SqlLiteralExpression(value));
-    public SqlPredicate NotEqualTo(TProp value) => Compare(SqlOperators.NotEqual, new SqlLiteralExpression(value));
+    /// <summary>
+    /// Wraps the column in <c>COALESCE(column, fallbackColumn)</c> using another column on <typeparamref name="TEntity"/>.
+    /// </summary>
+    public SqlColumnBuilder<TEntity, TProp> Coalesce<TFallback>(Expression<Func<TEntity, TFallback>> fallbackColumn)
+        => new(new SqlCoalesceExpression(Node, ColExpression(fallbackColumn)), Context, EnumAsString);
+
+    /// <summary>
+    /// Wraps the column in <c>COALESCE(column, fallbackColumn)</c> using another column builder.
+    /// </summary>
+    public SqlColumnBuilder<TEntity, TProp> Coalesce<TFallback>(SqlColumnBuilder<TEntity, TFallback> fallbackColumn)
+        => new(new SqlCoalesceExpression(Node, RequireOther(fallbackColumn).Node), Context, EnumAsString);
+
+    public SqlPredicate EqualTo(TProp value) => Compare(SqlOperators.Equal, ToLiteral(value));
+    public SqlPredicate NotEqualTo(TProp value) => Compare(SqlOperators.NotEqual, ToLiteral(value));
 
     public SqlPredicate GreaterThan(TProp value)
     {
@@ -90,6 +110,24 @@ public sealed class SqlColumnBuilder<TEntity, TProp>
 
     public SqlPredicate LessThanOrEqual<TOther>(Expression<Func<TEntity, TOther>> other)
         => Compare(SqlOperators.LessThanOrEqual, ColExpression(other));
+
+    public SqlPredicate EqualTo<TOther>(SqlColumnBuilder<TEntity, TOther> other)
+        => Compare(SqlOperators.Equal, RequireOther(other).Node);
+
+    public SqlPredicate NotEqualTo<TOther>(SqlColumnBuilder<TEntity, TOther> other)
+        => Compare(SqlOperators.NotEqual, RequireOther(other).Node);
+
+    public SqlPredicate GreaterThan<TOther>(SqlColumnBuilder<TEntity, TOther> other)
+        => Compare(SqlOperators.GreaterThan, RequireOther(other).Node);
+
+    public SqlPredicate GreaterThanOrEqual<TOther>(SqlColumnBuilder<TEntity, TOther> other)
+        => Compare(SqlOperators.GreaterThanOrEqual, RequireOther(other).Node);
+
+    public SqlPredicate LessThan<TOther>(SqlColumnBuilder<TEntity, TOther> other)
+        => Compare(SqlOperators.LessThan, RequireOther(other).Node);
+
+    public SqlPredicate LessThanOrEqual<TOther>(SqlColumnBuilder<TEntity, TOther> other)
+        => Compare(SqlOperators.LessThanOrEqual, RequireOther(other).Node);
 
     public SqlPredicate EqualToRawColumn(string columnName)
         => Compare(SqlOperators.Equal, RawColExpression(columnName));
@@ -147,6 +185,16 @@ public sealed class SqlColumnBuilder<TEntity, TProp>
         => new(new SqlBetweenExpression(Node, ColExpression(minColumn), ColExpression(maxColumn), Negated: true),
             Context);
 
+    public SqlPredicate Between<TMin, TMax>(
+        SqlColumnBuilder<TEntity, TMin> minColumn,
+        SqlColumnBuilder<TEntity, TMax> maxColumn)
+        => new(new SqlBetweenExpression(Node, RequireOther(minColumn).Node, RequireOther(maxColumn).Node, Negated: false), Context);
+
+    public SqlPredicate NotBetween<TMin, TMax>(
+        SqlColumnBuilder<TEntity, TMin> minColumn,
+        SqlColumnBuilder<TEntity, TMax> maxColumn)
+        => new(new SqlBetweenExpression(Node, RequireOther(minColumn).Node, RequireOther(maxColumn).Node, Negated: true), Context);
+
     public SqlPredicate BetweenRawColumns(string minColumnName, string maxColumnName)
         => new(
             new SqlBetweenExpression(Node, RawColExpression(minColumnName), RawColExpression(maxColumnName),
@@ -164,17 +212,28 @@ public sealed class SqlColumnBuilder<TEntity, TProp>
     private SqlPredicate Compare(string op, SqlExpression right)
         => new(new SqlBinaryExpression(Node, op, right), Context);
 
-    private static SqlColumnExpression ColExpression<TOther>(Expression<Func<TEntity, TOther>> other)
+    private static SqlColumnBuilder<TEntity, TOther> RequireOther<TOther>(SqlColumnBuilder<TEntity, TOther> other)
     {
         ArgumentNullException.ThrowIfNull(other);
-        return new SqlColumnExpression(SqlEntityScope<TEntity>.ExtractNestedMemberPath(other));
+        return other;
+    }
+
+    private SqlColumnExpression ColExpression<TOther>(Expression<Func<TEntity, TOther>> other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        return new SqlColumnExpression(SqlEntityScope<TEntity>.ExtractSingleMemberName(other));
     }
 
     private static SqlColumnExpression RawColExpression(string columnName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
-        return new SqlColumnExpression(columnName);
+        return new SqlColumnExpression(columnName, ApplyCase: false);
     }
+
+    private SqlLiteralExpression ToLiteral(TProp? value)
+        => EnumAsString && value is Enum enumValue
+            ? new SqlLiteralExpression(enumValue.ToString())
+            : new SqlLiteralExpression(value);
 
     private SqlPredicate BuildIn(IEnumerable<TProp> values, bool negated)
     {
@@ -187,7 +246,7 @@ public sealed class SqlColumnBuilder<TEntity, TProp>
                 throw new ArgumentException("Collection cannot contain null values.", nameof(values));
             }
 
-            items.Add(new SqlLiteralExpression(value));
+            items.Add(ToLiteral(value));
         }
 
         if (items.Count == 0)
@@ -199,6 +258,9 @@ public sealed class SqlColumnBuilder<TEntity, TProp>
     }
 }
 
+/// <summary>
+/// Fluent builder for numeric SQL comparisons.
+/// </summary>
 public class SqlNumericComparison<TEntity>
 {
     internal SqlExpression Node { get; }
@@ -290,19 +352,25 @@ public class SqlNumericComparison<TEntity>
     private SqlPredicate Cmp(string op, SqlExpression right)
         => new(new SqlBinaryExpression(Node, op, right), Context);
 
-    private protected static SqlColumnExpression ColExpression<TProp>(Expression<Func<TEntity, TProp>> col)
+    private protected SqlColumnExpression ColExpression<TProp>(Expression<Func<TEntity, TProp>> col)
     {
         ArgumentNullException.ThrowIfNull(col);
-        return new SqlColumnExpression(SqlEntityScope<TEntity>.ExtractNestedMemberPath(col));
+        return new SqlColumnExpression(SqlEntityScope<TEntity>.ExtractSingleMemberName(col));
     }
 }
 
+/// <summary>
+/// Fluent builder for arithmetic SQL expressions.
+/// </summary>
 public sealed class SqlNumericExpression<TEntity> : SqlNumericComparison<TEntity>
 {
     internal SqlNumericExpression(SqlExpression node, SqlRenderContext context)
         : base(node, context)
     {
     }
+
+    public SqlNumericExpression<TEntity> Abs()
+        => new(new SqlAbsExpression(Node), Context);
 
     public SqlNumericExpression<TEntity> Plus(SqlNumericValue value) => Op(SqlOperators.Add, value.Expression);
 
@@ -354,6 +422,9 @@ public sealed class SqlNumericExpression<TEntity> : SqlNumericComparison<TEntity
         => new(new SqlBinaryExpression(Node, op, right), Context);
 }
 
+/// <summary>
+/// Represents a rendered SQL expression that implicitly converts to <see cref="string"/>.
+/// </summary>
 public class SqlBuiltExpression
 {
     internal SqlExpression Node { get; }
@@ -417,6 +488,9 @@ public class SqlBuiltExpression
     public static implicit operator SqlExpression(SqlBuiltExpression expression) => expression.Node;
 }
 
+/// <summary>
+/// Represents a boolean SQL predicate that can be combined with <see cref="And"/>, <see cref="Or"/>, and <see cref="Not"/>.
+/// </summary>
 public sealed class SqlPredicate : SqlBuiltExpression
 {
     internal SqlPredicate(SqlExpression node, SqlRenderContext context) : base(node, context)
@@ -438,11 +512,17 @@ public sealed class SqlPredicate : SqlBuiltExpression
     public SqlPredicate Not() => new(new SqlNotExpression(Node), Context);
 }
 
+/// <summary>
+/// Initialized SQL <c>CASE</c> expression requiring at least one <c>WHEN</c> branch.
+/// </summary>
 public interface IInitializedSqlCase<in TCondition, in TValue, out TResult>
 {
     IBuildableSqlCase<TCondition, TValue, TResult> When(TCondition condition, TValue then);
 }
 
+/// <summary>
+/// SQL <c>CASE</c> expression with at least one branch that can add more branches or terminate.
+/// </summary>
 public interface IBuildableSqlCase<in TCondition, in TValue, out TResult>
 {
     IBuildableSqlCase<TCondition, TValue, TResult> When(TCondition condition, TValue then);

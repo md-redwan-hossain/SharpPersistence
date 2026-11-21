@@ -89,10 +89,12 @@ public class SqlCheckConstraintBuilderTests
     [InlineData(SqlDialect.SqlServer, true, "LEN([code]) BETWEEN 3 AND 50")]
     [InlineData(SqlDialect.MySql, true, "CHAR_LENGTH(`code`) BETWEEN 3 AND 50")]
     [InlineData(SqlDialect.Oracle, true, """LENGTH("code") BETWEEN 3 AND 50""")]
+    [InlineData(SqlDialect.Sqlite, true, """LENGTH("code") BETWEEN 3 AND 50""")]
     [InlineData(SqlDialect.PostgreSql, false, "length(code) BETWEEN 3 AND 50")]
     [InlineData(SqlDialect.SqlServer, false, "LEN(code) BETWEEN 3 AND 50")]
     [InlineData(SqlDialect.MySql, false, "CHAR_LENGTH(code) BETWEEN 3 AND 50")]
     [InlineData(SqlDialect.Oracle, false, "LENGTH(code) BETWEEN 3 AND 50")]
+    [InlineData(SqlDialect.Sqlite, false, "LENGTH(code) BETWEEN 3 AND 50")]
     public void Length_Between_RespectsDialect(SqlDialect dialect, bool delimitIdentifiers, string expected)
     {
         var cc = CreateBuilder(dialect, delimitIdentifiers);
@@ -198,11 +200,18 @@ public class SqlCheckConstraintBuilderTests
             NestedSeparator = "__"
         };
 
+        var customShipment = customCc.For<Shipment>();
+
         shipment.NestedColumn(x => x.Address.Country).Length().EqualTo(2)
             .ShouldRender(expectedDefault);
 
-        customCc.For<Shipment>().NestedColumn(x => x.Address.Country).Length().EqualTo(2)
+        customShipment.NestedColumn(x => x.Address.Country).Length().EqualTo(2)
             .ShouldRender(expectedCustom);
+
+        customShipment.Column(x => x.BillingCountry).EqualTo(customShipment.NestedColumn(x => x.Address.Country))
+            .ShouldRender(delimitIdentifiers ? """
+                "billing_country" = "address__country"
+                """ : "billing_country = address__country");
     }
 
     [Fact]
@@ -226,6 +235,7 @@ public class SqlCheckConstraintBuilderTests
         var shipment = cc.For<Shipment>();
 
         Should.Throw<ArgumentException>(() => shipment.Column(x => x.Address.Country));
+        Should.Throw<ArgumentException>(() => shipment.Column(x => x.BillingCountry).EqualTo(x => x.Address.Country));
     }
 
     [Theory]
@@ -335,13 +345,22 @@ public class SqlCheckConstraintBuilderTests
     [InlineData(SqlDialect.PostgreSql, "length(TRIM(code)) > 0")]
     [InlineData(SqlDialect.SqlServer, "LEN(TRIM(code)) > 0")]
     [InlineData(SqlDialect.MySql, "CHAR_LENGTH(TRIM(code)) > 0")]
-    [InlineData(SqlDialect.Oracle, "TRIM(code) IS NOT NULL")]
-    public void IsNotBlank_RespectsDialect(SqlDialect dialect, string expected)
+    [InlineData(SqlDialect.Sqlite, "LENGTH(TRIM(code)) > 0")]
+    public void Trim_Length_GreaterThanZero_RespectsDialect(SqlDialect dialect, string expected)
     {
         var cc = CreateBuilder(dialect, delimitIdentifiers: false);
         var policy = cc.For<AppPolicy>();
 
-        policy.Column(x => x.Code).IsNotBlank().ShouldRender(expected);
+        policy.Column(x => x.Code).Trim().Length().GreaterThan(0).ShouldRender(expected);
+    }
+
+    [Fact]
+    public void Trim_IsNotNull_ForOracle_GeneratesExpectedSql()
+    {
+        var cc = CreateBuilder(SqlDialect.Oracle, delimitIdentifiers: false);
+        var policy = cc.For<AppPolicy>();
+
+        policy.Column(x => x.Code).Trim().IsNotNull().ShouldRender("TRIM(code) IS NOT NULL");
     }
 
     [Fact]
@@ -361,6 +380,85 @@ public class SqlCheckConstraintBuilderTests
             .EndWithElse(0)
             .GreaterThan(0)
             .ShouldRender("(CASE WHEN quantity > 10 THEN 1 ELSE 0 END) > 0");
+    }
+
+    [Fact]
+    public void Abs_OnMath_GeneratesExpectedSql()
+    {
+        var cc = CreateBuilder(delimitIdentifiers: false);
+        var line = cc.For<InvoiceLine>();
+
+        line.Column(x => x.Balance)
+            .Math()
+            .Minus(x => x.Remaining)
+            .Abs()
+            .LessThanOrEqual(0.01m)
+            .ShouldRender("ABS(balance - remaining) <= 0.01");
+    }
+
+    [Fact]
+    public void RawPredicate_ComposesInAndAndCase()
+    {
+        var cc = CreateBuilder(delimitIdentifiers: false);
+        var policy = cc.For<AppPolicy>();
+
+        cc.And(
+            policy.Column(x => x.IsActive).EqualTo(true),
+            cc.RawPredicate("code ~ '^[A-Z0-9_]+$'")
+        ).ShouldRender("(is_active = TRUE AND code ~ '^[A-Z0-9_]+$')");
+
+        cc.Case()
+            .When(cc.RawPredicate("is_override_allowed = 0"), 1)
+            .EndWithElse(0)
+            .ShouldRender("CASE WHEN is_override_allowed = 0 THEN 1 ELSE 0 END");
+    }
+
+    [Fact]
+    public void EnumAsString_And_EnumAsNumeric_FormatEnumLiterals()
+    {
+        var cc = CreateBuilder(delimitIdentifiers: false);
+        var shipment = cc.For<Shipment>();
+
+        shipment.Column(x => x.Status).EnumAsString().In(TestStatus.Draft, TestStatus.Active)
+            .ShouldRender("status IN ('Draft', 'Active')");
+
+        shipment.Column(x => x.Status).EnumAsString().EqualTo(TestStatus.Archived)
+            .ShouldRender("status = 'Archived'");
+
+        shipment.Column(x => x.Status).EnumAsString().EnumAsNumeric().In(TestStatus.Draft, TestStatus.Active)
+            .ShouldRender("status IN (1, 2)");
+    }
+
+    [Fact]
+    public void RawColumn_And_RawColumnComparisons_IgnoreIdentifierCase()
+    {
+        var cc = new SqlCheckConstraintBuilder
+        {
+            Dialect = SqlDialect.PostgreSql,
+            IdentifierCase = SqlIdentifierCase.UpperSnakeCase
+        };
+
+        var policy = cc.For<AppPolicy>();
+
+        cc.RawColumn<string>("myCustom_Col").IsNotNull()
+            .ShouldRender("""
+                "myCustom_Col" IS NOT NULL
+                """);
+
+        policy.Column(x => x.Code).EqualToRawColumn("usr_Email")
+            .ShouldRender("""
+                "CODE" = "usr_Email"
+                """);
+    }
+
+    [Fact]
+    public void Coalesce_WithFallbackColumn_GeneratesExpectedSql()
+    {
+        var cc = CreateBuilder(delimitIdentifiers: false);
+        var line = cc.For<InvoiceLine>();
+
+        line.Column(x => x.Discount).Coalesce(x => x.Tax).LessThanOrEqual(x => x.UnitPrice)
+            .ShouldRender("COALESCE(discount, tax) <= unit_price");
     }
 }
 

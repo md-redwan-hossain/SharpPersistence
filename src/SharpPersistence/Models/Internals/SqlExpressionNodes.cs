@@ -2,18 +2,16 @@ namespace SharpPersistence.Models.Internals;
 
 internal sealed record SqlLiteralExpression(object? Value) : SqlExpression;
 
-internal sealed record SqlColumnExpression(string Name, bool? Delimit = null) : SqlExpression;
+internal sealed record SqlColumnExpression(string Name, bool? Delimit = null, bool ApplyCase = true) : SqlExpression;
 
 internal sealed record SqlLengthExpression(SqlExpression Target) : SqlExpression;
+internal sealed record SqlAbsExpression(SqlExpression Target) : SqlExpression;
 
 internal sealed record SqlTrimExpression(SqlExpression Target) : SqlExpression;
 
 internal sealed record SqlCaseTransformExpression(SqlExpression Target, string FunctionName) : SqlExpression;
 
 internal sealed record SqlCoalesceExpression(SqlExpression Target, SqlExpression Fallback) : SqlExpression;
-
-internal sealed record SqlIsNotBlankExpression(SqlExpression Target) : SqlExpression;
-
 internal sealed record SqlBinaryExpression(SqlExpression Left, string Operator, SqlExpression Right) : SqlExpression;
 
 internal sealed record SqlLogicalExpression(string Operator, IReadOnlyList<SqlExpression> Operands) : SqlExpression;

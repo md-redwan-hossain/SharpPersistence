@@ -5,6 +5,9 @@ using SharpPersistence.Models.Internals;
 namespace SharpPersistence;
 #pragma warning restore IDE0130
 
+/// <summary>
+/// Base SQL expression node supporting implicit conversions from CLR literal values.
+/// </summary>
 public abstract record SqlExpression
 {
     internal SqlExpression() { }

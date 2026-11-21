@@ -5,6 +5,9 @@ using SharpPersistence.Models.Internals;
 namespace SharpPersistence;
 #pragma warning restore IDE0130
 
+/// <summary>
+/// Represents a numeric SQL literal supporting implicit conversions from CLR numeric primitives.
+/// </summary>
 public readonly record struct SqlNumericValue
 {
     internal SqlLiteralExpression Expression { get; }

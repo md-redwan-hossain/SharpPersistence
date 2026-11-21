@@ -13,10 +13,10 @@ internal static class SqlCheckRenderer
         SqlLiteralExpression lit => FormatLiteral(lit.Value, ctx.Dialect),
         SqlColumnExpression col => FormatColumn(col, ctx),
         SqlLengthExpression len => FormatLength(Render(len.Target, ctx), ctx.Dialect),
+        SqlAbsExpression abs => $"ABS({Render(abs.Target, ctx)})",
         SqlTrimExpression trim => $"TRIM({Render(trim.Target, ctx)})",
         SqlCaseTransformExpression ct => $"{ct.FunctionName}({Render(ct.Target, ctx)})",
         SqlCoalesceExpression coal => $"COALESCE({Render(coal.Target, ctx)}, {Render(coal.Fallback, ctx)})",
-        SqlIsNotBlankExpression blank => FormatIsNotBlank(Render(blank.Target, ctx), ctx.Dialect),
         SqlNotExpression not => $"{SqlOperators.Not} ({Render(not.Inner, ctx)})",
         SqlNullCheckExpression nc => $"{Render(nc.Target, ctx)} {(nc.Negated ? $"{SqlOperators.IsNot} {SqlOperators.Null}" : $"{SqlOperators.Is} {SqlOperators.Null}")}",
         SqlBetweenExpression b => $"{Render(b.Target, ctx)} {(b.Negated ? SqlOperators.NotBetween : SqlOperators.Between)} {Render(b.Lower, ctx)} {SqlOperators.And} {Render(b.Upper, ctx)}",
@@ -97,13 +97,15 @@ internal static class SqlCheckRenderer
 
     private static string FormatColumn(SqlColumnExpression col, SqlRenderContext ctx)
     {
-        var cased = ctx.IdentifierCase switch
-        {
-            SqlIdentifierCase.LowerSnakeCase => col.Name.Underscore().ToLowerInvariant(),
-            SqlIdentifierCase.UpperSnakeCase => col.Name.Underscore().ToUpperInvariant(),
-            SqlIdentifierCase.PascalCase => col.Name.Pascalize(),
-            _ => col.Name
-        };
+        var cased = col.ApplyCase
+            ? ctx.IdentifierCase switch
+            {
+                SqlIdentifierCase.LowerSnakeCase => col.Name.Underscore().ToLowerInvariant(),
+                SqlIdentifierCase.UpperSnakeCase => col.Name.Underscore().ToUpperInvariant(),
+                SqlIdentifierCase.PascalCase => col.Name.Pascalize(),
+                _ => col.Name
+            }
+            : col.Name;
 
         var delimit = col.Delimit ?? ctx.DelimitIdentifiers;
         if (!delimit)
@@ -113,19 +115,11 @@ internal static class SqlCheckRenderer
 
         return ctx.Dialect switch
         {
-            SqlDialect.PostgreSql or SqlDialect.Oracle => $"\"{cased}\"",
+            SqlDialect.PostgreSql or SqlDialect.Oracle or SqlDialect.Sqlite => $"\"{cased}\"",
             SqlDialect.MySql => $"`{cased}`",
             SqlDialect.SqlServer => $"[{cased}]",
             _ => cased
         };
-    }
-
-    private static string FormatIsNotBlank(string targetSql, SqlDialect dialect)
-    {
-        var trimmed = $"TRIM({targetSql})";
-        return dialect == SqlDialect.Oracle
-            ? $"{trimmed} {SqlOperators.IsNot} {SqlOperators.Null}"
-            : $"{FormatLength(trimmed, dialect)} {SqlOperators.GreaterThan} 0";
     }
 
     private static string FormatLength(string columnSql, SqlDialect dialect) => dialect switch
@@ -133,7 +127,7 @@ internal static class SqlCheckRenderer
         SqlDialect.SqlServer => $"LEN({columnSql})",
         SqlDialect.PostgreSql => $"length({columnSql})",
         SqlDialect.MySql => $"CHAR_LENGTH({columnSql})",
-        SqlDialect.Oracle => $"LENGTH({columnSql})",
+        SqlDialect.Oracle or SqlDialect.Sqlite => $"LENGTH({columnSql})",
         _ => columnSql
     };
 

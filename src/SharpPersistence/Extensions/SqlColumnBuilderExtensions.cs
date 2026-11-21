@@ -6,6 +6,9 @@ using SharpPersistence.Models.Internals;
 namespace SharpPersistence;
 #pragma warning restore IDE0130
 
+/// <summary>
+/// Type-constrained extension methods for <see cref="SqlColumnBuilder{TEntity, TProp}"/>.
+/// </summary>
 public static class SqlColumnBuilderExtensions
 {
     public static SqlNumericExpression<TEntity> Math<TEntity, TProp>(
@@ -70,10 +73,35 @@ public static class SqlColumnBuilderExtensions
         return new SqlPredicate(new SqlBinaryExpression(column.Node, SqlOperators.NotLike, new SqlLiteralExpression(pattern)), column.Context);
     }
 
-    public static SqlPredicate IsNotBlank<TEntity>(
-        this SqlColumnBuilder<TEntity, string> column)
+    public static SqlColumnBuilder<TEntity, TEnum> EnumAsString<TEntity, TEnum>(
+        this SqlColumnBuilder<TEntity, TEnum> column)
+        where TEnum : struct, Enum
     {
         ArgumentNullException.ThrowIfNull(column);
-        return new SqlPredicate(new SqlIsNotBlankExpression(column.Node), column.Context);
+        return new SqlColumnBuilder<TEntity, TEnum>(column.Node, column.Context, enumAsString: true);
+    }
+
+    public static SqlColumnBuilder<TEntity, TEnum?> EnumAsString<TEntity, TEnum>(
+        this SqlColumnBuilder<TEntity, TEnum?> column)
+        where TEnum : struct, Enum
+    {
+        ArgumentNullException.ThrowIfNull(column);
+        return new SqlColumnBuilder<TEntity, TEnum?>(column.Node, column.Context, enumAsString: true);
+    }
+
+    public static SqlColumnBuilder<TEntity, TEnum> EnumAsNumeric<TEntity, TEnum>(
+        this SqlColumnBuilder<TEntity, TEnum> column)
+        where TEnum : struct, Enum
+    {
+        ArgumentNullException.ThrowIfNull(column);
+        return new SqlColumnBuilder<TEntity, TEnum>(column.Node, column.Context, enumAsString: false);
+    }
+
+    public static SqlColumnBuilder<TEntity, TEnum?> EnumAsNumeric<TEntity, TEnum>(
+        this SqlColumnBuilder<TEntity, TEnum?> column)
+        where TEnum : struct, Enum
+    {
+        ArgumentNullException.ThrowIfNull(column);
+        return new SqlColumnBuilder<TEntity, TEnum?>(column.Node, column.Context, enumAsString: false);
     }
 }
