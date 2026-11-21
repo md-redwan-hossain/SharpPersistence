@@ -2,10 +2,12 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
+using SharpPersistence.EfCore;
 using SharpPersistence.Tests.TestDependencyFiles;
 
 namespace SharpPersistence.Tests;
 
+#pragma warning disable CS0618
 public class RepositoryBaseTests : IAsyncLifetime
 {
     private readonly SqliteConnection _connection;
@@ -858,7 +860,7 @@ public class RepositoryBaseTests : IAsyncLifetime
             .Where(e => e.Name == "A")
             .EnableTracking()
             .GetOneAsync(TestContext.Current.CancellationToken);
-        
+
         deleted.ShouldNotBeNull();
         deleted.IsDeleted = true;
         await _dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -876,5 +878,4 @@ public class RepositoryBaseTests : IAsyncLifetime
         withIgnore.Any(e => e is { Name: "A", IsDeleted: true }).ShouldBeTrue();
     }
 #endif
-
 }

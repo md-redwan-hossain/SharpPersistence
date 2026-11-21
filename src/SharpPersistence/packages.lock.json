@@ -478,7 +478,7 @@
         "type": "Project"
       }
     },
-    "net8.0": {
+    "net11.0": {
       "Humanizer": {
         "type": "Direct",
         "requested": "[3.0.10, )",

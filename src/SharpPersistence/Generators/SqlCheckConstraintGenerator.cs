@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Text;
 using Humanizer;
 using SharpPersistence.Enums;
+using SharpPersistence.Models.Internals;
 
 namespace SharpPersistence.Generators;
 
@@ -10,6 +11,7 @@ namespace SharpPersistence.Generators;
 /// <c>SqlCheckConstraintGenerator</c> is a utility class for generating raw sql code for check-constraints in a type-safe manner.
 /// It can be useful with Entity Framework Core since it doesn't have strongly-typed check-constraint support and requires raw SQL code.
 /// </summary>
+[Obsolete("Use SharpPersistence.SqlCheckConstraintBuilder instead.")]
 public class SqlCheckConstraintGenerator
 {
     private readonly bool _delimitString;
@@ -38,27 +40,6 @@ public class SqlCheckConstraintGenerator
         _delimitString = delimitString;
     }
 
-    private const string EqualSign = " = ";
-    private const string GreaterThanSign = " > ";
-    private const string LessThanSign = " < ";
-    private const string GreaterThanOrEqualSign = " >= ";
-    private const string LessThanOrEqualSign = " <= ";
-    private const string NotEqualSign = " <> ";
-    private const string OrSign = " OR ";
-    private const string AndSign = " AND ";
-    private const string InSign = " IN ";
-    private const string Is = " IS ";
-    private const string IsNot = " IS NOT ";
-    private const string Null = " NULL ";
-    private const string NotInSign = " NOT IN ";
-    private const string BetweenSign = " BETWEEN ";
-    private const string NotBetweenSign = " NOT BETWEEN ";
-    private const string MathAdd = " + ";
-    private const string MathSubtract = " - ";
-    private const string MathMultiply = " * ";
-    private const string MathDivide = " / ";
-    private const string MathModulo = " % ";
-
     /// <summary>
     /// Starts building a SQL <c>CASE</c> expression for use in a check constraint.
     /// </summary>
@@ -66,13 +47,13 @@ public class SqlCheckConstraintGenerator
 
     public string And(string firstOperand, string secondOperand, params string[] otherOperands)
     {
-        var sb = new StringBuilder(string.Concat(firstOperand, AndSign, secondOperand));
+        var sb = new StringBuilder($"{firstOperand} {SqlOperators.And} {secondOperand}");
 
         var queue = new Queue<string>(otherOperands);
 
         while (queue.TryDequeue(out var value))
         {
-            sb.Append(AndSign);
+            sb.Append($" {SqlOperators.And} ");
             sb.Append(value);
         }
 
@@ -81,13 +62,13 @@ public class SqlCheckConstraintGenerator
 
     public string Or(string firstOperand, string secondOperand, params string[] otherOperands)
     {
-        var sb = new StringBuilder(string.Concat(firstOperand, OrSign, secondOperand));
+        var sb = new StringBuilder($"{firstOperand} {SqlOperators.Or} {secondOperand}");
 
         var queue = new Queue<string>(otherOperands);
 
         while (queue.TryDequeue(out var value))
         {
-            sb.Append(OrSign);
+            sb.Append($" {SqlOperators.Or} ");
             sb.Append(value);
         }
 
@@ -113,12 +94,12 @@ public class SqlCheckConstraintGenerator
     {
         return comparisonOperator switch
         {
-            SqlComparisonOperator.Equal => EqualSign,
-            SqlComparisonOperator.GreaterThan => GreaterThanSign,
-            SqlComparisonOperator.LessThan => LessThanSign,
-            SqlComparisonOperator.GreaterThanOrEqual => GreaterThanOrEqualSign,
-            SqlComparisonOperator.LessThanOrEqual => LessThanOrEqualSign,
-            SqlComparisonOperator.NotEqual => NotEqualSign,
+            SqlComparisonOperator.Equal => SqlOperators.Equal,
+            SqlComparisonOperator.GreaterThan => SqlOperators.GreaterThan,
+            SqlComparisonOperator.LessThan => SqlOperators.LessThan,
+            SqlComparisonOperator.GreaterThanOrEqual => SqlOperators.GreaterThanOrEqual,
+            SqlComparisonOperator.LessThanOrEqual => SqlOperators.LessThanOrEqual,
+            SqlComparisonOperator.NotEqual => SqlOperators.NotEqual,
             _ => throw new ArgumentOutOfRangeException(nameof(comparisonOperator))
         };
     }
@@ -143,66 +124,42 @@ public class SqlCheckConstraintGenerator
         ThrowIfEmptyCollection(rightOperands, nameof(rightOperands));
         var transformed = TransformCase(leftOperand);
 
-        return string.Concat(
-            OperandHandler(transformed, delimitLeftOperand ?? _delimitString),
-            InSign,
-            WrapWithParentheses(CommaSeparatedCollectionData(rightOperands))
-        );
+        return $"{OperandHandler(transformed, delimitLeftOperand ?? _delimitString)} {SqlOperators.In} {WrapWithParentheses(CommaSeparatedCollectionData(rightOperands))}";
     }
 
     public string In(string leftOperand, ICollection<string> rightOperands, bool? delimitLeftOperand = null)
     {
         ThrowIfEmptyCollection(rightOperands, nameof(rightOperands));
         var transformed = TransformCase(leftOperand);
-        return string.Concat(
-            OperandHandler(transformed, delimitLeftOperand ?? _delimitString),
-            InSign,
-            WrapWithParentheses(CommaSeparatedCollectionData(rightOperands))
-        );
+        return $"{OperandHandler(transformed, delimitLeftOperand ?? _delimitString)} {SqlOperators.In} {WrapWithParentheses(CommaSeparatedCollectionData(rightOperands))}";
     }
 
     public string In(string leftOperand, ICollection<Enum> rightOperands, bool? delimitLeftOperand = null)
     {
         ThrowIfEmptyCollection(rightOperands, nameof(rightOperands));
         var transformed = TransformCase(leftOperand);
-        return string.Concat(
-            OperandHandler(transformed, delimitLeftOperand ?? _delimitString),
-            InSign,
-            WrapWithParentheses(CommaSeparatedCollectionData(rightOperands))
-        );
+        return $"{OperandHandler(transformed, delimitLeftOperand ?? _delimitString)} {SqlOperators.In} {WrapWithParentheses(CommaSeparatedCollectionData(rightOperands))}";
     }
 
     public string NotIn(string leftOperand, ICollection<int> rightOperands, bool? delimitLeftOperand = null)
     {
         ThrowIfEmptyCollection(rightOperands, nameof(rightOperands));
         var transformed = TransformCase(leftOperand);
-        return string.Concat(
-            OperandHandler(transformed, delimitLeftOperand ?? _delimitString),
-            NotInSign,
-            WrapWithParentheses(CommaSeparatedCollectionData(rightOperands))
-        );
+        return $"{OperandHandler(transformed, delimitLeftOperand ?? _delimitString)} {SqlOperators.NotIn} {WrapWithParentheses(CommaSeparatedCollectionData(rightOperands))}";
     }
 
     public string NotIn(string leftOperand, ICollection<string> rightOperands, bool? delimitLeftOperand = null)
     {
         ThrowIfEmptyCollection(rightOperands, nameof(rightOperands));
         var transformed = TransformCase(leftOperand);
-        return string.Concat(
-            OperandHandler(transformed, delimitLeftOperand ?? _delimitString),
-            NotInSign,
-            WrapWithParentheses(CommaSeparatedCollectionData(rightOperands))
-        );
+        return $"{OperandHandler(transformed, delimitLeftOperand ?? _delimitString)} {SqlOperators.NotIn} {WrapWithParentheses(CommaSeparatedCollectionData(rightOperands))}";
     }
 
     public string NotIn(string leftOperand, ICollection<Enum> rightOperands, bool? delimitLeftOperand = null)
     {
         ThrowIfEmptyCollection(rightOperands, nameof(rightOperands));
         var transformed = TransformCase(leftOperand);
-        return string.Concat(
-            OperandHandler(transformed, delimitLeftOperand ?? _delimitString),
-            NotInSign,
-            WrapWithParentheses(CommaSeparatedCollectionData(rightOperands))
-        );
+        return $"{OperandHandler(transformed, delimitLeftOperand ?? _delimitString)} {SqlOperators.NotIn} {WrapWithParentheses(CommaSeparatedCollectionData(rightOperands))}";
     }
 
     public string NotEqualTo(string leftOperand, string rightOperand, SqlOperandType rightOperandType,
@@ -210,24 +167,18 @@ public class SqlCheckConstraintGenerator
     {
         var transformed = TransformCase(leftOperand, rightOperand);
 
-        return string.Concat(
-            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString),
-            NotEqualSign,
-            rightOperandType == SqlOperandType.Column
-                ? OperandHandler(transformed.right, delimitRightOperand ?? _delimitString)
-                : SqlString(transformed.right)
-        );
+        var right = rightOperandType == SqlOperandType.Column
+            ? OperandHandler(transformed.right, delimitRightOperand ?? _delimitString)
+            : SqlString(transformed.right);
+
+        return $"{OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString)} {SqlOperators.NotEqual} {right}";
     }
 
     public string NotEqualTo(string leftOperand, Enum rightOperand, bool? delimitLeftOperand = null)
     {
         var transformed = TransformCase(leftOperand, EnumValueToString(rightOperand));
 
-        return string.Concat(
-            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString),
-            NotEqualSign,
-            transformed.right
-        );
+        return $"{OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString)} {SqlOperators.NotEqual} {transformed.right}";
     }
 
     public string NotEqualTo(string leftOperand, int rightOperand, SqlDataType leftOperandSqlDataType,
@@ -241,46 +192,35 @@ public class SqlCheckConstraintGenerator
             leftOperandWithLogic = LengthOperatorHandler(leftOperandWithLogic);
         }
 
-        return string.Concat(
-            leftOperandWithLogic,
-            NotEqualSign,
-            rightOperand
-        );
+        return $"{leftOperandWithLogic} {SqlOperators.NotEqual} {rightOperand}";
     }
 
     public string NotEqualTo(string leftOperand, bool rightOperand, bool useIsNotOperator = false,
         bool? delimitLeftOperand = null)
     {
         var transformed = TransformCase(leftOperand);
-        return string.Concat(
-            OperandHandler(transformed, delimitLeftOperand ?? _delimitString),
-            useIsNotOperator ? IsNot : NotEqualSign,
-            rightOperand ? bool.TrueString.ToUpperInvariant() : bool.FalseString.ToUpperInvariant()
-        );
+        var op = useIsNotOperator ? SqlOperators.IsNot : SqlOperators.NotEqual;
+        var val = rightOperand ? bool.TrueString.ToUpperInvariant() : bool.FalseString.ToUpperInvariant();
+        return $"{OperandHandler(transformed, delimitLeftOperand ?? _delimitString)} {op} {val}";
     }
 
     public string EqualTo(string leftOperand, bool rightOperand, bool useIsOperator = false,
         bool? delimitLeftOperand = null)
     {
         var transformed = TransformCase(leftOperand);
-        return string.Concat(
-            OperandHandler(transformed, delimitLeftOperand ?? _delimitString),
-            useIsOperator ? Is : EqualSign,
-            rightOperand ? bool.TrueString.ToUpperInvariant() : bool.FalseString.ToUpperInvariant()
-        );
+        var op = useIsOperator ? SqlOperators.Is : SqlOperators.Equal;
+        var val = rightOperand ? bool.TrueString.ToUpperInvariant() : bool.FalseString.ToUpperInvariant();
+        return $"{OperandHandler(transformed, delimitLeftOperand ?? _delimitString)} {op} {val}";
     }
 
     public string EqualTo(string leftOperand, string rightOperand, SqlOperandType rightOperandType,
         bool? delimitLeftOperand = null, bool? delimitRightOperand = null)
     {
         var transformed = TransformCase(leftOperand, rightOperand);
-        return string.Concat(
-            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString),
-            EqualSign,
-            rightOperandType == SqlOperandType.Column
-                ? OperandHandler(transformed.right, delimitRightOperand ?? _delimitString)
-                : SqlString(transformed.right)
-        );
+        var right = rightOperandType == SqlOperandType.Column
+            ? OperandHandler(transformed.right, delimitRightOperand ?? _delimitString)
+            : SqlString(transformed.right);
+        return $"{OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString)} {SqlOperators.Equal} {right}";
     }
 
     public string EqualTo(string leftOperand, int rightOperand, SqlDataType leftOperandSqlDataType,
@@ -293,46 +233,31 @@ public class SqlCheckConstraintGenerator
             leftOperandWithLogic = LengthOperatorHandler(leftOperandWithLogic);
         }
 
-        return string.Concat(
-            leftOperandWithLogic,
-            EqualSign,
-            rightOperand
-        );
+        return $"{leftOperandWithLogic} {SqlOperators.Equal} {rightOperand}";
     }
 
     public string EqualTo(string leftOperand, Enum rightOperand, bool? delimitLeftOperand = null)
     {
         var transformed = TransformCase(leftOperand, EnumValueToString(rightOperand));
 
-        return string.Concat(
-            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString),
-            EqualSign,
-            transformed.right
-        );
+        return $"{OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString)} {SqlOperators.Equal} {transformed.right}";
     }
 
     public string GreaterThan(string leftOperand, string rightOperand, SqlOperandType rightOperandType,
         bool? delimitLeftOperand = null, bool? delimitRightOperand = null)
     {
         var transformed = TransformCase(leftOperand, rightOperand);
+        var right = rightOperandType == SqlOperandType.Column
+            ? OperandHandler(transformed.right, delimitRightOperand ?? _delimitString)
+            : SqlString(transformed.right);
 
-        return string.Concat(
-            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString),
-            GreaterThanSign,
-            rightOperandType == SqlOperandType.Column
-                ? OperandHandler(transformed.right, delimitRightOperand ?? _delimitString)
-                : SqlString(transformed.right)
-        );
+        return $"{OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString)} {SqlOperators.GreaterThan} {right}";
     }
 
     public string GreaterThan(string leftOperand, Enum rightOperand, bool? delimitLeftOperand = null)
     {
         var transformed = TransformCase(leftOperand, EnumValueToString(rightOperand));
-        return string.Concat(
-            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString),
-            GreaterThanSign,
-            transformed.right
-        );
+        return $"{OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString)} {SqlOperators.GreaterThan} {transformed.right}";
     }
 
     public string GreaterThan(string leftOperand, int rightOperand, SqlDataType leftOperandSqlDataType,
@@ -345,34 +270,23 @@ public class SqlCheckConstraintGenerator
             leftOperandWithLogic = LengthOperatorHandler(leftOperandWithLogic);
         }
 
-        return string.Concat(
-            leftOperandWithLogic,
-            GreaterThanSign,
-            rightOperand
-        );
+        return $"{leftOperandWithLogic} {SqlOperators.GreaterThan} {rightOperand}";
     }
 
     public string GreaterThanOrEqual(string leftOperand, string rightOperand, SqlOperandType rightOperandType,
         bool? delimitLeftOperand = null, bool? delimitRightOperand = null)
     {
         var transformed = TransformCase(leftOperand, rightOperand);
-        return string.Concat(
-            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString),
-            GreaterThanOrEqualSign,
-            rightOperandType == SqlOperandType.Column
-                ? OperandHandler(transformed.right, delimitRightOperand ?? _delimitString)
-                : SqlString(transformed.right)
-        );
+        var right = rightOperandType == SqlOperandType.Column
+            ? OperandHandler(transformed.right, delimitRightOperand ?? _delimitString)
+            : SqlString(transformed.right);
+        return $"{OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString)} {SqlOperators.GreaterThanOrEqual} {right}";
     }
 
     public string GreaterThanOrEqual(string leftOperand, Enum rightOperand, bool? delimitLeftOperand = null)
     {
         var transformed = TransformCase(leftOperand, EnumValueToString(rightOperand));
-        return string.Concat(
-            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString),
-            GreaterThanOrEqualSign,
-            transformed.right
-        );
+        return $"{OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString)} {SqlOperators.GreaterThanOrEqual} {transformed.right}";
     }
 
     public string GreaterThanOrEqual(string leftOperand, int rightOperand, SqlDataType leftOperandSqlDataType,
@@ -385,34 +299,23 @@ public class SqlCheckConstraintGenerator
             leftOperandWithLogic = LengthOperatorHandler(leftOperandWithLogic);
         }
 
-        return string.Concat(
-            leftOperandWithLogic,
-            GreaterThanOrEqualSign,
-            rightOperand
-        );
+        return $"{leftOperandWithLogic} {SqlOperators.GreaterThanOrEqual} {rightOperand}";
     }
 
     public string LessThan(string leftOperand, string rightOperand, SqlOperandType rightOperandType,
         bool? delimitLeftOperand = null, bool? delimitRightOperand = null)
     {
         var transformed = TransformCase(leftOperand, rightOperand);
-        return string.Concat(
-            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString),
-            LessThanSign,
-            rightOperandType == SqlOperandType.Column
-                ? OperandHandler(transformed.right, delimitRightOperand ?? _delimitString)
-                : SqlString(transformed.right)
-        );
+        var right = rightOperandType == SqlOperandType.Column
+            ? OperandHandler(transformed.right, delimitRightOperand ?? _delimitString)
+            : SqlString(transformed.right);
+        return $"{OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString)} {SqlOperators.LessThan} {right}";
     }
 
     public string LessThan(string leftOperand, Enum rightOperand, bool? delimitLeftOperand = null)
     {
         var transformed = TransformCase(leftOperand, EnumValueToString(rightOperand));
-        return string.Concat(
-            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString),
-            LessThanSign,
-            transformed.right
-        );
+        return $"{OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString)} {SqlOperators.LessThan} {transformed.right}";
     }
 
     public string LessThan(string leftOperand, int rightOperand, SqlDataType leftOperandSqlDataType,
@@ -425,34 +328,23 @@ public class SqlCheckConstraintGenerator
             leftOperandWithLogic = LengthOperatorHandler(leftOperandWithLogic);
         }
 
-        return string.Concat(
-            leftOperandWithLogic,
-            LessThanSign,
-            rightOperand
-        );
+        return $"{leftOperandWithLogic} {SqlOperators.LessThan} {rightOperand}";
     }
 
     public string LessThanOrEqual(string leftOperand, string rightOperand, SqlOperandType rightOperandType,
         bool? delimitLeftOperand = null, bool? delimitRightOperand = null)
     {
         var transformed = TransformCase(leftOperand, rightOperand);
-        return string.Concat(
-            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString),
-            LessThanOrEqualSign,
-            rightOperandType == SqlOperandType.Column
-                ? OperandHandler(transformed.right, delimitRightOperand ?? _delimitString)
-                : SqlString(transformed.right)
-        );
+        var right = rightOperandType == SqlOperandType.Column
+            ? OperandHandler(transformed.right, delimitRightOperand ?? _delimitString)
+            : SqlString(transformed.right);
+        return $"{OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString)} {SqlOperators.LessThanOrEqual} {right}";
     }
 
     public string LessThanOrEqual(string leftOperand, Enum rightOperand, bool? delimitLeftOperand = null)
     {
         var transformed = TransformCase(leftOperand, EnumValueToString(rightOperand));
-        return string.Concat(
-            OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString),
-            LessThanOrEqualSign,
-            transformed.right
-        );
+        return $"{OperandHandler(transformed.left, delimitLeftOperand ?? _delimitString)} {SqlOperators.LessThanOrEqual} {transformed.right}";
     }
 
     public string LessThanOrEqual(string leftOperand, int rightOperand, SqlDataType leftOperandSqlDataType,
@@ -465,115 +357,63 @@ public class SqlCheckConstraintGenerator
             leftOperandWithLogic = LengthOperatorHandler(leftOperandWithLogic);
         }
 
-        return string.Concat(
-            leftOperandWithLogic,
-            LessThanOrEqualSign,
-            rightOperand
-        );
+        return $"{leftOperandWithLogic} {SqlOperators.LessThanOrEqual} {rightOperand}";
     }
 
     public string Between(string columnName, string leftOperand,
         string rightOperand, bool? delimitColumnName = null)
     {
         var transformed = TransformCase(columnName);
-        return string.Concat(
-            OperandHandler(transformed, delimitColumnName ?? _delimitString),
-            BetweenSign,
-            SqlString(leftOperand),
-            AndSign,
-            SqlString(rightOperand)
-        );
+        return $"{OperandHandler(transformed, delimitColumnName ?? _delimitString)} {SqlOperators.Between} {SqlString(leftOperand)} {SqlOperators.And} {SqlString(rightOperand)}";
     }
 
     public string Between(string columnName, int leftOperand,
         int rightOperand, bool? delimitColumnName = null)
     {
         var transformed = TransformCase(columnName);
-        return string.Concat(
-            OperandHandler(transformed, delimitColumnName ?? _delimitString),
-            BetweenSign,
-            leftOperand,
-            AndSign,
-            rightOperand
-        );
+        return $"{OperandHandler(transformed, delimitColumnName ?? _delimitString)} {SqlOperators.Between} {leftOperand} {SqlOperators.And} {rightOperand}";
     }
 
     public string Between(string columnName, double leftOperand,
         double rightOperand, bool? delimitColumnName = null)
     {
         var transformed = TransformCase(columnName);
-        return string.Concat(
-            OperandHandler(transformed, delimitColumnName ?? _delimitString),
-            BetweenSign,
-            leftOperand,
-            AndSign,
-            rightOperand
-        );
+        return $"{OperandHandler(transformed, delimitColumnName ?? _delimitString)} {SqlOperators.Between} {leftOperand} {SqlOperators.And} {rightOperand}";
     }
 
     public string NotBetween(string columnName, string leftOperand,
         string rightOperand, bool? delimitColumnName = null)
     {
         var transformed = TransformCase(columnName);
-        return string.Concat(
-            OperandHandler(transformed, delimitColumnName ?? _delimitString),
-            NotBetweenSign,
-            SqlString(leftOperand),
-            AndSign,
-            SqlString(rightOperand)
-        );
+        return $"{OperandHandler(transformed, delimitColumnName ?? _delimitString)} {SqlOperators.NotBetween} {SqlString(leftOperand)} {SqlOperators.And} {SqlString(rightOperand)}";
     }
 
     public string NotBetween(string columnName, int leftOperand,
         int rightOperand, bool? delimitColumnName = null)
     {
         var transformed = TransformCase(columnName);
-        return string.Concat(
-            OperandHandler(transformed, delimitColumnName ?? _delimitString),
-            NotBetweenSign,
-            leftOperand,
-            AndSign,
-            rightOperand
-        );
+        return $"{OperandHandler(transformed, delimitColumnName ?? _delimitString)} {SqlOperators.NotBetween} {leftOperand} {SqlOperators.And} {rightOperand}";
     }
 
     public string NotBetween(string columnName, double leftOperand,
         double rightOperand, bool? delimitColumnName = null)
     {
         var transformed = TransformCase(columnName);
-        return string.Concat(
-            OperandHandler(transformed, delimitColumnName ?? _delimitString),
-            NotBetweenSign,
-            leftOperand,
-            AndSign,
-            rightOperand
-        );
+        return $"{OperandHandler(transformed, delimitColumnName ?? _delimitString)} {SqlOperators.NotBetween} {leftOperand} {SqlOperators.And} {rightOperand}";
     }
 
     public string IsNull(string leftOperand, bool? delimitLeftOperand = null)
     {
         var transformed = TransformCase(leftOperand);
         var leftOperandWithLogic = OperandHandler(transformed, delimitLeftOperand ?? _delimitString);
-        return NormalizeAndTrim(
-            string.Concat(
-                leftOperandWithLogic,
-                Is,
-                Null
-            )
-        );
+        return NormalizeAndTrim($"{leftOperandWithLogic} {SqlOperators.Is} {SqlOperators.Null}");
     }
 
     public string IsNotNull(string leftOperand, bool? delimitLeftOperand = null)
     {
         var transformed = TransformCase(leftOperand);
         var leftOperandWithLogic = OperandHandler(transformed, delimitLeftOperand ?? _delimitString);
-        return NormalizeAndTrim(
-            string.Concat(
-                leftOperandWithLogic,
-                IsNot,
-                Null
-            )
-        );
+        return NormalizeAndTrim($"{leftOperandWithLogic} {SqlOperators.IsNot} {SqlOperators.Null}");
     }
 
     public string Math<T>(ICollection<(string column, SqlMathOperator? mathOperator)> columnWithOperators,
@@ -598,19 +438,19 @@ public class SqlCheckConstraintGenerator
                 case null:
                     continue;
                 case SqlMathOperator.Add:
-                    sb.Append(MathAdd);
+                    sb.Append($" {SqlOperators.Add} ");
                     break;
                 case SqlMathOperator.Subtract:
-                    sb.Append(MathSubtract);
+                    sb.Append($" {SqlOperators.Subtract} ");
                     break;
                 case SqlMathOperator.Multiply:
-                    sb.Append(MathMultiply);
+                    sb.Append($" {SqlOperators.Multiply} ");
                     break;
                 case SqlMathOperator.Divide:
-                    sb.Append(MathDivide);
+                    sb.Append($" {SqlOperators.Divide} ");
                     break;
                 case SqlMathOperator.Modulo:
-                    sb.Append(MathModulo);
+                    sb.Append($" {SqlOperators.Modulo} ");
                     break;
                 default:
                     throw new InvalidEnumArgumentException();
@@ -619,11 +459,7 @@ public class SqlCheckConstraintGenerator
 
         var str = sb.ToString();
 
-        return NormalizeAndTrim(string.Concat(
-            str,
-            GetComparisonOperatorString(comparisonOperator),
-            value
-        ));
+        return NormalizeAndTrim($"{str} {GetComparisonOperatorString(comparisonOperator)} {value}");
     }
 
     private string LengthOperatorHandler(string data)

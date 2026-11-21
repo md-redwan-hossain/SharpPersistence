@@ -1,3 +1,4 @@
+#pragma warning disable CS0618
 using SharpPersistence.Enums;
 using SharpPersistence.Generators;
 using SharpPersistence.Tests.TestDependencyFiles;

@@ -2,6 +2,7 @@ using System.Linq.Expressions;
 
 namespace SharpPersistence.Abstractions;
 
+[Obsolete("Use IRepositoryCore<TEntity> and Query() instead.")]
 public interface IRepositoryBase<TEntity> : IRepositoryCore<TEntity>
     where TEntity : class
 {

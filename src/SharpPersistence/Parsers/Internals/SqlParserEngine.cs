@@ -128,9 +128,15 @@ internal class SqlParserEngine
         }
     }
 
-    private static bool IsStartBlock(ref SqlLine sqlLine) => Regex.IsMatch(sqlLine.Text, @"^\s*--\s*#start#");
+    private static bool IsStartBlock(ref SqlLine sqlLine)
+    {
+        return Regex.IsMatch(sqlLine.Text, @"^\s*--\s*#start#");
+    }
 
-    private static bool IsEndBlock(ref SqlLine sqlLine) => Regex.IsMatch(sqlLine.Text, @"^\s*--\s*#end#");
+    private static bool IsEndBlock(ref SqlLine sqlLine)
+    {
+        return Regex.IsMatch(sqlLine.Text, @"^\s*--\s*#end#");
+    }
 
     private string ExtractUniqueName(ref SqlLine sqlLine, string prefix)
     {
@@ -209,5 +215,8 @@ internal class SqlParserEngine
         return $"Parsing error: {formattedMessage}";
     }
 
-    private static bool AreNotNull(params object?[] elements) => elements.All(x => x is not null);
+    private static bool AreNotNull(params object?[] elements)
+    {
+        return elements.All(x => x is not null);
+    }
 }

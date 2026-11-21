@@ -11,7 +11,10 @@ public abstract class UnitOfWork<TDbContext> : IUnitOfWork
 {
     private readonly TDbContext _dbContext;
 
-    protected UnitOfWork(TDbContext dbContext) => _dbContext = dbContext;
+    protected UnitOfWork(TDbContext dbContext)
+    {
+        _dbContext = dbContext;
+    }
 
     public virtual void Dispose()
     {
@@ -25,12 +28,21 @@ public abstract class UnitOfWork<TDbContext> : IUnitOfWork
         GC.SuppressFinalize(this);
     }
 
-    public virtual void Save() => _dbContext.SaveChanges();
+    public virtual void Save()
+    {
+        _dbContext.SaveChanges();
+    }
 
-    public virtual async Task SaveAsync() => await _dbContext.SaveChangesAsync().ConfigureAwait(false);
-    
+    public virtual async Task SaveAsync()
+    {
+        await _dbContext.SaveChangesAsync().ConfigureAwait(false);
+    }
 
-    public DbTransaction? CurrentTransaction => _dbContext.Database.CurrentTransaction?.GetDbTransaction();
+
+    public DbTransaction? CurrentTransaction
+    {
+        get { return _dbContext.Database.CurrentTransaction?.GetDbTransaction(); }
+    }
 
     public async Task<DbTransaction> BeginTransactionAsync()
     {

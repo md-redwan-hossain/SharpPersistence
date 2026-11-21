@@ -54,7 +54,7 @@ internal abstract class EntityQueryBase<T> : IEntityQuery<T>
     }
 
     public abstract IEntityQuery<T> EnableTracking();
-    
+
 #if NET10_0_OR_GREATER
     public abstract IEntityQuery<T> IgnoreQueryFilters(IReadOnlyCollection<string> filterKeys);
 #endif

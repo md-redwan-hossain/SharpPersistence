@@ -4,6 +4,8 @@ using SharpPersistence.Abstractions;
 
 namespace SharpPersistence.EfCore;
 
+#pragma warning disable CS0618
+[Obsolete("Use RepositoryCore<TEntity, TDbContext> and Query() instead.")]
 public abstract class RepositoryBase<TEntity, TDbContext> : RepositoryCore<TEntity, TDbContext>,
     IRepositoryBase<TEntity>
     where TEntity : class

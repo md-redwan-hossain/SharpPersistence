@@ -18,13 +18,19 @@ internal sealed class EntityProjectedQuery<T> : EntityQueryBase<T>
     /// <summary>
     /// Does nothing. Change tracking does not apply to projected results; set it on the entity query before Select.
     /// </summary>
-    public override IEntityQuery<T> EnableTracking() => this;
+    public override IEntityQuery<T> EnableTracking()
+    {
+        return this;
+    }
 
 
 #if NET10_0_OR_GREATER
     /// <summary>
     /// Does nothing. Named query filters must be ignored on the entity query before Select.
     /// </summary>
-    public override IEntityQuery<T> IgnoreQueryFilters(IReadOnlyCollection<string> filterKeys) => this;
+    public override IEntityQuery<T> IgnoreQueryFilters(IReadOnlyCollection<string> filterKeys)
+    {
+        return this;
+    }
 #endif
 }
