@@ -2,10 +2,12 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
+using SharpPersistence.EfCore;
 using SharpPersistence.Tests.TestDependencyFiles;
 
 namespace SharpPersistence.Tests;
 
+#pragma warning disable CS0618
 public class RepositoryBaseTests : IAsyncLifetime
 {
     private readonly SqliteConnection _connection;

@@ -55,11 +55,23 @@ bool hasPending = await orderRepo.Query()
 int deleted = await orderRepo.RemoveManyDirectAsync(x => x.Status == OrderStatus.Draft);
 ```
 
-## Replacing `IRepositoryBase<TEntity>` Overloads
+## Migrating from `IRepositoryBase<TEntity>` / `RepositoryBase<TEntity, TDbContext>`
 
-| `IRepositoryBase<TEntity>` | `IRepositoryCore<TEntity>.Query()` |
+1. **Interface & Base Class:**
+   - Replace `IRepositoryBase<TEntity>` with `IRepositoryCore<TEntity>`.
+   - Replace `RepositoryBase<TEntity, TDbContext>` with `RepositoryCore<TEntity, TDbContext>`.
+2. **Reads & Checks:**
+
+| Legacy (`IRepositoryBase<TEntity>`) | New (`IRepositoryCore<TEntity>.Query()`) |
 | :--- | :--- |
-| `GetOneSortedAsync(cond, (sort, desc), enableTracking: true, ct)` | `Query().Where(cond).OrderByDesc(sort).EnableTracking().GetOneAsync(ct)` |
+| `GetOneAsync(cond, ct)` | `Query().Where(cond).GetOneAsync(ct)` |
+| `GetOneAsync(cond, enableTracking: true, ct)` | `Query().Where(cond).EnableTracking().GetOneAsync(ct)` |
+| `GetOneSortedAsync(cond, (sort, true), ct)` | `Query().Where(cond).OrderByDesc(sort).GetOneAsync(ct)` |
+| `GetOneSubsetAsync(cond, sel, ct)` | `Query().Where(cond).Select(sel).GetOneAsync(ct)` |
+| `GetAllAsync(cond, ct)` | `Query().Where(cond).GetAllAsync(ct)` |
+| `GetAllSortedAsync(cond, (sort, false), ct)` | `Query().Where(cond).OrderBy(sort).GetAllAsync(ct)` |
+| `GetAllSortedAndPaginatedAsync(page, limit, cond, (sort, true), ct)` | `Query().Where(cond).OrderByDesc(sort).OffsetPaginate(page, limit).GetAllAsync(ct)` |
 | `GetAllSortedAndPaginatedSubsetAsync(page, limit, cond, sel, (sort, false), ct)` | `Query().Where(cond).OrderBy(sort).OffsetPaginate(page, limit).Select(sel).GetAllAsync(ct)` |
+| `GetCountAsync(cond, ct)` | `Query().Where(cond).GetCountAsync(ct)` |
 | `ExistsAsync(filter, match, ct)` | `Query().Where(filter).ExistsAsync(match, ct)` |
 | `EveryAsync(filter, match, ct)` | `Query().Where(filter).EveryAsync(match, ct)` |
