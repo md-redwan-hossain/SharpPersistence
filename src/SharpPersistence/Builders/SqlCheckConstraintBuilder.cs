@@ -15,18 +15,19 @@ public sealed class SqlCheckConstraintBuilder
     public required SqlDialect Dialect { get; init; }
     public required SqlIdentifierCase IdentifierCase { get; init; }
     public bool DelimitIdentifiers { get; init; } = true;
+    public string NestedSeparator { get; init; } = "_";
 
     private SqlRenderContext Context => new(Dialect, IdentifierCase, DelimitIdentifiers);
 
-    public SqlEntityScope<TEntity> For<TEntity>() => new(Context);
+    public SqlEntityScope<TEntity> For<TEntity>() => new(Context, NestedSeparator);
 
-    public SqlColumnBuilder<object, TProp> RawColumn<TProp>(string columnName, bool? delimit = null)
+    public SqlColumnBuilder<object, TProp> RawColumn<TProp>(string columnName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
-        return new SqlColumnBuilder<object, TProp>(new SqlColumnExpression(columnName, delimit), Context);
+        return new SqlColumnBuilder<object, TProp>(new SqlColumnExpression(columnName), Context);
     }
 
-    public SqlCheckCaseBuilder Case() => new(Context);
+    public IInitializedSqlCase<SqlPredicate, SqlExpression, SqlBuiltExpression> Case() => new SqlCheckCaseBuilder(Context);
 
     public SqlPredicate And(SqlPredicate first, SqlPredicate second, params SqlPredicate[] others)
     {
@@ -70,23 +71,52 @@ public sealed class SqlCheckConstraintBuilder
 public sealed class SqlEntityScope<TEntity>
 {
     private readonly SqlRenderContext _context;
+    private readonly string _nestedSeparator;
 
-    internal SqlEntityScope(SqlRenderContext context) => _context = context;
-
-    public SqlColumnBuilder<TEntity, TProp> Column<TProp>(
-        Expression<Func<TEntity, TProp>> selector,
-        bool? delimit = null,
-        bool includeParentNames = true)
+    internal SqlEntityScope(SqlRenderContext context, string nestedSeparator)
     {
-        ArgumentNullException.ThrowIfNull(selector);
-        var columnName = ExtractMemberPath(selector, includeParentNames);
-        return new SqlColumnBuilder<TEntity, TProp>(new SqlColumnExpression(columnName, delimit), _context);
+        _context = context;
+        _nestedSeparator = nestedSeparator;
     }
 
-    internal static string ExtractMemberPath<TProp>(
-        Expression<Func<TEntity, TProp>> selector,
-        bool includeParentNames)
+    public SqlColumnBuilder<TEntity, TProp> Column<TProp>(Expression<Func<TEntity, TProp>> selector)
     {
+        ArgumentNullException.ThrowIfNull(selector);
+        var columnName = ExtractSingleMemberName(selector);
+        return new SqlColumnBuilder<TEntity, TProp>(new SqlColumnExpression(columnName), _context);
+    }
+
+    public SqlColumnBuilder<TEntity, TProp> NestedColumn<TProp>(Expression<Func<TEntity, TProp>> selector)
+    {
+        ArgumentNullException.ThrowIfNull(selector);
+        var columnName = ExtractNestedMemberPath(selector, _nestedSeparator);
+        return new SqlColumnBuilder<TEntity, TProp>(new SqlColumnExpression(columnName), _context);
+    }
+
+    internal static string ExtractSingleMemberName<TProp>(Expression<Func<TEntity, TProp>> selector)
+    {
+        var body = selector.Body is UnaryExpression { NodeType: ExpressionType.Convert } unary
+            ? unary.Operand
+            : selector.Body;
+
+        if (body is not MemberExpression member)
+        {
+            throw new ArgumentException("Expression must be a property or field access.", nameof(selector));
+        }
+
+        if (member.Expression is not ParameterExpression)
+        {
+            throw new ArgumentException("Nested property expressions are not allowed in Column(). Use NestedColumn() instead.", nameof(selector));
+        }
+
+        return member.Member.Name;
+    }
+
+    internal static string ExtractNestedMemberPath<TProp>(
+        Expression<Func<TEntity, TProp>> selector,
+        string separator = "_")
+    {
+        ArgumentNullException.ThrowIfNull(separator);
         var current = selector.Body is UnaryExpression { NodeType: ExpressionType.Convert } unary
             ? unary.Operand
             : selector.Body;
@@ -95,11 +125,6 @@ public sealed class SqlEntityScope<TEntity>
         while (current is MemberExpression member)
         {
             segments.Push(member.Member.Name);
-            if (!includeParentNames)
-            {
-                break;
-            }
-
             current = member.Expression;
         }
 
@@ -108,6 +133,6 @@ public sealed class SqlEntityScope<TEntity>
             throw new ArgumentException("Expression must be a property or field access.", nameof(selector));
         }
 
-        return string.Join("_", segments);
+        return string.Join(separator, segments);
     }
 }

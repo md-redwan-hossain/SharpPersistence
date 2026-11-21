@@ -15,6 +15,8 @@ internal static class SqlOperators
 
     public const string In = "IN";
     public const string NotIn = "NOT IN";
+    public const string Like = "LIKE";
+    public const string NotLike = "NOT LIKE";
     public const string Is = "IS";
     public const string IsNot = "IS NOT";
     public const string Null = "NULL";

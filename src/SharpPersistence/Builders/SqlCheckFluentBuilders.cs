@@ -10,17 +10,45 @@ namespace SharpPersistence;
 
 public sealed class SqlColumnBuilder<TEntity, TProp>
 {
-    internal SqlColumnExpression Node { get; }
+    internal SqlExpression Node { get; }
     internal SqlRenderContext Context { get; }
 
-    internal SqlColumnBuilder(SqlColumnExpression node, SqlRenderContext context)
+    internal SqlColumnBuilder(SqlExpression node, SqlRenderContext context)
     {
         Node = node;
         Context = context;
     }
 
+    public SqlColumnBuilder<TEntity, TProp> WithDelimiter()
+    {
+        if (Node is not SqlColumnExpression col)
+        {
+            throw new InvalidOperationException("Delimiter modifiers can only be applied directly to a column.");
+        }
+
+        return new SqlColumnBuilder<TEntity, TProp>(col with { Delimit = true }, Context);
+    }
+
+    public SqlColumnBuilder<TEntity, TProp> WithoutDelimiter()
+    {
+        if (Node is not SqlColumnExpression col)
+        {
+            throw new InvalidOperationException("Delimiter modifiers can only be applied directly to a column.");
+        }
+
+        return new SqlColumnBuilder<TEntity, TProp>(col with { Delimit = false }, Context);
+    }
+
+    public SqlColumnBuilder<TEntity, TProp> Coalesce(TProp fallback)
+    {
+        ArgumentNullException.ThrowIfNull(fallback);
+        return new SqlColumnBuilder<TEntity, TProp>(new SqlCoalesceExpression(Node, new SqlLiteralExpression(fallback)),
+            Context);
+    }
+
     public SqlPredicate EqualTo(TProp value) => Compare(SqlOperators.Equal, new SqlLiteralExpression(value));
     public SqlPredicate NotEqualTo(TProp value) => Compare(SqlOperators.NotEqual, new SqlLiteralExpression(value));
+
     public SqlPredicate GreaterThan(TProp value)
     {
         ArgumentNullException.ThrowIfNull(value);
@@ -45,59 +73,41 @@ public sealed class SqlColumnBuilder<TEntity, TProp>
         return Compare(SqlOperators.LessThanOrEqual, new SqlLiteralExpression(value));
     }
 
-    public SqlPredicate EqualToColumn<TOther>(
-        Expression<Func<TEntity, TOther>> other,
-        bool? delimit = null,
-        bool includeParentNames = true)
-        => Compare(SqlOperators.Equal, ColExpression(other, delimit, includeParentNames));
+    public SqlPredicate EqualTo<TOther>(Expression<Func<TEntity, TOther>> other)
+        => Compare(SqlOperators.Equal, ColExpression(other));
 
-    public SqlPredicate NotEqualToColumn<TOther>(
-        Expression<Func<TEntity, TOther>> other,
-        bool? delimit = null,
-        bool includeParentNames = true)
-        => Compare(SqlOperators.NotEqual, ColExpression(other, delimit, includeParentNames));
+    public SqlPredicate NotEqualTo<TOther>(Expression<Func<TEntity, TOther>> other)
+        => Compare(SqlOperators.NotEqual, ColExpression(other));
 
-    public SqlPredicate GreaterThanColumn<TOther>(
-        Expression<Func<TEntity, TOther>> other,
-        bool? delimit = null,
-        bool includeParentNames = true)
-        => Compare(SqlOperators.GreaterThan, ColExpression(other, delimit, includeParentNames));
+    public SqlPredicate GreaterThan<TOther>(Expression<Func<TEntity, TOther>> other)
+        => Compare(SqlOperators.GreaterThan, ColExpression(other));
 
-    public SqlPredicate GreaterThanOrEqualColumn<TOther>(
-        Expression<Func<TEntity, TOther>> other,
-        bool? delimit = null,
-        bool includeParentNames = true)
-        => Compare(SqlOperators.GreaterThanOrEqual, ColExpression(other, delimit, includeParentNames));
+    public SqlPredicate GreaterThanOrEqual<TOther>(Expression<Func<TEntity, TOther>> other)
+        => Compare(SqlOperators.GreaterThanOrEqual, ColExpression(other));
 
-    public SqlPredicate LessThanColumn<TOther>(
-        Expression<Func<TEntity, TOther>> other,
-        bool? delimit = null,
-        bool includeParentNames = true)
-        => Compare(SqlOperators.LessThan, ColExpression(other, delimit, includeParentNames));
+    public SqlPredicate LessThan<TOther>(Expression<Func<TEntity, TOther>> other)
+        => Compare(SqlOperators.LessThan, ColExpression(other));
 
-    public SqlPredicate LessThanOrEqualColumn<TOther>(
-        Expression<Func<TEntity, TOther>> other,
-        bool? delimit = null,
-        bool includeParentNames = true)
-        => Compare(SqlOperators.LessThanOrEqual, ColExpression(other, delimit, includeParentNames));
+    public SqlPredicate LessThanOrEqual<TOther>(Expression<Func<TEntity, TOther>> other)
+        => Compare(SqlOperators.LessThanOrEqual, ColExpression(other));
 
-    public SqlPredicate EqualToColumn(string columnName, bool? delimit = null)
-        => Compare(SqlOperators.Equal, RawColExpression(columnName, delimit));
+    public SqlPredicate EqualToRawColumn(string columnName)
+        => Compare(SqlOperators.Equal, RawColExpression(columnName));
 
-    public SqlPredicate NotEqualToColumn(string columnName, bool? delimit = null)
-        => Compare(SqlOperators.NotEqual, RawColExpression(columnName, delimit));
+    public SqlPredicate NotEqualToRawColumn(string columnName)
+        => Compare(SqlOperators.NotEqual, RawColExpression(columnName));
 
-    public SqlPredicate GreaterThanColumn(string columnName, bool? delimit = null)
-        => Compare(SqlOperators.GreaterThan, RawColExpression(columnName, delimit));
+    public SqlPredicate GreaterThanRawColumn(string columnName)
+        => Compare(SqlOperators.GreaterThan, RawColExpression(columnName));
 
-    public SqlPredicate GreaterThanOrEqualColumn(string columnName, bool? delimit = null)
-        => Compare(SqlOperators.GreaterThanOrEqual, RawColExpression(columnName, delimit));
+    public SqlPredicate GreaterThanOrEqualRawColumn(string columnName)
+        => Compare(SqlOperators.GreaterThanOrEqual, RawColExpression(columnName));
 
-    public SqlPredicate LessThanColumn(string columnName, bool? delimit = null)
-        => Compare(SqlOperators.LessThan, RawColExpression(columnName, delimit));
+    public SqlPredicate LessThanRawColumn(string columnName)
+        => Compare(SqlOperators.LessThan, RawColExpression(columnName));
 
-    public SqlPredicate LessThanOrEqualColumn(string columnName, bool? delimit = null)
-        => Compare(SqlOperators.LessThanOrEqual, RawColExpression(columnName, delimit));
+    public SqlPredicate LessThanOrEqualRawColumn(string columnName)
+        => Compare(SqlOperators.LessThanOrEqual, RawColExpression(columnName));
 
     public SqlPredicate In(params TProp[] values) => In((IEnumerable<TProp>)values);
 
@@ -111,15 +121,41 @@ public sealed class SqlColumnBuilder<TEntity, TProp>
     {
         ArgumentNullException.ThrowIfNull(lower);
         ArgumentNullException.ThrowIfNull(upper);
-        return new SqlPredicate(new SqlBetweenExpression(Node, new SqlLiteralExpression(lower), new SqlLiteralExpression(upper), Negated: false), Context);
+        return new SqlPredicate(
+            new SqlBetweenExpression(Node, new SqlLiteralExpression(lower), new SqlLiteralExpression(upper),
+                Negated: false), Context);
     }
 
     public SqlPredicate NotBetween(TProp lower, TProp upper)
     {
         ArgumentNullException.ThrowIfNull(lower);
         ArgumentNullException.ThrowIfNull(upper);
-        return new SqlPredicate(new SqlBetweenExpression(Node, new SqlLiteralExpression(lower), new SqlLiteralExpression(upper), Negated: true), Context);
+        return new SqlPredicate(
+            new SqlBetweenExpression(Node, new SqlLiteralExpression(lower), new SqlLiteralExpression(upper),
+                Negated: true), Context);
     }
+
+    public SqlPredicate Between<TMin, TMax>(
+        Expression<Func<TEntity, TMin>> minColumn,
+        Expression<Func<TEntity, TMax>> maxColumn)
+        => new(new SqlBetweenExpression(Node, ColExpression(minColumn), ColExpression(maxColumn), Negated: false),
+            Context);
+
+    public SqlPredicate NotBetween<TMin, TMax>(
+        Expression<Func<TEntity, TMin>> minColumn,
+        Expression<Func<TEntity, TMax>> maxColumn)
+        => new(new SqlBetweenExpression(Node, ColExpression(minColumn), ColExpression(maxColumn), Negated: true),
+            Context);
+
+    public SqlPredicate BetweenRawColumns(string minColumnName, string maxColumnName)
+        => new(
+            new SqlBetweenExpression(Node, RawColExpression(minColumnName), RawColExpression(maxColumnName),
+                Negated: false), Context);
+
+    public SqlPredicate NotBetweenRawColumns(string minColumnName, string maxColumnName)
+        => new(
+            new SqlBetweenExpression(Node, RawColExpression(minColumnName), RawColExpression(maxColumnName),
+                Negated: true), Context);
 
     public SqlPredicate IsNull() => new(new SqlNullCheckExpression(Node, Negated: false), Context);
 
@@ -128,19 +164,16 @@ public sealed class SqlColumnBuilder<TEntity, TProp>
     private SqlPredicate Compare(string op, SqlExpression right)
         => new(new SqlBinaryExpression(Node, op, right), Context);
 
-    private static SqlColumnExpression ColExpression<TOther>(
-        Expression<Func<TEntity, TOther>> other,
-        bool? delimit,
-        bool includeParentNames)
+    private static SqlColumnExpression ColExpression<TOther>(Expression<Func<TEntity, TOther>> other)
     {
         ArgumentNullException.ThrowIfNull(other);
-        return new SqlColumnExpression(SqlEntityScope<TEntity>.ExtractMemberPath(other, includeParentNames), delimit);
+        return new SqlColumnExpression(SqlEntityScope<TEntity>.ExtractNestedMemberPath(other));
     }
 
-    private static SqlColumnExpression RawColExpression(string columnName, bool? delimit)
+    private static SqlColumnExpression RawColExpression(string columnName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
-        return new SqlColumnExpression(columnName, delimit);
+        return new SqlColumnExpression(columnName);
     }
 
     private SqlPredicate BuildIn(IEnumerable<TProp> values, bool negated)
@@ -166,121 +199,75 @@ public sealed class SqlColumnBuilder<TEntity, TProp>
     }
 }
 
-public sealed class SqlNumericExpression<TEntity>
+public class SqlNumericComparison<TEntity>
 {
     internal SqlExpression Node { get; }
-    private readonly SqlRenderContext _context;
+    internal SqlRenderContext Context { get; }
 
-    internal SqlNumericExpression(SqlExpression node, SqlRenderContext context)
+    internal SqlNumericComparison(SqlExpression node, SqlRenderContext context)
     {
         Node = node;
-        _context = context;
+        Context = context;
     }
 
-    public SqlNumericExpression<TEntity> Plus(SqlNumericValue value) => Op(SqlOperators.Add, value.Expression);
-    public SqlNumericExpression<TEntity> Plus(SqlNumericExpression<TEntity> expression) => Op(SqlOperators.Add, expression.Node);
-    public SqlNumericExpression<TEntity> Plus<TProp>(
-        Expression<Func<TEntity, TProp>> col,
-        bool? delimit = null,
-        bool includeParentNames = true)
-        where TProp : INumber<TProp>
-        => Op(SqlOperators.Add, ColExpression(col, delimit, includeParentNames));
-
-    public SqlNumericExpression<TEntity> Minus(SqlNumericValue value) => Op(SqlOperators.Subtract, value.Expression);
-    public SqlNumericExpression<TEntity> Minus(SqlNumericExpression<TEntity> expression) => Op(SqlOperators.Subtract, expression.Node);
-    public SqlNumericExpression<TEntity> Minus<TProp>(
-        Expression<Func<TEntity, TProp>> col,
-        bool? delimit = null,
-        bool includeParentNames = true)
-        where TProp : INumber<TProp>
-        => Op(SqlOperators.Subtract, ColExpression(col, delimit, includeParentNames));
-
-    public SqlNumericExpression<TEntity> MultiplyBy(SqlNumericValue value) => Op(SqlOperators.Multiply, value.Expression);
-    public SqlNumericExpression<TEntity> MultiplyBy(SqlNumericExpression<TEntity> expression) => Op(SqlOperators.Multiply, expression.Node);
-    public SqlNumericExpression<TEntity> MultiplyBy<TProp>(
-        Expression<Func<TEntity, TProp>> col,
-        bool? delimit = null,
-        bool includeParentNames = true)
-        where TProp : INumber<TProp>
-        => Op(SqlOperators.Multiply, ColExpression(col, delimit, includeParentNames));
-
-    public SqlNumericExpression<TEntity> DivideBy(SqlNumericValue value) => Op(SqlOperators.Divide, value.Expression);
-    public SqlNumericExpression<TEntity> DivideBy(SqlNumericExpression<TEntity> expression) => Op(SqlOperators.Divide, expression.Node);
-    public SqlNumericExpression<TEntity> DivideBy<TProp>(
-        Expression<Func<TEntity, TProp>> col,
-        bool? delimit = null,
-        bool includeParentNames = true)
-        where TProp : INumber<TProp>
-        => Op(SqlOperators.Divide, ColExpression(col, delimit, includeParentNames));
-
-    public SqlNumericExpression<TEntity> Modulo(SqlNumericValue value) => Op(SqlOperators.Modulo, value.Expression);
-    public SqlNumericExpression<TEntity> Modulo(SqlNumericExpression<TEntity> expression) => Op(SqlOperators.Modulo, expression.Node);
-    public SqlNumericExpression<TEntity> Modulo<TProp>(
-        Expression<Func<TEntity, TProp>> col,
-        bool? delimit = null,
-        bool includeParentNames = true)
-        where TProp : INumber<TProp>
-        => Op(SqlOperators.Modulo, ColExpression(col, delimit, includeParentNames));
-
     public SqlPredicate EqualTo(SqlNumericValue value) => Cmp(SqlOperators.Equal, value.Expression);
-    public SqlPredicate EqualTo(SqlNumericExpression<TEntity> expression) => Cmp(SqlOperators.Equal, expression.Node);
-    public SqlPredicate EqualTo<TProp>(
-        Expression<Func<TEntity, TProp>> col,
-        bool? delimit = null,
-        bool includeParentNames = true)
+    public SqlPredicate EqualTo(SqlNumericComparison<TEntity> expression) => Cmp(SqlOperators.Equal, expression.Node);
+
+    public SqlPredicate EqualTo<TProp>(Expression<Func<TEntity, TProp>> col)
         where TProp : INumber<TProp>
-        => Cmp(SqlOperators.Equal, ColExpression(col, delimit, includeParentNames));
+        => Cmp(SqlOperators.Equal, ColExpression(col));
 
     public SqlPredicate NotEqualTo(SqlNumericValue value) => Cmp(SqlOperators.NotEqual, value.Expression);
-    public SqlPredicate NotEqualTo(SqlNumericExpression<TEntity> expression) => Cmp(SqlOperators.NotEqual, expression.Node);
-    public SqlPredicate NotEqualTo<TProp>(
-        Expression<Func<TEntity, TProp>> col,
-        bool? delimit = null,
-        bool includeParentNames = true)
+
+    public SqlPredicate NotEqualTo(SqlNumericComparison<TEntity> expression) =>
+        Cmp(SqlOperators.NotEqual, expression.Node);
+
+    public SqlPredicate NotEqualTo<TProp>(Expression<Func<TEntity, TProp>> col)
         where TProp : INumber<TProp>
-        => Cmp(SqlOperators.NotEqual, ColExpression(col, delimit, includeParentNames));
+        => Cmp(SqlOperators.NotEqual, ColExpression(col));
 
     public SqlPredicate GreaterThan(SqlNumericValue value) => Cmp(SqlOperators.GreaterThan, value.Expression);
-    public SqlPredicate GreaterThan(SqlNumericExpression<TEntity> expression) => Cmp(SqlOperators.GreaterThan, expression.Node);
-    public SqlPredicate GreaterThan<TProp>(
-        Expression<Func<TEntity, TProp>> col,
-        bool? delimit = null,
-        bool includeParentNames = true)
-        where TProp : INumber<TProp>
-        => Cmp(SqlOperators.GreaterThan, ColExpression(col, delimit, includeParentNames));
 
-    public SqlPredicate GreaterThanOrEqual(SqlNumericValue value) => Cmp(SqlOperators.GreaterThanOrEqual, value.Expression);
-    public SqlPredicate GreaterThanOrEqual(SqlNumericExpression<TEntity> expression) => Cmp(SqlOperators.GreaterThanOrEqual, expression.Node);
-    public SqlPredicate GreaterThanOrEqual<TProp>(
-        Expression<Func<TEntity, TProp>> col,
-        bool? delimit = null,
-        bool includeParentNames = true)
+    public SqlPredicate GreaterThan(SqlNumericComparison<TEntity> expression) =>
+        Cmp(SqlOperators.GreaterThan, expression.Node);
+
+    public SqlPredicate GreaterThan<TProp>(Expression<Func<TEntity, TProp>> col)
         where TProp : INumber<TProp>
-        => Cmp(SqlOperators.GreaterThanOrEqual, ColExpression(col, delimit, includeParentNames));
+        => Cmp(SqlOperators.GreaterThan, ColExpression(col));
+
+    public SqlPredicate GreaterThanOrEqual(SqlNumericValue value) =>
+        Cmp(SqlOperators.GreaterThanOrEqual, value.Expression);
+
+    public SqlPredicate GreaterThanOrEqual(SqlNumericComparison<TEntity> expression) =>
+        Cmp(SqlOperators.GreaterThanOrEqual, expression.Node);
+
+    public SqlPredicate GreaterThanOrEqual<TProp>(Expression<Func<TEntity, TProp>> col)
+        where TProp : INumber<TProp>
+        => Cmp(SqlOperators.GreaterThanOrEqual, ColExpression(col));
 
     public SqlPredicate LessThan(SqlNumericValue value) => Cmp(SqlOperators.LessThan, value.Expression);
-    public SqlPredicate LessThan(SqlNumericExpression<TEntity> expression) => Cmp(SqlOperators.LessThan, expression.Node);
-    public SqlPredicate LessThan<TProp>(
-        Expression<Func<TEntity, TProp>> col,
-        bool? delimit = null,
-        bool includeParentNames = true)
+
+    public SqlPredicate LessThan(SqlNumericComparison<TEntity> expression) =>
+        Cmp(SqlOperators.LessThan, expression.Node);
+
+    public SqlPredicate LessThan<TProp>(Expression<Func<TEntity, TProp>> col)
         where TProp : INumber<TProp>
-        => Cmp(SqlOperators.LessThan, ColExpression(col, delimit, includeParentNames));
+        => Cmp(SqlOperators.LessThan, ColExpression(col));
 
     public SqlPredicate LessThanOrEqual(SqlNumericValue value) => Cmp(SqlOperators.LessThanOrEqual, value.Expression);
-    public SqlPredicate LessThanOrEqual(SqlNumericExpression<TEntity> expression) => Cmp(SqlOperators.LessThanOrEqual, expression.Node);
-    public SqlPredicate LessThanOrEqual<TProp>(
-        Expression<Func<TEntity, TProp>> col,
-        bool? delimit = null,
-        bool includeParentNames = true)
+
+    public SqlPredicate LessThanOrEqual(SqlNumericComparison<TEntity> expression) =>
+        Cmp(SqlOperators.LessThanOrEqual, expression.Node);
+
+    public SqlPredicate LessThanOrEqual<TProp>(Expression<Func<TEntity, TProp>> col)
         where TProp : INumber<TProp>
-        => Cmp(SqlOperators.LessThanOrEqual, ColExpression(col, delimit, includeParentNames));
+        => Cmp(SqlOperators.LessThanOrEqual, ColExpression(col));
 
     public SqlPredicate Between(SqlNumericValue lower, SqlNumericValue upper)
-        => new(new SqlBetweenExpression(Node, lower.Expression, upper.Expression, Negated: false), _context);
+        => new(new SqlBetweenExpression(Node, lower.Expression, upper.Expression, Negated: false), Context);
 
     public SqlPredicate NotBetween(SqlNumericValue lower, SqlNumericValue upper)
-        => new(new SqlBetweenExpression(Node, lower.Expression, upper.Expression, Negated: true), _context);
+        => new(new SqlBetweenExpression(Node, lower.Expression, upper.Expression, Negated: true), Context);
 
     public SqlPredicate In(params SqlNumericValue[] values)
         => BuildIn(values, negated: false);
@@ -296,23 +283,75 @@ public sealed class SqlNumericExpression<TEntity>
             throw new ArgumentException("Collection cannot be empty.", nameof(values));
         }
 
-        return new SqlPredicate(new SqlInExpression(Node, values.Select(v => (SqlExpression)v.Expression).ToList(), negated), _context);
+        return new SqlPredicate(
+            new SqlInExpression(Node, values.Select(v => (SqlExpression)v.Expression).ToList(), negated), Context);
     }
-
-    private SqlNumericExpression<TEntity> Op(string op, SqlExpression right)
-        => new(new SqlBinaryExpression(Node, op, right), _context);
 
     private SqlPredicate Cmp(string op, SqlExpression right)
-        => new(new SqlBinaryExpression(Node, op, right), _context);
+        => new(new SqlBinaryExpression(Node, op, right), Context);
 
-    private static SqlColumnExpression ColExpression<TProp>(
-        Expression<Func<TEntity, TProp>> col,
-        bool? delimit,
-        bool includeParentNames)
+    private protected static SqlColumnExpression ColExpression<TProp>(Expression<Func<TEntity, TProp>> col)
     {
         ArgumentNullException.ThrowIfNull(col);
-        return new SqlColumnExpression(SqlEntityScope<TEntity>.ExtractMemberPath(col, includeParentNames), delimit);
+        return new SqlColumnExpression(SqlEntityScope<TEntity>.ExtractNestedMemberPath(col));
     }
+}
+
+public sealed class SqlNumericExpression<TEntity> : SqlNumericComparison<TEntity>
+{
+    internal SqlNumericExpression(SqlExpression node, SqlRenderContext context)
+        : base(node, context)
+    {
+    }
+
+    public SqlNumericExpression<TEntity> Plus(SqlNumericValue value) => Op(SqlOperators.Add, value.Expression);
+
+    public SqlNumericExpression<TEntity> Plus(SqlNumericComparison<TEntity> expression) =>
+        Op(SqlOperators.Add, expression.Node);
+
+    public SqlNumericExpression<TEntity> Plus<TProp>(Expression<Func<TEntity, TProp>> col)
+        where TProp : INumber<TProp>
+        => Op(SqlOperators.Add, ColExpression(col));
+
+    public SqlNumericExpression<TEntity> Minus(SqlNumericValue value) => Op(SqlOperators.Subtract, value.Expression);
+
+    public SqlNumericExpression<TEntity> Minus(SqlNumericComparison<TEntity> expression) =>
+        Op(SqlOperators.Subtract, expression.Node);
+
+    public SqlNumericExpression<TEntity> Minus<TProp>(Expression<Func<TEntity, TProp>> col)
+        where TProp : INumber<TProp>
+        => Op(SqlOperators.Subtract, ColExpression(col));
+
+    public SqlNumericExpression<TEntity> MultiplyBy(SqlNumericValue value) =>
+        Op(SqlOperators.Multiply, value.Expression);
+
+    public SqlNumericExpression<TEntity> MultiplyBy(SqlNumericComparison<TEntity> expression) =>
+        Op(SqlOperators.Multiply, expression.Node);
+
+    public SqlNumericExpression<TEntity> MultiplyBy<TProp>(Expression<Func<TEntity, TProp>> col)
+        where TProp : INumber<TProp>
+        => Op(SqlOperators.Multiply, ColExpression(col));
+
+    public SqlNumericExpression<TEntity> DivideBy(SqlNumericValue value) => Op(SqlOperators.Divide, value.Expression);
+
+    public SqlNumericExpression<TEntity> DivideBy(SqlNumericComparison<TEntity> expression) =>
+        Op(SqlOperators.Divide, expression.Node);
+
+    public SqlNumericExpression<TEntity> DivideBy<TProp>(Expression<Func<TEntity, TProp>> col)
+        where TProp : INumber<TProp>
+        => Op(SqlOperators.Divide, ColExpression(col));
+
+    public SqlNumericExpression<TEntity> Modulo(SqlNumericValue value) => Op(SqlOperators.Modulo, value.Expression);
+
+    public SqlNumericExpression<TEntity> Modulo(SqlNumericComparison<TEntity> expression) =>
+        Op(SqlOperators.Modulo, expression.Node);
+
+    public SqlNumericExpression<TEntity> Modulo<TProp>(Expression<Func<TEntity, TProp>> col)
+        where TProp : INumber<TProp>
+        => Op(SqlOperators.Modulo, ColExpression(col));
+
+    private SqlNumericExpression<TEntity> Op(string op, SqlExpression right)
+        => new(new SqlBinaryExpression(Node, op, right), Context);
 }
 
 public class SqlBuiltExpression
@@ -326,18 +365,63 @@ public class SqlBuiltExpression
         Context = context;
     }
 
-    public string Build() => SqlCheckRenderer.Render(Node, Context);
+    public override string ToString() => SqlCheckRenderer.Render(Node, Context);
 
-    public SqlPredicate EqualTo(SqlExpression value) => new(new SqlBinaryExpression(Node, SqlOperators.Equal, value), Context);
-    public SqlPredicate NotEqualTo(SqlExpression value) => new(new SqlBinaryExpression(Node, SqlOperators.NotEqual, value), Context);
+    public SqlPredicate EqualTo(SqlExpression value) =>
+        new(new SqlBinaryExpression(Node, SqlOperators.Equal, value), Context);
 
-    public static implicit operator string(SqlBuiltExpression expression) => expression.Build();
+    public SqlPredicate NotEqualTo(SqlExpression value) =>
+        new(new SqlBinaryExpression(Node, SqlOperators.NotEqual, value), Context);
+
+    public SqlPredicate GreaterThan(SqlExpression value) =>
+        new(new SqlBinaryExpression(Node, SqlOperators.GreaterThan, value), Context);
+
+    public SqlPredicate GreaterThanOrEqual(SqlExpression value) =>
+        new(new SqlBinaryExpression(Node, SqlOperators.GreaterThanOrEqual, value), Context);
+
+    public SqlPredicate LessThan(SqlExpression value) =>
+        new(new SqlBinaryExpression(Node, SqlOperators.LessThan, value), Context);
+
+    public SqlPredicate LessThanOrEqual(SqlExpression value) =>
+        new(new SqlBinaryExpression(Node, SqlOperators.LessThanOrEqual, value), Context);
+
+    public SqlPredicate Between(SqlExpression lower, SqlExpression upper)
+        => new(new SqlBetweenExpression(Node, lower, upper, Negated: false), Context);
+
+    public SqlPredicate NotBetween(SqlExpression lower, SqlExpression upper)
+        => new(new SqlBetweenExpression(Node, lower, upper, Negated: true), Context);
+
+    public SqlPredicate In(params SqlExpression[] values)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        if (values.Length == 0)
+        {
+            throw new ArgumentException("Collection cannot be empty.", nameof(values));
+        }
+
+        return new SqlPredicate(new SqlInExpression(Node, values, Negated: false), Context);
+    }
+
+    public SqlPredicate NotIn(params SqlExpression[] values)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        if (values.Length == 0)
+        {
+            throw new ArgumentException("Collection cannot be empty.", nameof(values));
+        }
+
+        return new SqlPredicate(new SqlInExpression(Node, values, Negated: true), Context);
+    }
+
+    public static implicit operator string(SqlBuiltExpression expression) => expression.ToString();
     public static implicit operator SqlExpression(SqlBuiltExpression expression) => expression.Node;
 }
 
 public sealed class SqlPredicate : SqlBuiltExpression
 {
-    internal SqlPredicate(SqlExpression node, SqlRenderContext context) : base(node, context) { }
+    internal SqlPredicate(SqlExpression node, SqlRenderContext context) : base(node, context)
+    {
+    }
 
     public SqlPredicate And(SqlPredicate other)
     {
@@ -354,14 +438,28 @@ public sealed class SqlPredicate : SqlBuiltExpression
     public SqlPredicate Not() => new(new SqlNotExpression(Node), Context);
 }
 
-public sealed class SqlCheckCaseBuilder
+public interface IInitializedSqlCase<in TCondition, in TValue, out TResult>
+{
+    IBuildableSqlCase<TCondition, TValue, TResult> When(TCondition condition, TValue then);
+}
+
+public interface IBuildableSqlCase<in TCondition, in TValue, out TResult>
+{
+    IBuildableSqlCase<TCondition, TValue, TResult> When(TCondition condition, TValue then);
+    TResult EndWithElse(TValue elseValue);
+    TResult End();
+}
+
+internal sealed class SqlCheckCaseBuilder :
+    IInitializedSqlCase<SqlPredicate, SqlExpression, SqlBuiltExpression>,
+    IBuildableSqlCase<SqlPredicate, SqlExpression, SqlBuiltExpression>
 {
     private readonly SqlRenderContext _context;
     private readonly List<(SqlExpression Condition, SqlExpression Then)> _branches = [];
 
     internal SqlCheckCaseBuilder(SqlRenderContext context) => _context = context;
 
-    public SqlCheckCaseBuilder When(SqlPredicate condition, SqlExpression then)
+    public IBuildableSqlCase<SqlPredicate, SqlExpression, SqlBuiltExpression> When(SqlPredicate condition, SqlExpression then)
     {
         ArgumentNullException.ThrowIfNull(condition);
         ArgumentNullException.ThrowIfNull(then);
@@ -372,21 +470,9 @@ public sealed class SqlCheckCaseBuilder
     public SqlBuiltExpression EndWithElse(SqlExpression elseValue)
     {
         ArgumentNullException.ThrowIfNull(elseValue);
-        if (_branches.Count == 0)
-        {
-            throw new InvalidOperationException("CASE expression requires at least one WHEN branch.");
-        }
-
         return new SqlBuiltExpression(new SqlCaseExpression(_branches, elseValue), _context);
     }
 
     public SqlBuiltExpression End()
-    {
-        if (_branches.Count == 0)
-        {
-            throw new InvalidOperationException("CASE expression requires at least one WHEN branch.");
-        }
-
-        return new SqlBuiltExpression(new SqlCaseExpression(_branches, Else: null), _context);
-    }
+        => new(new SqlCaseExpression(_branches, Else: null), _context);
 }

@@ -46,15 +46,12 @@ public class SqlCheckConstraintBuilderTests
 
     private static SqlCheckConstraintBuilder CreateBuilder(
         SqlDialect dialect = SqlDialect.PostgreSql,
-        bool delimitIdentifiers = true)
-    {
-        return new SqlCheckConstraintBuilder
+        bool delimitIdentifiers = true) => new()
         {
             Dialect = dialect,
             IdentifierCase = SqlIdentifierCase.LowerSnakeCase,
             DelimitIdentifiers = delimitIdentifiers
         };
-    }
 
     [Theory]
     [InlineData(true, """CASE WHEN "is_override_allowed" = 0 THEN "is_overridable" = 0 ELSE 1 END""")]
@@ -64,14 +61,12 @@ public class SqlCheckConstraintBuilderTests
         var cc = CreateBuilder(delimitIdentifiers: delimitIdentifiers);
         var policy = cc.For<AppPolicy>();
 
-        var sql = cc.Case()
+        cc.Case()
             .When(
                 condition: policy.Column(x => x.IsOverrideAllowed).EqualTo(0),
                 then: policy.Column(x => x.IsOverridable).EqualTo(0))
             .EndWithElse(1)
-            .Build();
-
-        sql.ShouldBe(expected);
+            .ShouldRender(expected);
     }
 
     [Theory]
@@ -79,7 +74,7 @@ public class SqlCheckConstraintBuilderTests
         "is_override_allowed" = 0
         """)]
     [InlineData(false, "is_override_allowed = 0")]
-    public void ImplicitStringConversion_WorksWithoutCallingBuild(bool delimitIdentifiers, string expected)
+    public void ImplicitStringConversion_AssignsDirectlyToString(bool delimitIdentifiers, string expected)
     {
         var cc = CreateBuilder(delimitIdentifiers: delimitIdentifiers);
         var policy = cc.For<AppPolicy>();
@@ -103,9 +98,7 @@ public class SqlCheckConstraintBuilderTests
         var cc = CreateBuilder(dialect, delimitIdentifiers);
         var policy = cc.For<AppPolicy>();
 
-        var sql = policy.Column(x => x.Code).Length().Between(3, 50).Build();
-
-        sql.ShouldBe(expected);
+        policy.Column(x => x.Code).Length().Between(3, 50).ShouldRender(expected);
     }
 
     [Theory]
@@ -116,14 +109,12 @@ public class SqlCheckConstraintBuilderTests
         var cc = CreateBuilder(delimitIdentifiers: delimitIdentifiers);
         var line = cc.For<InvoiceLine>();
 
-        var sql = line.Column(x => x.UnitPrice)
+        line.Column(x => x.UnitPrice)
             .Math()
             .Minus(x => x.Discount)
             .MultiplyBy(x => x.Quantity)
             .GreaterThan(0)
-            .Build();
-
-        sql.ShouldBe(expected);
+            .ShouldRender(expected);
     }
 
     [Theory]
@@ -136,14 +127,12 @@ public class SqlCheckConstraintBuilderTests
         var cc = CreateBuilder(delimitIdentifiers: delimitIdentifiers);
         var line = cc.For<InvoiceLine>();
 
-        var sql = line.Column(x => x.Balance)
+        line.Column(x => x.Balance)
             .Math()
             .Plus(x => x.Remaining)
             .Minus(x => x.Tax)
             .EqualTo(50)
-            .Build();
-
-        sql.ShouldBe(expected);
+            .ShouldRender(expected);
     }
 
     [Theory]
@@ -161,11 +150,11 @@ public class SqlCheckConstraintBuilderTests
         var cc = CreateBuilder(delimitIdentifiers: delimitIdentifiers);
         var shipment = cc.For<Shipment>();
 
-        shipment.Column(x => x.Status).In(TestStatus.Draft, TestStatus.Active).Build()
-            .ShouldBe(expectedIn);
+        shipment.Column(x => x.Status).In(TestStatus.Draft, TestStatus.Active)
+            .ShouldRender(expectedIn);
 
-        shipment.Column(x => x.Status).NotIn(TestStatus.Archived).Build()
-            .ShouldBe(expectedNotIn);
+        shipment.Column(x => x.Status).NotIn(TestStatus.Archived)
+            .ShouldRender(expectedNotIn);
     }
 
     [Theory]
@@ -181,33 +170,62 @@ public class SqlCheckConstraintBuilderTests
         var cc = CreateBuilder(delimitIdentifiers: delimitIdentifiers);
         var shipment = cc.For<Shipment>();
 
-        var sql = cc.Or(
+        cc.Or(
             shipment.Column(x => x.Status).NotEqualTo(TestStatus.Active),
             shipment.Column(x => x.DispatchedAt).IsNotNull()
-        ).Build();
+        ).ShouldRender(expectedOr);
 
-        sql.ShouldBe(expectedOr);
-
-        shipment.Column(x => x.BillingCountry).EqualToColumn(x => x.ShippingCountry).Build()
-            .ShouldBe(expectedColEq);
+        shipment.Column(x => x.BillingCountry).EqualTo(x => x.ShippingCountry)
+            .ShouldRender(expectedColEq);
     }
 
     [Theory]
-    [InlineData(true, """length("address_country") = 2""", """length("country") = 2""")]
-    [InlineData(false, "length(address_country) = 2", "length(country) = 2")]
-    public void NestedProperty_SupportsJoinedAndLeafNaming(
+    [InlineData(true, """length("address_country") = 2""", """length("address__country") = 2""")]
+    [InlineData(false, "length(address_country) = 2", "length(address__country) = 2")]
+    public void NestedColumn_SupportsDefaultAndCustomSeparator(
         bool delimitIdentifiers,
-        string expectedJoined,
-        string expectedLeaf)
+        string expectedDefault,
+        string expectedCustom)
     {
         var cc = CreateBuilder(delimitIdentifiers: delimitIdentifiers);
         var shipment = cc.For<Shipment>();
 
-        shipment.Column(x => x.Address.Country).Length().EqualTo(2).Build()
-            .ShouldBe(expectedJoined);
+        var customCc = new SqlCheckConstraintBuilder
+        {
+            Dialect = SqlDialect.PostgreSql,
+            IdentifierCase = SqlIdentifierCase.LowerSnakeCase,
+            DelimitIdentifiers = delimitIdentifiers,
+            NestedSeparator = "__"
+        };
 
-        shipment.Column(x => x.Address.Country, includeParentNames: false).Length().EqualTo(2).Build()
-            .ShouldBe(expectedLeaf);
+        shipment.NestedColumn(x => x.Address.Country).Length().EqualTo(2)
+            .ShouldRender(expectedDefault);
+
+        customCc.For<Shipment>().NestedColumn(x => x.Address.Country).Length().EqualTo(2)
+            .ShouldRender(expectedCustom);
+    }
+
+    [Fact]
+    public void WithDelimiter_And_WithoutDelimiter_OverrideBuilderDefault()
+    {
+        var cc = CreateBuilder(delimitIdentifiers: true);
+        var policy = cc.For<AppPolicy>();
+
+        policy.Column(x => x.Code).WithoutDelimiter().Length().EqualTo(5)
+            .ShouldRender("length(code) = 5");
+
+        var undelimitedCc = CreateBuilder(delimitIdentifiers: false);
+        undelimitedCc.For<AppPolicy>().Column(x => x.Code).WithDelimiter().Length().EqualTo(5)
+            .ShouldRender("""length("code") = 5""");
+    }
+
+    [Fact]
+    public void Column_WithNestedExpression_ThrowsArgumentException()
+    {
+        var cc = CreateBuilder(delimitIdentifiers: false);
+        var shipment = cc.For<Shipment>();
+
+        Should.Throw<ArgumentException>(() => shipment.Column(x => x.Address.Country));
     }
 
     [Theory]
@@ -225,11 +243,8 @@ public class SqlCheckConstraintBuilderTests
         var cc = CreateBuilder(delimitIdentifiers: delimitIdentifiers);
         var policy = cc.For<AppPolicy>();
 
-        policy.Column(x => x.IsActive).EqualTo(true).Build()
-            .ShouldBe(expectedBool);
-
-        cc.RawColumn<Guid>("tenant_id").IsNotNull().Build()
-            .ShouldBe(expectedFallback);
+        policy.Column(x => x.IsActive).EqualTo(true).ShouldRender(expectedBool);
+        cc.RawColumn<Guid>("tenant_id").IsNotNull().ShouldRender(expectedFallback);
     }
 
     [Theory]
@@ -243,8 +258,8 @@ public class SqlCheckConstraintBuilderTests
         var cc = CreateBuilder(SqlDialect.SqlServer, delimitIdentifiers);
         var policy = cc.For<AppPolicy>();
 
-        policy.Column(x => x.IsActive).EqualTo(true).Build().ShouldBe(expectedTrue);
-        policy.Column(x => x.IsActive).EqualTo(false).Build().ShouldBe(expectedFalse);
+        policy.Column(x => x.IsActive).EqualTo(true).ShouldRender(expectedTrue);
+        policy.Column(x => x.IsActive).EqualTo(false).ShouldRender(expectedFalse);
     }
 
     [Fact]
@@ -253,8 +268,8 @@ public class SqlCheckConstraintBuilderTests
         var cc = CreateBuilder(delimitIdentifiers: false);
         var shipment = cc.For<Shipment>();
 
-        shipment.Column(x => x.DispatchedAt).EqualTo(null).Build().ShouldBe("dispatched_at IS NULL");
-        shipment.Column(x => x.DispatchedAt).NotEqualTo(null).Build().ShouldBe("dispatched_at IS NOT NULL");
+        shipment.Column(x => x.DispatchedAt).EqualTo(null).ShouldRender("dispatched_at IS NULL");
+        shipment.Column(x => x.DispatchedAt).NotEqualTo(null).ShouldRender("dispatched_at IS NOT NULL");
     }
 
     [Fact]
@@ -265,13 +280,11 @@ public class SqlCheckConstraintBuilderTests
 
         shipment.Column(x => x.DispatchedAt)
             .GreaterThanOrEqual(new DateTime(2026, 1, 15, 8, 30, 0))
-            .Build()
-            .ShouldBe("dispatched_at >= '2026-01-15 08:30:00'");
+            .ShouldRender("dispatched_at >= '2026-01-15 08:30:00'");
 
         cc.RawColumn<DateOnly>("start_date")
             .GreaterThan(new DateOnly(2026, 1, 1))
-            .Build()
-            .ShouldBe("start_date > '2026-01-01'");
+            .ShouldRender("start_date > '2026-01-01'");
     }
 
     [Fact]
@@ -279,8 +292,8 @@ public class SqlCheckConstraintBuilderTests
     {
         var cc = CreateBuilder(delimitIdentifiers: false);
 
-        cc.RawColumn<string>("code").Length().EqualTo(5).Build().ShouldBe("length(code) = 5");
-        cc.RawColumn<decimal>("price").Math().GreaterThan(0).Build().ShouldBe("price > 0");
+        cc.RawColumn<string>("code").Length().EqualTo(5).ShouldRender("length(code) = 5");
+        cc.RawColumn<decimal>("price").Math().GreaterThan(0).ShouldRender("price > 0");
     }
 
     [Fact]
@@ -293,8 +306,7 @@ public class SqlCheckConstraintBuilderTests
             .Math()
             .Minus(x => x.Discount)
             .GreaterThan(x => x.Tax)
-            .Build()
-            .ShouldBe("unit_price - discount > tax");
+            .ShouldRender("unit_price - discount > tax");
     }
 
     [Fact]
@@ -305,4 +317,55 @@ public class SqlCheckConstraintBuilderTests
 
         Should.Throw<ArgumentException>(() => policy.Column(x => x.Code).In("A", null!));
     }
+
+    [Fact]
+    public void StringHelpers_Like_Trim_Lower_Upper_GenerateExpectedSql()
+    {
+        var cc = CreateBuilder(delimitIdentifiers: false);
+        var policy = cc.For<AppPolicy>();
+
+        policy.Column(x => x.Code).Like("POL-%").ShouldRender("code LIKE 'POL-%'");
+        policy.Column(x => x.Code).NotLike("% %").ShouldRender("code NOT LIKE '% %'");
+        policy.Column(x => x.Code).Trim().Length().GreaterThan(0).ShouldRender("length(TRIM(code)) > 0");
+        policy.Column(x => x.Code).Lower().EqualTo("abc").ShouldRender("LOWER(code) = 'abc'");
+        policy.Column(x => x.Code).Upper().EqualTo("ABC").ShouldRender("UPPER(code) = 'ABC'");
+    }
+
+    [Theory]
+    [InlineData(SqlDialect.PostgreSql, "length(TRIM(code)) > 0")]
+    [InlineData(SqlDialect.SqlServer, "LEN(TRIM(code)) > 0")]
+    [InlineData(SqlDialect.MySql, "CHAR_LENGTH(TRIM(code)) > 0")]
+    [InlineData(SqlDialect.Oracle, "TRIM(code) IS NOT NULL")]
+    public void IsNotBlank_RespectsDialect(SqlDialect dialect, string expected)
+    {
+        var cc = CreateBuilder(dialect, delimitIdentifiers: false);
+        var policy = cc.For<AppPolicy>();
+
+        policy.Column(x => x.Code).IsNotBlank().ShouldRender(expected);
+    }
+
+    [Fact]
+    public void Coalesce_BetweenColumns_And_CaseRange_GenerateExpectedSql()
+    {
+        var cc = CreateBuilder(delimitIdentifiers: false);
+        var line = cc.For<InvoiceLine>();
+
+        line.Column(x => x.Discount).Coalesce(0).LessThanOrEqual(x => x.UnitPrice)
+            .ShouldRender("COALESCE(discount, 0) <= unit_price");
+
+        line.Column(x => x.Discount).Between(x => x.Tax, x => x.UnitPrice)
+            .ShouldRender("discount BETWEEN tax AND unit_price");
+
+        cc.Case()
+            .When(line.Column(x => x.Quantity).GreaterThan(10), 1)
+            .EndWithElse(0)
+            .GreaterThan(0)
+            .ShouldRender("(CASE WHEN quantity > 10 THEN 1 ELSE 0 END) > 0");
+    }
+}
+
+internal static class SqlBuiltExpressionTestExtensions
+{
+    public static void ShouldRender(this SqlBuiltExpression expression, string expected)
+        => ((string)expression).ShouldBe(expected);
 }

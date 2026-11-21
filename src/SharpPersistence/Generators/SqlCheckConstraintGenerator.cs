@@ -11,6 +11,7 @@ namespace SharpPersistence.Generators;
 /// <c>SqlCheckConstraintGenerator</c> is a utility class for generating raw sql code for check-constraints in a type-safe manner.
 /// It can be useful with Entity Framework Core since it doesn't have strongly-typed check-constraint support and requires raw SQL code.
 /// </summary>
+[Obsolete("Use SharpPersistence.SqlCheckConstraintBuilder instead.")]
 public class SqlCheckConstraintGenerator
 {
     private readonly bool _delimitString;

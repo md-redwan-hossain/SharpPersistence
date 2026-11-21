@@ -12,7 +12,11 @@ internal static class SqlCheckRenderer
         SqlRawExpression raw => raw.Sql,
         SqlLiteralExpression lit => FormatLiteral(lit.Value, ctx.Dialect),
         SqlColumnExpression col => FormatColumn(col, ctx),
-        SqlLengthExpression len => FormatLength(FormatColumn(len.Column, ctx), ctx.Dialect),
+        SqlLengthExpression len => FormatLength(Render(len.Target, ctx), ctx.Dialect),
+        SqlTrimExpression trim => $"TRIM({Render(trim.Target, ctx)})",
+        SqlCaseTransformExpression ct => $"{ct.FunctionName}({Render(ct.Target, ctx)})",
+        SqlCoalesceExpression coal => $"COALESCE({Render(coal.Target, ctx)}, {Render(coal.Fallback, ctx)})",
+        SqlIsNotBlankExpression blank => FormatIsNotBlank(Render(blank.Target, ctx), ctx.Dialect),
         SqlNotExpression not => $"{SqlOperators.Not} ({Render(not.Inner, ctx)})",
         SqlNullCheckExpression nc => $"{Render(nc.Target, ctx)} {(nc.Negated ? $"{SqlOperators.IsNot} {SqlOperators.Null}" : $"{SqlOperators.Is} {SqlOperators.Null}")}",
         SqlBetweenExpression b => $"{Render(b.Target, ctx)} {(b.Negated ? SqlOperators.NotBetween : SqlOperators.Between)} {Render(b.Lower, ctx)} {SqlOperators.And} {Render(b.Upper, ctx)}",
@@ -114,6 +118,14 @@ internal static class SqlCheckRenderer
             SqlDialect.SqlServer => $"[{cased}]",
             _ => cased
         };
+    }
+
+    private static string FormatIsNotBlank(string targetSql, SqlDialect dialect)
+    {
+        var trimmed = $"TRIM({targetSql})";
+        return dialect == SqlDialect.Oracle
+            ? $"{trimmed} {SqlOperators.IsNot} {SqlOperators.Null}"
+            : $"{FormatLength(trimmed, dialect)} {SqlOperators.GreaterThan} 0";
     }
 
     private static string FormatLength(string columnSql, SqlDialect dialect) => dialect switch

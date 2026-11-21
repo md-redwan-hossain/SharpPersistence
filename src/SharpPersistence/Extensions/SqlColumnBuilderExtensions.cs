@@ -24,10 +24,56 @@ public static class SqlColumnBuilderExtensions
         return new SqlNumericExpression<TEntity>(column.Node, column.Context);
     }
 
-    public static SqlNumericExpression<TEntity> Length<TEntity>(
+    public static SqlNumericComparison<TEntity> Length<TEntity>(
         this SqlColumnBuilder<TEntity, string> column)
     {
         ArgumentNullException.ThrowIfNull(column);
-        return new SqlNumericExpression<TEntity>(new SqlLengthExpression(column.Node), column.Context);
+        return new SqlNumericComparison<TEntity>(new SqlLengthExpression(column.Node), column.Context);
+    }
+
+    public static SqlColumnBuilder<TEntity, string> Trim<TEntity>(
+        this SqlColumnBuilder<TEntity, string> column)
+    {
+        ArgumentNullException.ThrowIfNull(column);
+        return new SqlColumnBuilder<TEntity, string>(new SqlTrimExpression(column.Node), column.Context);
+    }
+
+    public static SqlColumnBuilder<TEntity, string> Lower<TEntity>(
+        this SqlColumnBuilder<TEntity, string> column)
+    {
+        ArgumentNullException.ThrowIfNull(column);
+        return new SqlColumnBuilder<TEntity, string>(new SqlCaseTransformExpression(column.Node, "LOWER"), column.Context);
+    }
+
+    public static SqlColumnBuilder<TEntity, string> Upper<TEntity>(
+        this SqlColumnBuilder<TEntity, string> column)
+    {
+        ArgumentNullException.ThrowIfNull(column);
+        return new SqlColumnBuilder<TEntity, string>(new SqlCaseTransformExpression(column.Node, "UPPER"), column.Context);
+    }
+
+    public static SqlPredicate Like<TEntity>(
+        this SqlColumnBuilder<TEntity, string> column,
+        string pattern)
+    {
+        ArgumentNullException.ThrowIfNull(column);
+        ArgumentNullException.ThrowIfNull(pattern);
+        return new SqlPredicate(new SqlBinaryExpression(column.Node, SqlOperators.Like, new SqlLiteralExpression(pattern)), column.Context);
+    }
+
+    public static SqlPredicate NotLike<TEntity>(
+        this SqlColumnBuilder<TEntity, string> column,
+        string pattern)
+    {
+        ArgumentNullException.ThrowIfNull(column);
+        ArgumentNullException.ThrowIfNull(pattern);
+        return new SqlPredicate(new SqlBinaryExpression(column.Node, SqlOperators.NotLike, new SqlLiteralExpression(pattern)), column.Context);
+    }
+
+    public static SqlPredicate IsNotBlank<TEntity>(
+        this SqlColumnBuilder<TEntity, string> column)
+    {
+        ArgumentNullException.ThrowIfNull(column);
+        return new SqlPredicate(new SqlIsNotBlankExpression(column.Node), column.Context);
     }
 }

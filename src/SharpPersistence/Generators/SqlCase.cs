@@ -5,33 +5,23 @@ namespace SharpPersistence.Generators;
 /// <summary>
 /// CASE expression started; at least one WHEN branch is required.
 /// </summary>
-public interface IInitializedSqlCase
+public interface IInitializedSqlCase : IInitializedSqlCase<string, string, string>
 {
     /// <summary>
     /// Adds a <c>WHEN ... THEN ...</c> branch.
     /// </summary>
-    IBuildableSqlCase When(string condition, string then);
+    new IBuildableSqlCase When(string condition, string then);
 }
 
 /// <summary>
 /// CASE expression with at least one branch; may add more WHEN branches or terminate.
 /// </summary>
-public interface IBuildableSqlCase
+public interface IBuildableSqlCase : IBuildableSqlCase<string, string, string>
 {
     /// <summary>
     /// Adds a <c>WHEN ... THEN ...</c> branch.
     /// </summary>
-    IBuildableSqlCase When(string condition, string then);
-
-    /// <summary>
-    /// Completes the CASE expression without an ELSE branch.
-    /// </summary>
-    string End();
-
-    /// <summary>
-    /// Completes the CASE expression with an ELSE branch.
-    /// </summary>
-    string EndWithElse(string elseExpression);
+    new IBuildableSqlCase When(string condition, string then);
 
     /// <summary>
     /// Completes the CASE expression with a boolean ELSE branch.
@@ -42,6 +32,12 @@ public interface IBuildableSqlCase
 internal sealed class SqlCaseBuilder : IInitializedSqlCase, IBuildableSqlCase
 {
     private readonly List<(string condition, string then)> _branches = [];
+
+    IBuildableSqlCase<string, string, string> IInitializedSqlCase<string, string, string>.When(string condition, string then)
+        => When(condition, then);
+
+    IBuildableSqlCase<string, string, string> IBuildableSqlCase<string, string, string>.When(string condition, string then)
+        => When(condition, then);
 
     public IBuildableSqlCase When(string condition, string then)
     {
