@@ -51,7 +51,10 @@ internal sealed class SqlCaseBuilder : IInitializedSqlCase, IBuildableSqlCase
         return this;
     }
 
-    public string End() => BuildSql(elseExpression: null);
+    public string End()
+    {
+        return BuildSql(elseExpression: null);
+    }
 
     public string EndWithElse(string elseExpression)
     {
@@ -59,10 +62,12 @@ internal sealed class SqlCaseBuilder : IInitializedSqlCase, IBuildableSqlCase
         return BuildSql(elseExpression);
     }
 
-    public string EndWithElse(bool elseExpression) =>
-        EndWithElse(elseExpression
+    public string EndWithElse(bool elseExpression)
+    {
+        return EndWithElse(elseExpression
             ? bool.TrueString.ToUpperInvariant()
             : bool.FalseString.ToUpperInvariant());
+    }
 
     private string BuildSql(string? elseExpression)
     {

@@ -62,7 +62,10 @@ public class SqlCheckConstraintGenerator
     /// <summary>
     /// Starts building a SQL <c>CASE</c> expression for use in a check constraint.
     /// </summary>
-    public IInitializedSqlCase Case() => new SqlCaseBuilder();
+    public IInitializedSqlCase Case()
+    {
+        return new SqlCaseBuilder();
+    }
 
     public string And(string firstOperand, string secondOperand, params string[] otherOperands)
     {
@@ -638,20 +641,30 @@ public class SqlCheckConstraintGenerator
         };
     }
 
-    private string OperandHandler(string value, bool delimit) =>
-        delimit ? DelimitString(value) : value;
+    private string OperandHandler(string value, bool delimit)
+    {
+        return delimit ? DelimitString(value) : value;
+    }
 
-    private static string EnumValueToString(IFormattable value) =>
-        Convert.ToInt32(value).ToString();
+    private static string EnumValueToString(IFormattable value)
+    {
+        return Convert.ToInt32(value).ToString();
+    }
 
-    private static string CommaSeparatedCollectionData(ICollection<Enum> collection) =>
-        CommaSeparatedCollectionDataMaker(collection, Convert.ToInt32);
+    private static string CommaSeparatedCollectionData(ICollection<Enum> collection)
+    {
+        return CommaSeparatedCollectionDataMaker(collection, Convert.ToInt32);
+    }
 
-    private static string CommaSeparatedCollectionData(ICollection<int> collection) =>
-        CommaSeparatedCollectionDataMaker<int, int>(collection);
+    private static string CommaSeparatedCollectionData(ICollection<int> collection)
+    {
+        return CommaSeparatedCollectionDataMaker<int, int>(collection);
+    }
 
-    private static string CommaSeparatedCollectionData(ICollection<string> collection) =>
-        CommaSeparatedCollectionDataMaker(collection, SqlString);
+    private static string CommaSeparatedCollectionData(ICollection<string> collection)
+    {
+        return CommaSeparatedCollectionDataMaker(collection, SqlString);
+    }
 
     private static string CommaSeparatedCollectionDataMaker<TCollection, TValue>(
         ICollection<TCollection> collection, Func<TCollection, TValue>? logic = null)
@@ -690,9 +703,15 @@ public class SqlCheckConstraintGenerator
         }
     }
 
-    private static string WrapWithParentheses(string text) => $"({text})";
+    private static string WrapWithParentheses(string text)
+    {
+        return $"({text})";
+    }
 
-    private static string SqlString(string text) => $"'{text.Replace("'", "''")}'";
+    private static string SqlString(string text)
+    {
+        return $"'{text.Replace("'", "''")}'";
+    }
 
     private string DelimitString(string text)
     {

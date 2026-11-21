@@ -43,7 +43,10 @@ internal class ParsedSqlStorage : IParsedSqlStorage
         }
     }
 
-    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
+    }
 
     public override string ToString()
     {
