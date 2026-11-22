@@ -16,11 +16,15 @@ internal sealed class EntityQuery<T> : EntityQueryBase<T>
         return this;
     }
 
-#if NET10_0_OR_GREATER
+    public override IEntityQuery<T> IgnoreQueryFilters()
+    {
+        Query = Query.IgnoreQueryFilters();
+        return this;
+    }
+
     public override IEntityQuery<T> IgnoreQueryFilters(IReadOnlyCollection<string> filterKeys)
     {
         Query = Query.IgnoreQueryFilters(filterKeys);
         return this;
     }
-#endif
 }

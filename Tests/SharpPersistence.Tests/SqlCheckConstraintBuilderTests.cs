@@ -47,11 +47,11 @@ public class SqlCheckConstraintBuilderTests
     private static SqlCheckConstraintBuilder CreateBuilder(
         SqlDialect dialect = SqlDialect.PostgreSql,
         bool delimitIdentifiers = true) => new()
-        {
-            Dialect = dialect,
-            IdentifierCase = SqlIdentifierCase.LowerSnakeCase,
-            DelimitIdentifiers = delimitIdentifiers
-        };
+    {
+        Dialect = dialect,
+        IdentifierCase = SqlIdentifierCase.LowerSnakeCase,
+        DelimitIdentifiers = delimitIdentifiers
+    };
 
     [Theory]
     [InlineData(true, """CASE WHEN "is_override_allowed" = 0 THEN "is_overridable" = 0 ELSE 1 END""")]
@@ -70,8 +70,8 @@ public class SqlCheckConstraintBuilderTests
 
     [Theory]
     [InlineData(true, """
-        "is_override_allowed" = 0
-        """)]
+                      "is_override_allowed" = 0
+                      """)]
     [InlineData(false, "is_override_allowed = 0")]
     public void ImplicitStringConversion_AssignsDirectlyToString(bool delimitIdentifiers, string expected)
     {
@@ -120,8 +120,8 @@ public class SqlCheckConstraintBuilderTests
 
     [Theory]
     [InlineData(true, """
-        "balance" + "remaining" - "tax" = 50
-        """)]
+                      "balance" + "remaining" - "tax" = 50
+                      """)]
     [InlineData(false, "balance + remaining - tax = 50")]
     public void Math_FlatAdditionAndSubtraction_AvoidsExtraParentheses(bool delimitIdentifiers, string expected)
     {
@@ -138,10 +138,10 @@ public class SqlCheckConstraintBuilderTests
 
     [Theory]
     [InlineData(true, """
-        "status" IN (1, 2)
-        """, """
-        "status" NOT IN (3)
-        """)]
+                      "status" IN (1, 2)
+                      """, """
+                           "status" NOT IN (3)
+                           """)]
     [InlineData(false, "status IN (1, 2)", "status NOT IN (3)")]
     public void In_And_NotIn_WithEnums_GenerateIntegerList(
         bool delimitIdentifiers,
@@ -160,8 +160,8 @@ public class SqlCheckConstraintBuilderTests
 
     [Theory]
     [InlineData(true, """("status" <> 2 OR "dispatched_at" IS NOT NULL)""", """
-        "billing_country" = "shipping_country"
-        """)]
+                                                                            "billing_country" = "shipping_country"
+                                                                            """)]
     [InlineData(false, "(status <> 2 OR dispatched_at IS NOT NULL)", "billing_country = shipping_country")]
     public void Or_IsNotNull_And_EqualToColumn_GenerateExpectedSql(
         bool delimitIdentifiers,
@@ -208,9 +208,11 @@ public class SqlCheckConstraintBuilderTests
             .ShouldRender(expectedCustom);
 
         customShipment.Column(x => x.BillingCountry).EqualTo(customShipment.NestedColumn(x => x.Address.Country))
-            .ShouldRender(delimitIdentifiers ? """
-                "billing_country" = "address__country"
-                """ : "billing_country = address__country");
+            .ShouldRender(delimitIdentifiers
+                ? """
+                  "billing_country" = "address__country"
+                  """
+                : "billing_country = address__country");
     }
 
     [Fact]
@@ -239,10 +241,10 @@ public class SqlCheckConstraintBuilderTests
 
     [Theory]
     [InlineData(true, """
-        "is_active" = TRUE
-        """, """
-        "tenant_id" IS NOT NULL
-        """)]
+                      "is_active" = TRUE
+                      """, """
+                           "tenant_id" IS NOT NULL
+                           """)]
     [InlineData(false, "is_active = TRUE", "tenant_id IS NOT NULL")]
     public void Boolean_And_RawStringColumnFallback_GenerateExpectedSql(
         bool delimitIdentifiers,
@@ -435,20 +437,21 @@ public class SqlCheckConstraintBuilderTests
         var cc = new SqlCheckConstraintBuilder
         {
             Dialect = SqlDialect.PostgreSql,
-            IdentifierCase = SqlIdentifierCase.UpperSnakeCase
+            IdentifierCase = SqlIdentifierCase.UpperSnakeCase,
+            DelimitIdentifiers = true
         };
 
         var policy = cc.For<AppPolicy>();
 
         cc.RawColumn<string>("myCustom_Col").IsNotNull()
             .ShouldRender("""
-                "myCustom_Col" IS NOT NULL
-                """);
+                          "myCustom_Col" IS NOT NULL
+                          """);
 
         policy.Column(x => x.Code).EqualToRawColumn("usr_Email")
             .ShouldRender("""
-                "CODE" = "usr_Email"
-                """);
+                          "CODE" = "usr_Email"
+                          """);
     }
 
     [Fact]
@@ -480,7 +483,8 @@ public class SqlCheckConstraintBuilderTests
         {
             cc.If(policy.Column(x => x.IsActive).EqualTo(false))
                 .Then(policy.Column(x => x.IsActive).EqualTo(false))
-                .ShouldRender(expected.Replace("is_override_allowed", "is_active").Replace("is_overridable", "is_active"));
+                .ShouldRender(expected.Replace("is_override_allowed", "is_active")
+                    .Replace("is_overridable", "is_active"));
         }
     }
 }

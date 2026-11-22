@@ -23,14 +23,14 @@ public abstract class RepositoryCore<TEntity, TDbContext> : IRepositoryCore<TEnt
         return new EntityQuery<TEntity>(EntityDbSet);
     }
 
-    public async Task CreateAsync(TEntity entity)
+    public async Task CreateAsync(TEntity entity, CancellationToken cancellationToken = default)
     {
-        await EntityDbSet.AddAsync(entity).ConfigureAwait(false);
+        await EntityDbSet.AddAsync(entity, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task CreateManyAsync(ICollection<TEntity> entity)
+    public async Task CreateManyAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default)
     {
-        await EntityDbSet.AddRangeAsync(entity).ConfigureAwait(false);
+        await EntityDbSet.AddRangeAsync(entities, cancellationToken).ConfigureAwait(false);
     }
 
     public void Create(TEntity entity)
@@ -38,9 +38,9 @@ public abstract class RepositoryCore<TEntity, TDbContext> : IRepositoryCore<TEnt
         EntityDbSet.Add(entity);
     }
 
-    public void CreateMany(ICollection<TEntity> entity)
+    public void CreateMany(IEnumerable<TEntity> entities)
     {
-        EntityDbSet.AddRange(entity);
+        EntityDbSet.AddRange(entities);
     }
 
     public virtual void Update(TEntity entityToUpdate)
@@ -48,7 +48,7 @@ public abstract class RepositoryCore<TEntity, TDbContext> : IRepositoryCore<TEnt
         EntityDbSet.Update(entityToUpdate);
     }
 
-    public virtual void UpdateMany(ICollection<TEntity> entitiesToUpdate)
+    public virtual void UpdateMany(IEnumerable<TEntity> entitiesToUpdate)
     {
         EntityDbSet.UpdateRange(entitiesToUpdate);
     }
@@ -58,16 +58,29 @@ public abstract class RepositoryCore<TEntity, TDbContext> : IRepositoryCore<TEnt
         EntityDbSet.Remove(entityToDelete);
     }
 
-    public virtual void RemoveMany(ICollection<TEntity> entitiesToUpdate)
+    public virtual void RemoveMany(IEnumerable<TEntity> entitiesToDelete)
     {
-        EntityDbSet.RemoveRange(entitiesToUpdate);
+        EntityDbSet.RemoveRange(entitiesToDelete);
     }
 
-    public virtual Task<int> RemoveManyDirectAsync(Expression<Func<TEntity, bool>> condition)
+    public virtual Task<int> RemoveManyDirectAsync(
+        Expression<Func<TEntity, bool>> condition,
+        CancellationToken cancellationToken = default)
     {
         return EntityDbSet
             .Where(condition)
-            .ExecuteDeleteAsync();
+            .ExecuteDeleteAsync(cancellationToken);
+    }
+
+    public virtual Task<int> RemoveManyDirectIgnoringFiltersAsync(
+        Expression<Func<TEntity, bool>> condition,
+        IReadOnlyCollection<string> filterKeys,
+        CancellationToken cancellationToken = default)
+    {
+        return EntityDbSet
+            .IgnoreQueryFilters(filterKeys)
+            .Where(condition)
+            .ExecuteDeleteAsync(cancellationToken);
     }
 
     public void TrackEntity(TEntity entity)

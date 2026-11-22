@@ -105,39 +105,31 @@ public static class SqlColumnBuilderExtensions
         return new SqlColumnBuilder<TEntity, TEnum?>(column.Node, column.Context, enumAsString: false);
     }
 
-    public static SqlColumnBuilder<TEntity, bool> BoolAsNumeric<TEntity>(
+    public static SqlColumnBuilder<TEntity, int> BoolAsNumeric<TEntity>(
         this SqlColumnBuilder<TEntity, bool> column)
     {
         ArgumentNullException.ThrowIfNull(column);
-        return new SqlColumnBuilder<TEntity, bool>(column.Node, column.Context, boolAsNumeric: true);
+        return new SqlColumnBuilder<TEntity, int>(column.Node, column.Context);
     }
 
-    public static SqlColumnBuilder<TEntity, bool?> BoolAsNumeric<TEntity>(
+    public static SqlColumnBuilder<TEntity, int?> BoolAsNumeric<TEntity>(
         this SqlColumnBuilder<TEntity, bool?> column)
     {
         ArgumentNullException.ThrowIfNull(column);
-        return new SqlColumnBuilder<TEntity, bool?>(column.Node, column.Context, boolAsNumeric: true);
+        return new SqlColumnBuilder<TEntity, int?>(column.Node, column.Context);
     }
 
-    public static SqlColumnBuilder<TEntity, bool> BoolAsString<TEntity>(
-        this SqlColumnBuilder<TEntity, bool> column,
-        string trueValue,
-        string falseValue)
+    public static SqlColumnBuilder<TEntity, string> BoolAsString<TEntity>(
+        this SqlColumnBuilder<TEntity, bool> column)
     {
         ArgumentNullException.ThrowIfNull(column);
-        ArgumentNullException.ThrowIfNull(trueValue);
-        ArgumentNullException.ThrowIfNull(falseValue);
-        return new SqlColumnBuilder<TEntity, bool>(column.Node, column.Context, boolStringMap: (trueValue, falseValue));
+        return new SqlColumnBuilder<TEntity, string>(column.Node, column.Context);
     }
 
-    public static SqlColumnBuilder<TEntity, bool?> BoolAsString<TEntity>(
-        this SqlColumnBuilder<TEntity, bool?> column,
-        string trueValue,
-        string falseValue)
+    public static SqlColumnBuilder<TEntity, string?> BoolAsString<TEntity>(
+        this SqlColumnBuilder<TEntity, bool?> column)
     {
         ArgumentNullException.ThrowIfNull(column);
-        ArgumentNullException.ThrowIfNull(trueValue);
-        ArgumentNullException.ThrowIfNull(falseValue);
-        return new SqlColumnBuilder<TEntity, bool?>(column.Node, column.Context, boolStringMap: (trueValue, falseValue));
+        return new SqlColumnBuilder<TEntity, string?>(column.Node, column.Context);
     }
 }

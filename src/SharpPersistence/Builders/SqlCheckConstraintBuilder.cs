@@ -14,7 +14,7 @@ public sealed class SqlCheckConstraintBuilder
 {
     public required SqlDialect Dialect { get; init; }
     public required SqlIdentifierCase IdentifierCase { get; init; }
-    public bool DelimitIdentifiers { get; init; } = true;
+    public required bool DelimitIdentifiers { get; init; }
     public string NestedSeparator { get; init; } = "_";
 
     private SqlRenderContext Context => new(Dialect, IdentifierCase, DelimitIdentifiers, NestedSeparator);

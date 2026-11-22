@@ -7,18 +7,23 @@ public interface IRepositoryCore<TEntity>
 {
     IEntityQuery<TEntity> Query();
     void Create(TEntity entity);
-    void CreateMany(ICollection<TEntity> entity);
-    Task CreateAsync(TEntity entity);
-    Task CreateManyAsync(ICollection<TEntity> entity);
+    void CreateMany(IEnumerable<TEntity> entities);
+    Task CreateAsync(TEntity entity, CancellationToken cancellationToken = default);
+    Task CreateManyAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default);
     void Update(TEntity entityToUpdate);
 
-    void UpdateMany(ICollection<TEntity> entitiesToUpdate);
+    void UpdateMany(IEnumerable<TEntity> entitiesToUpdate);
 
     void Remove(TEntity entityToDelete);
 
-    void RemoveMany(ICollection<TEntity> entitiesToUpdate);
+    void RemoveMany(IEnumerable<TEntity> entitiesToDelete);
 
-    Task<int> RemoveManyDirectAsync(Expression<Func<TEntity, bool>> condition);
+    Task<int> RemoveManyDirectAsync(Expression<Func<TEntity, bool>> condition, CancellationToken cancellationToken = default);
+
+    Task<int> RemoveManyDirectIgnoringFiltersAsync(
+        Expression<Func<TEntity, bool>> condition,
+        IReadOnlyCollection<string> filterKeys,
+        CancellationToken cancellationToken = default);
 
     void TrackEntity(TEntity entity);
     void TrackEntities(IEnumerable<TEntity> entities);
