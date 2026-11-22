@@ -23,8 +23,15 @@ internal sealed class EntityProjectedQuery<T> : EntityQueryBase<T>
         return this;
     }
 
+    /// <summary>
+    /// Does nothing. Query filters must be ignored on the entity query before Select.
+    /// </summary>
+    public override IEntityQuery<T> IgnoreQueryFilters()
+    {
+        return this;
+    }
 
-#if NET10_0_OR_GREATER
+
     /// <summary>
     /// Does nothing. Named query filters must be ignored on the entity query before Select.
     /// </summary>
@@ -32,5 +39,4 @@ internal sealed class EntityProjectedQuery<T> : EntityQueryBase<T>
     {
         return this;
     }
-#endif
 }

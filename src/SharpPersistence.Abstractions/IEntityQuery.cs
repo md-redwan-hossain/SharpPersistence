@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using System.Numerics;
 
 namespace SharpPersistence.Abstractions;
 
@@ -15,15 +16,15 @@ public interface IEntityQuery<T>
 
     IEntityQuery<T> EnableTracking();
 
-#if NET10_0_OR_GREATER
+    IEntityQuery<T> IgnoreQueryFilters();
+
     IEntityQuery<T> IgnoreQueryFilters(IReadOnlyCollection<string> filterKeys);
-#endif
 
     IEntityQuery<T> OffsetPaginate(int page, int limit);
 
     IEntityQuery<TResult> Select<TResult>(Expression<Func<T, TResult>> selector);
 
-    Task<T?> GetOneAsync(CancellationToken cancellationToken = default);
+    Task<T?> GetFirstOrDefaultAsync(CancellationToken cancellationToken = default);
 
     Task<IList<T>> GetAllAsync(CancellationToken cancellationToken = default);
 
@@ -34,4 +35,37 @@ public interface IEntityQuery<T>
     Task<bool> ExistsAsync(Expression<Func<T, bool>> condition, CancellationToken cancellationToken = default);
 
     Task<bool> EveryAsync(Expression<Func<T, bool>> condition, CancellationToken cancellationToken = default);
+
+    Task<TNumber> SumAsync<TNumber>(
+        Expression<Func<T, TNumber>> selector,
+        CancellationToken cancellationToken = default)
+        where TNumber : INumber<TNumber>;
+
+    Task<TResult?> MinAsync<TResult>(
+        Expression<Func<T, TResult>> selector,
+        CancellationToken cancellationToken = default);
+
+    Task<TResult?> MaxAsync<TResult>(
+        Expression<Func<T, TResult>> selector,
+        CancellationToken cancellationToken = default);
+
+    Task<TResult?> MinOrNullAsync<TResult>(
+        Expression<Func<T, TResult>> selector,
+        CancellationToken cancellationToken = default)
+        where TResult : struct;
+
+    Task<TResult?> MinOrNullAsync<TResult>(
+        Expression<Func<T, TResult?>> selector,
+        CancellationToken cancellationToken = default)
+        where TResult : struct;
+
+    Task<TResult?> MaxOrNullAsync<TResult>(
+        Expression<Func<T, TResult>> selector,
+        CancellationToken cancellationToken = default)
+        where TResult : struct;
+
+    Task<TResult?> MaxOrNullAsync<TResult>(
+        Expression<Func<T, TResult?>> selector,
+        CancellationToken cancellationToken = default)
+        where TResult : struct;
 }

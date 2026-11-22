@@ -14,20 +14,22 @@ Use `IRepositoryCore<TEntity>` (`using SharpPersistence.Abstractions;`) for clea
 `repo.Query()` returns `IEntityQuery<TEntity>` (non-tracking by default unless `.EnableTracking()` is called):
 
 - **Filter & Sort:** `.Where(predicate)`, `.OrderBy(selector)`, `.OrderByDesc(selector)`
-- **Tracking & Filters:** `.EnableTracking()`, `.IgnoreQueryFilters(filterKeys)` *(.NET 10+)*
+- **Tracking & Filters:** `.EnableTracking()`, `.IgnoreQueryFilters()`, `.IgnoreQueryFilters(filterKeys)`
 - **Pagination & Projection:** `.OffsetPaginate(page, limit)`, `.Select(selector)` *(returns `IEntityQuery<TResult>`)*
 - **Terminals:**
-  - `.GetOneAsync(ct)` -> `Task<T?>`
+  - `.GetFirstOrDefaultAsync(ct)` -> `Task<T?>` (or `.Select(x => x.ValueProp).GetFirstOrNullAsync(ct)` for nullable struct return)
   - `.GetAllAsync(ct)` -> `Task<IList<T>>`
   - `.GetCountAsync(ct)` -> `Task<long>`
   - `.ExistsAsync(ct)` / `.ExistsAsync(condition, ct)` -> `Task<bool>`
   - `.EveryAsync(condition, ct)` -> `Task<bool>`
+  - `.SumAsync(selector, ct)` *(for `int`, `long`, `decimal`, `double`, `float`)*
+  - `.MinAsync(selector, ct)` / `.MaxAsync(selector, ct)` *(plus `.MinOrNullAsync` / `.MaxOrNullAsync` for nullable struct results on empty queries)*
 
 ## Writes & Tracking
 
-- **Create:** `Create(entity)`, `CreateMany(entities)`, `CreateAsync(entity)`, `CreateManyAsync(entities)`
+- **Create:** `Create(entity)`, `CreateMany(entities)`, `CreateAsync(entity, ct)`, `CreateManyAsync(entities, ct)`
 - **Update:** `Update(entity)`, `UpdateMany(entities)`
-- **Delete:** `Remove(entity)`, `RemoveMany(entities)`, `RemoveManyDirectAsync(condition)` *(executes bulk delete directly without loading entities)*
+- **Delete:** `Remove(entity)`, `RemoveMany(entities)`, `RemoveManyDirectAsync(condition, ct)`, `RemoveManyDirectIgnoringFiltersAsync(condition, filterKeys, ct)` *(executes bulk delete directly without loading entities)*
 - **Attach/Track:** `TrackEntity(entity)`, `TrackEntities(entities)`
 
 ## Examples
@@ -45,14 +47,32 @@ var activeOrders = await orderRepo.Query()
 var order = await orderRepo.Query()
     .Where(x => x.Id == orderId)
     .EnableTracking()
-    .GetOneAsync(ct);
+    .GetFirstOrDefaultAsync(ct);
 
 // Existence / universal check / bulk delete
 bool hasPending = await orderRepo.Query()
     .Where(x => x.CustomerId == customerId)
     .ExistsAsync(x => x.Status == OrderStatus.Pending, ct);
 
-int deleted = await orderRepo.RemoveManyDirectAsync(x => x.Status == OrderStatus.Draft);
+int deleted = await orderRepo.RemoveManyDirectAsync(x => x.Status == OrderStatus.Draft, ct);
+
+int purged = await orderRepo.RemoveManyDirectIgnoringFiltersAsync(
+    x => x.IsDeleted,
+    [AppDbContext.SoftDeleteFilter],
+    ct);
+
+// Aggregates (single column or computed expression)
+decimal total = await orderRepo.Query()
+    .Where(x => x.IsPaid)
+    .SumAsync(x => x.Total, ct);
+
+decimal netTotal = await orderRepo.Query()
+    .Where(x => x.IsPaid)
+    .SumAsync(x => x.Subtotal - x.Discount, ct);
+
+DateTime? latestOrderAt = await orderRepo.Query()
+    .Where(x => x.CustomerId == customerId)
+    .MaxOrNullAsync(x => x.CreatedAt, ct);
 ```
 
 ## Migrating from `IRepositoryBase<TEntity>` / `RepositoryBase<TEntity, TDbContext>`
@@ -64,10 +84,10 @@ int deleted = await orderRepo.RemoveManyDirectAsync(x => x.Status == OrderStatus
 
 | Legacy (`IRepositoryBase<TEntity>`) | New (`IRepositoryCore<TEntity>.Query()`) |
 | :--- | :--- |
-| `GetOneAsync(cond, ct)` | `Query().Where(cond).GetOneAsync(ct)` |
-| `GetOneAsync(cond, enableTracking: true, ct)` | `Query().Where(cond).EnableTracking().GetOneAsync(ct)` |
-| `GetOneSortedAsync(cond, (sort, true), ct)` | `Query().Where(cond).OrderByDesc(sort).GetOneAsync(ct)` |
-| `GetOneSubsetAsync(cond, sel, ct)` | `Query().Where(cond).Select(sel).GetOneAsync(ct)` |
+| `GetOneAsync(cond, ct)` | `Query().Where(cond).GetFirstOrDefaultAsync(ct)` |
+| `GetOneAsync(cond, enableTracking: true, ct)` | `Query().Where(cond).EnableTracking().GetFirstOrDefaultAsync(ct)` |
+| `GetOneSortedAsync(cond, (sort, true), ct)` | `Query().Where(cond).OrderByDesc(sort).GetFirstOrDefaultAsync(ct)` |
+| `GetOneSubsetAsync(cond, sel, ct)` | `Query().Where(cond).Select(sel).GetFirstOrDefaultAsync(ct)` |
 | `GetAllAsync(cond, ct)` | `Query().Where(cond).GetAllAsync(ct)` |
 | `GetAllSortedAsync(cond, (sort, false), ct)` | `Query().Where(cond).OrderBy(sort).GetAllAsync(ct)` |
 | `GetAllSortedAndPaginatedAsync(page, limit, cond, (sort, true), ct)` | `Query().Where(cond).OrderByDesc(sort).OffsetPaginate(page, limit).GetAllAsync(ct)` |

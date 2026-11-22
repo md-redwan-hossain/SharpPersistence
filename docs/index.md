@@ -166,119 +166,160 @@ SqlParser validates your SQL files at startup and throws detailed error messages
 - Duplicate tag names
 - Invalid tag formats
 
-### **`SqlCheckConstraintGenerator`**
+### **`SqlCheckConstraintBuilder`**
 
-- `SqlCheckConstraintGenerator` is available in `SharpPersistence`
-- Type-safe, raw SQL check constraint generation
-- Supports multiple RDBMS (SQL Server, PostgreSQL, MySQL, Oracle)
-- Naming convention support (PascalCase, lower_snake_case, UPPER_SNAKE_CASE)
-- Handles all SQL comparison, logical, and set operators
-- Fluent `CASE` expression builder with compile-time-safe `When` / `End` / `EndWithElse` chaining
-- Proper string escaping and identifier delimiting
-- Fully tested for edge cases and all method combinations
+- `SqlCheckConstraintBuilder` is available in `SharpPersistence` (`using SharpPersistence;` + `using SharpPersistence.Enums;`).
+- Replaces the obsolete `SqlCheckConstraintGenerator`, `Rdbms`, and `SqlNamingConvention` types.
+- Compile-time type safety: `.Math()` is only available on numeric columns (`INumber<T>`), `.Length()` / `.Trim()` / `.Lower()` / `.Upper()` / `.Like()` only on `string` columns, and `Case()` enforces `When -> Then -> End / EndWithElse` ordering.
+- Supports PostgreSQL, MySQL, SQL Server, Oracle, and SQLite.
+- Supports `PascalCase`, `lower_snake_case`, and `UPPER_SNAKE_CASE` identifier casing.
+- Every predicate/built expression implicitly converts to `string` (`HasCheckConstraint("name", expr)` or `string sql = expr;`)—there is no `.Build()` method.
 
-Some examples with `IEntityTypeConfiguration` of Ef Core are given below:
+#### Setup
 
 ```csharp
-  var cc = new SqlCheckConstraintGenerator(Rdbms.PostgreSql, SqlNamingConvention.LowerSnakeCase,
-      delimitString: false);
-
-  builder.ToTable(x => x.HasCheckConstraint(
-      "valid_product_sell_price_in_sales_invoice",
-      cc.GreaterThanOrEqual(nameof(SalesInvoiceItem.SingleUnitSellPrice),
-          0, SqlDataType.Decimal)
-  ));
-
-  builder.ToTable(x => x.HasCheckConstraint(
-    "valid_employee_release_data",
-    cc.Or(
-        cc.And(
-            cc.EqualTo(nameof(EmploymentRecord.IsReleased), true),
-            cc.IsNotNull(nameof(EmploymentRecord.ReleaseDate)),
-            cc.IsNotNull(nameof(EmploymentRecord.ReleaseReasonId))
-        ),
-        cc.And(
-            cc.EqualTo(nameof(EmploymentRecord.IsReleased), false),
-            cc.IsNull(nameof(EmploymentRecord.ReleaseDate)),
-            cc.IsNull(nameof(EmploymentRecord.ReleaseReasonId))
-        )
-    )
-));
-
-  builder.ToTable(x => x.HasCheckConstraint(
-    "valid_debit_credit_entry",
-    cc.Or(
-        cc.And(
-            cc.GreaterThanOrEqual(nameof(JournalVoucherItem.CreditAmount),
-                0, SqlDataType.Decimal),
-            cc.EqualTo(nameof(JournalVoucherItem.DebitAmount),
-                0, SqlDataType.Decimal)
-        ),
-        cc.And(
-            cc.GreaterThanOrEqual(nameof(JournalVoucherItem.DebitAmount),
-                0, SqlDataType.Decimal),
-            cc.EqualTo(nameof(JournalVoucherItem.CreditAmount),
-                0, SqlDataType.Decimal)
-        )
-    )
-));
+var cc = new SqlCheckConstraintBuilder
+{
+    Dialect = SqlDialect.PostgreSql,                   // PostgreSql | MySql | SqlServer | Oracle | Sqlite
+    IdentifierCase = SqlIdentifierCase.LowerSnakeCase, // PascalCase | LowerSnakeCase | UpperSnakeCase
+    DelimitIdentifiers = true,                         // required
+    NestedSeparator = "_"                              // optional, default "_"
+};
 ```
 
-  builder.ToTable(x => x.HasCheckConstraint(
-    "valid_amount_by_status",
-    cc.Case()
-        .When(
-            cc.EqualTo(nameof(Invoice.Status), "paid", SqlOperandType.Value),
-            cc.GreaterThan(nameof(Invoice.Amount), 0, SqlDataType.Decimal))
-        .When(
-            cc.EqualTo(nameof(Invoice.Status), "void", SqlOperandType.Value),
-            cc.EqualTo(nameof(Invoice.Amount), 0, SqlDataType.Decimal))
-        .EndWithElse(cc.GreaterThanOrEqual(nameof(Invoice.Amount), 0, SqlDataType.Decimal))
-));
+#### Column Selection & Operations
+
+- **Avoid lambda parameter shadowing:** When nesting inside `builder.ToTable(t => ...)`, use a distinct parameter name in `Column(...)` (e.g., `t` for the table builder and `x` or `e` for the entity) instead of reusing `x` in both lambdas.
+- **`entity.Column(x => x.Prop)`**: Single-level properties only (throws `ArgumentException` on nested chains).
+- **`entity.NestedColumn(x => x.Address.Country)`**: Owned/nested properties, joined with `NestedSeparator` and transformed by `IdentifierCase`.
+- **`cc.RawColumn<TProp>("col_name")`**: Shadow or custom-named DB columns. **Ignores `IdentifierCase`** (preserves exact casing; still respects `DelimitIdentifiers` / `.WithDelimiter()` / `.WithoutDelimiter()`).
+- **Comparisons (value or lambda/column):** `EqualTo`, `NotEqualTo`, `GreaterThan`, `GreaterThanOrEqual`, `LessThan`, `LessThanOrEqual`, `Between`, `NotBetween`, `In`, `NotIn`, `IsNull`, `IsNotNull`. `EqualTo(null)` / `NotEqualTo(null)` render `IS NULL` / `IS NOT NULL`.
+- **String (`string` columns only):** `.Length()` (comparisons only), `.Trim()`, `.Lower()`, `.Upper()`, `.Like(pattern)`, `.NotLike(pattern)`.
+- **Arithmetic (`INumber<T>` / `INumber<T>?` columns only):** `.Math()` unlocks `.Plus(...)`, `.Minus(...)`, `.MultiplyBy(...)`, `.DivideBy(...)`, `.Modulo(...)`, and `.Abs()`.
+- **Coalesce & Value Converters:** `.Coalesce(fallbackValue | x => x.FallbackColumn)`, `.EnumAsString()` / `.EnumAsNumeric()`, `.BoolAsNumeric()` (re-types `bool` to `int` for `.EqualTo(1)` / `.EqualTo(0)`), `.BoolAsString()` (re-types `bool` to `string` for `.EqualTo("Y")`).
+- **Logical, Conditional & `CASE`:** `cc.And(...)`, `cc.Or(...)`, `.And(...)`, `.Or(...)`, `.Not()`, `cc.If(condition).Then(requirement)` (renders `(NOT (condition) OR requirement)`, works in all dialects including Oracle), `cc.RawPredicate("...")`, and `cc.Case().When(predicate).Then(then).EndWithElse(elseExpr)` / `.End()`.
+
+#### Examples with EF Core `IEntityTypeConfiguration`
+
+```csharp
+var cc = new SqlCheckConstraintBuilder
+{
+    Dialect = SqlDialect.PostgreSql,
+    IdentifierCase = SqlIdentifierCase.LowerSnakeCase,
+    DelimitIdentifiers = false
+};
+
+var order = cc.For<Order>();
+
+builder.ToTable(t =>
+{
+    t.HasCheckConstraint("ck_order_country",
+        order.NestedColumn(x => x.ShippingAddress.Country).Length().In(2, 3));
+
+    t.HasCheckConstraint("ck_order_net_total",
+        order.Column(x => x.Subtotal).Math().Minus(order.Column(x => x.Discount).Coalesce(0m).Math()).GreaterThan(0));
+
+    t.HasCheckConstraint("ck_order_status",
+        order.Column(x => x.Status).EnumAsString().In(OrderStatus.Draft, OrderStatus.Confirmed));
+
+    t.HasCheckConstraint("ck_order_priority",
+        order.Column(x => x.IsPriority).BoolAsNumeric().EqualTo(1));
+
+    t.HasCheckConstraint(
+        "ck_order_shipped_at",
+        cc.If(order.Column(x => x.Status).EqualTo(OrderStatus.Shipped))
+          .Then(order.Column(x => x.ShippedAt).IsNotNull())
+    );
+
+    // Multi-branch conditional rule via cc.If(...).Then(...) (all dialects including Oracle)
+    t.HasCheckConstraint(
+        "ck_order_status_timestamps",
+        cc.And(
+            cc.If(order.Column(x => x.Status).EqualTo(OrderStatus.Shipped))
+              .Then(order.Column(x => x.ShippedAt).IsNotNull()),
+            cc.If(order.Column(x => x.Status).EqualTo(OrderStatus.Cancelled))
+              .Then(order.Column(x => x.CancelledAt).IsNotNull())
+        )
+    );
+
+    // Multi-branch CASE (for PostgreSQL/MySQL; for Oracle prefer cc.If(...).Then(...))
+    t.HasCheckConstraint(
+        "ck_order_discount_tier",
+        cc.Case()
+            .When(order.Column(x => x.Total).GreaterThan(100m))
+            .Then(order.Column(x => x.Discount).LessThanOrEqual(50m))
+            .EndWithElse(order.Column(x => x.Discount).LessThanOrEqual(10m))
+    );
+
+    t.HasCheckConstraint("ck_order_tenant",
+        cc.RawColumn<Guid>("tenant_id").NotEqualTo(Guid.Empty));
+});
 ```
 
 ### **`RepositoryCore` with `IRepositoryCore`**
 
 - `IRepositoryCore` is available in `SharpPersistence.Abstractions`
 - `RepositoryCore` is available in `SharpPersistence.EfCore`
-- Prefer this for new code: CRUD + tracking + `Query()` only (no Get* overload grid)
-- `Query()` returns `IEntityQuery<T>` for composable reads (filter, sort, page, project, tracking)
+- Prefer this for all new code: CRUD, tracking (`TrackEntity` / `TrackEntities`), bulk delete (`RemoveManyDirectAsync` / `RemoveManyDirectIgnoringFiltersAsync`), and `Query()` (no `Get*` overload grid)
+- `Query()` returns `IEntityQuery<T>` for composable reads (`Where`, `OrderBy`, `OrderByDesc`, `EnableTracking`, `IgnoreQueryFilters`, `OffsetPaginate`, `Select`, `GetFirstOrDefaultAsync`, `GetFirstOrNullAsync`, `GetAllAsync`, `GetCountAsync`, `ExistsAsync`, `EveryAsync`, `SumAsync`, `MinAsync`, `MaxAsync`, `MinOrNullAsync`, `MaxOrNullAsync`)
 - Set tracking on the entity query before `Select`; after projection, tracking methods do nothing
-- NET10+: `IgnoreQueryFilters(filterKeys)` on the entity query (before `Select`) to skip named query filters
 
 ```csharp
 // Register / inject IRepositoryCore<User> (or your derived interface)
 var allData = await repo.Query()
     .Where(u => u.IsActive)
     .OrderBy(u => u.Name)
-    .Select(u => new { u.Id, u.Name })
     .OffsetPaginate(page: 1, limit: 20)
-    .GetAllAsync();
+    .Select(u => new { u.Id, u.Name })
+    .GetAllAsync(ct);
 
 var singleData = await repo.Query()
     .Where(u => u.Id == id)
     .EnableTracking()
-    .GetOneAsync();
+    .GetFirstOrDefaultAsync(ct);
+
+bool hasPending = await repo.Query()
+    .Where(u => u.IsActive)
+    .ExistsAsync(u => u.IsPending, ct);
+
+int deleted = await repo.RemoveManyDirectAsync(u => !u.IsActive, ct);
+
+int purged = await repo.RemoveManyDirectIgnoringFiltersAsync(
+    u => u.IsDeleted,
+    [AppDbContext.SoftDeleteFilter],
+    ct);
+
+// Aggregates (single column or computed expression)
+decimal total = await orderRepo.Query()
+    .Where(x => x.IsPaid)
+    .SumAsync(x => x.Total, ct);
+
+decimal netTotal = await orderRepo.Query()
+    .Where(x => x.IsPaid)
+    .SumAsync(x => x.Subtotal - x.Discount, ct);
+
+DateTime? latestOrderAt = await orderRepo.Query()
+    .Where(x => x.CustomerId == customerId)
+    .MaxOrNullAsync(x => x.CreatedAt, ct);
 ```
 
-### **`RepositoryBase` with `IRepositoryBase`**
+### **`RepositoryBase` with `IRepositoryBase` *(Obsolete)***
 
-- `IRepositoryBase` extends `IRepositoryCore` (same Query + CRUD surface, plus Get* helpers)
+- Marked `[Obsolete("Use IRepositoryCore<TEntity> / RepositoryCore<TEntity, TDbContext> instead.")]`
+- `IRepositoryBase` extends `IRepositoryCore` (same `Query` + CRUD surface, plus legacy `Get*` overloads)
 - `RepositoryBase` extends `RepositoryCore` and implements `IRepositoryBase`
-- All CRUD operations with async support
-- Multiple Get* overloads for flexible querying (legacy / convenience path)
-- Existing consumers of `IRepositoryBase` / `RepositoryBase` keep working unchanged
+- Existing consumers keep working, but new code should use `IRepositoryCore` / `RepositoryCore`
 
 ```csharp
-// Overload style (still available on IRepositoryBase)
+// Legacy overload style (obsolete)
 var user = await repo.GetOneAsync(u => u.IsActive);
 
-// Fluent query style (also on IRepositoryBase via IRepositoryCore)
+// Recommended fluent query style (via IRepositoryCore)
 var page = await repo.Query()
     .Where(u => u.IsActive)
     .OrderBy(u => u.Name)
-    .Paginate(page: 1, limit: 20)
-    .ToListAsync();
+    .OffsetPaginate(page: 1, limit: 20)
+    .GetAllAsync(ct);
 ```
 
 ### **`UnitOfWork` with `IUnitOfWork`**

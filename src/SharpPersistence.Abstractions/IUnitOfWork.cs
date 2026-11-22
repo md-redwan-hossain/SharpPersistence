@@ -7,6 +7,7 @@ public interface IUnitOfWork : IDisposable, IAsyncDisposable
 {
     void Save();
     Task SaveAsync();
+    Task SaveAsync(CancellationToken cancellationToken);
     public DbTransaction? CurrentTransaction { get; }
     Task<DbTransaction> BeginTransactionAsync();
     Task<DbTransaction> BeginTransactionAsync(CancellationToken cancellationToken);

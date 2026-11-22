@@ -38,6 +38,11 @@ public abstract class UnitOfWork<TDbContext> : IUnitOfWork
         await _dbContext.SaveChangesAsync().ConfigureAwait(false);
     }
 
+    public virtual async Task SaveAsync(CancellationToken cancellationToken)
+    {
+        await _dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+    }
+
 
     public DbTransaction? CurrentTransaction
     {

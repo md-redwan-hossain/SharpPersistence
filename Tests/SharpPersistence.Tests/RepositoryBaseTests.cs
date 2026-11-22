@@ -2,6 +2,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
 using Microsoft.Extensions.DependencyInjection;
+using SharpPersistence.Abstractions;
 using SharpPersistence.EfCore;
 using SharpPersistence.Tests.TestDependencyFiles;
 
@@ -730,7 +731,7 @@ public class RepositoryBaseTests : IAsyncLifetime
     {
         var entity = await _repository.Query()
             .Where(e => e.Name == "A")
-            .GetOneAsync(TestContext.Current.CancellationToken);
+            .GetFirstOrDefaultAsync(TestContext.Current.CancellationToken);
 
         entity.ShouldNotBeNull();
         entity.NumericValue.ShouldBe(1);
@@ -743,7 +744,7 @@ public class RepositoryBaseTests : IAsyncLifetime
         var entity = await _repository.Query()
             .Where(e => e.Name == "A")
             .EnableTracking()
-            .GetOneAsync(TestContext.Current.CancellationToken);
+            .GetFirstOrDefaultAsync(TestContext.Current.CancellationToken);
 
         entity.ShouldNotBeNull();
         _dbContext.Entry(entity).State.ShouldBe(EntityState.Unchanged);
@@ -852,14 +853,13 @@ public class RepositoryBaseTests : IAsyncLifetime
         entities.ElementAt(0).Name.ShouldBe("A");
     }
 
-#if NET10_0_OR_GREATER
     [Fact]
     public async Task Query_IgnoreQueryFilters_IncludesSoftDeleted()
     {
         var deleted = await _repository.Query()
             .Where(e => e.Name == "A")
             .EnableTracking()
-            .GetOneAsync(TestContext.Current.CancellationToken);
+            .GetFirstOrDefaultAsync(TestContext.Current.CancellationToken);
 
         deleted.ShouldNotBeNull();
         deleted.IsDeleted = true;
@@ -877,5 +877,124 @@ public class RepositoryBaseTests : IAsyncLifetime
         withIgnore.Count.ShouldBe(4);
         withIgnore.Any(e => e is { Name: "A", IsDeleted: true }).ShouldBeTrue();
     }
-#endif
+
+    [Fact]
+    public async Task Query_IgnoreQueryFilters_Parameterless_IncludesSoftDeleted()
+    {
+        var deleted = await _repository.Query()
+            .Where(e => e.Name == "A")
+            .EnableTracking()
+            .GetFirstOrDefaultAsync(TestContext.Current.CancellationToken);
+
+        deleted.ShouldNotBeNull();
+        deleted.IsDeleted = true;
+        await _dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
+        _dbContext.ChangeTracker.Clear();
+
+        var withIgnore = await _repository.Query()
+            .IgnoreQueryFilters()
+            .GetAllAsync(TestContext.Current.CancellationToken);
+        withIgnore.Count.ShouldBe(4);
+        withIgnore.Any(e => e is { Name: "A", IsDeleted: true }).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Query_SumAsync_DirectAndComputed_ReturnExpectedTotals()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        int directSum = await _repository.Query()
+            .Where(e => e.NumericValue >= 2)
+            .SumAsync(e => e.NumericValue, ct);
+
+        int computedSum = await _repository.Query()
+            .Where(e => e.NumericValue >= 2)
+            .SumAsync(e => e.NumericValue * 2, ct);
+
+        directSum.ShouldBeGreaterThan(0);
+        computedSum.ShouldBe(directSum * 2);
+    }
+
+    [Fact]
+    public async Task Query_MinOrNullAsync_And_MaxOrNullAsync_HandleEmptyAndNonEmpty()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        int? minEmpty = await _repository.Query()
+            .Where(e => e.Name == "NON_EXISTENT")
+            .MinOrNullAsync(e => e.NumericValue, ct);
+        int? maxEmpty = await _repository.Query()
+            .Where(e => e.Name == "NON_EXISTENT")
+            .MaxOrNullAsync(e => e.NumericValue, ct);
+
+        minEmpty.ShouldBeNull();
+        maxEmpty.ShouldBeNull();
+
+        int? minVal = await _repository.Query().MinOrNullAsync(e => e.NumericValue, ct);
+        int? maxVal = await _repository.Query().MaxOrNullAsync(e => e.NumericValue, ct);
+
+        minVal.ShouldNotBeNull();
+        maxVal.ShouldNotBeNull();
+        maxVal.Value.ShouldBeGreaterThanOrEqualTo(minVal.Value);
+    }
+
+    [Fact]
+    public async Task CreateManyAsync_AcceptsIEnumerable_WithCancellationToken()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var items = Enumerable.Range(100, 2)
+            .Select(i => new TestEntity { Name = $"Item-{i}", NumericValue = i });
+
+        await _repository.CreateManyAsync(items, ct);
+        await _dbContext.SaveChangesAsync(ct);
+
+        bool exists = await _repository.Query()
+            .ExistsAsync(e => e.Name == "Item-100", ct);
+        exists.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Query_GetFirstOrNullAsync_ReturnsNullWhenEmpty_AndValueWhenFound()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        int? missing = await _repository.Query()
+            .Where(e => e.Name == "NON_EXISTENT")
+            .Select(e => e.NumericValue)
+            .GetFirstOrNullAsync(ct);
+
+        missing.ShouldBeNull();
+
+        int? found = await _repository.Query()
+            .Where(e => e.Name == "A")
+            .Select(e => e.NumericValue)
+            .GetFirstOrNullAsync(ct);
+
+        found.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task RemoveManyDirectIgnoringFiltersAsync_DeletesSoftDeletedMatchingRows()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        var deleted = await _repository.Query()
+            .Where(e => e.Name == "A")
+            .EnableTracking()
+            .GetFirstOrDefaultAsync(ct);
+
+        deleted.ShouldNotBeNull();
+        deleted.IsDeleted = true;
+        await _dbContext.SaveChangesAsync(ct);
+        _dbContext.ChangeTracker.Clear();
+
+        int normalDeleted = await _repository.RemoveManyDirectAsync(e => e.IsDeleted, ct);
+        normalDeleted.ShouldBe(0);
+
+        int purged = await _repository.RemoveManyDirectIgnoringFiltersAsync(
+            e => e.IsDeleted,
+            [TestDbContext.SoftDeleteFilter],
+            ct);
+        purged.ShouldBe(1);
+    }
 }
