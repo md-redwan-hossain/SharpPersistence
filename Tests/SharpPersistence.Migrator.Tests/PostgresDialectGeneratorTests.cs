@@ -1,5 +1,6 @@
 using SharpPersistence.Enums;
 using SharpPersistence.Migrator.Abstractions;
+using SharpPersistence.Migrator.Configuration;
 using SharpPersistence.Migrator.Dialects;
 using SharpPersistence.Migrator.Diffing;
 using SharpPersistence.Migrator.Models;
@@ -103,13 +104,13 @@ public sealed class PostgresDialectGeneratorTests
             {
                 b.ToTable("search_users")
                     .IsUnlogged()
-                    .HasTablespace("fast_ssd")
+                    .UseTablespace("fast_ssd")
                     .HasStorageParameter(PostgresStorageParameter.Fillfactor, 80)
                     .HasStorageParameter(PostgresStorageParameter.AutovacuumVacuumScaleFactor, 0.05)
                     .HasStorageParameter(PostgresStorageParameter.AutovacuumEnabled, true);
 
                 b.HasIndex(x => x.Email)
-                    .HasTablespace("idx_disk")
+                    .UseTablespace("idx_disk")
                     .HasStorageParameter(PostgresIndexStorageParameter.Fillfactor, 70)
                     .HasStorageParameter(PostgresIndexStorageParameter.DeduplicateItems, false);
             });
@@ -124,11 +125,11 @@ public sealed class PostgresDialectGeneratorTests
             {
                 b.ToTable("search_users")
                     .IsUnlogged(false)
-                    .HasTablespace("archive_disk")
+                    .UseTablespace("archive_disk")
                     .HasStorageParameter(PostgresStorageParameter.Fillfactor, 90);
 
                 b.HasIndex(x => x.Email)
-                    .HasTablespace("idx_archive")
+                    .UseTablespace("idx_archive")
                     .HasStorageParameter(PostgresIndexStorageParameter.Fillfactor, 85);
             });
         }
@@ -160,5 +161,177 @@ public sealed class PostgresDialectGeneratorTests
         Assert.Contains("ALTER INDEX IF EXISTS \"ix_search_users_email\" SET TABLESPACE \"idx_archive\";", incremental.SqlScript);
         Assert.Contains("ALTER INDEX IF EXISTS \"ix_search_users_email\" SET (fillfactor = 85);", incremental.SqlScript);
         Assert.Contains("ALTER INDEX IF EXISTS \"ix_search_users_email\" RESET (deduplicate_items);", incremental.SqlScript);
+    }
+
+    private sealed class RoomBooking
+    {
+        public Guid Id { get; set; }
+        public string Room { get; set; } = string.Empty;
+        public string Period { get; set; } = string.Empty;
+        public string GuestName { get; set; } = string.Empty;
+        public DateTimeOffset? CancelledAt { get; set; }
+    }
+
+    private sealed class BookingExclusionRegistryV1 : IEntityRegistry
+    {
+        public void Configure(IEntityRegistryBuilder registry)
+        {
+            registry.Entity<RoomBooking>(b =>
+            {
+                b.ToTable("room_bookings");
+                b.Property(x => x.Period).HasColumnType("tstzrange");
+
+                b.HasExclusionConstraint("ex_bookings_no_overlap")
+                    .HasMethod(PostgresIndexMethod.Gist)
+                    .WithElement(x => x.Room, PostgresExclusionOperator.Equals)
+                    .WithElement(x => x.Period, PostgresExclusionOperator.Overlaps)
+                    .IncludeProperties(x => x.GuestName)
+                    .HasStorageParameter(PostgresIndexStorageParameter.Fillfactor, 80)
+                    .UseTablespace("idx_disk")
+                    .HasFilter(cc => cc.Column(x => x.CancelledAt).IsNull());
+            });
+        }
+    }
+
+    private sealed class BookingExclusionRegistryV2Renamed : IEntityRegistry
+    {
+        public void Configure(IEntityRegistryBuilder registry)
+        {
+            registry.Entity<RoomBooking>(b =>
+            {
+                b.ToTable("room_bookings");
+                b.Property(x => x.Period).HasColumnType("tstzrange");
+
+                b.HasExclusionConstraint("ex_room_bookings_no_overlap")
+                    .HasMethod(PostgresIndexMethod.Gist)
+                    .WithElement(x => x.Room, PostgresExclusionOperator.Equals)
+                    .WithElement(x => x.Period, PostgresExclusionOperator.Overlaps)
+                    .IncludeProperties(x => x.GuestName)
+                    .HasStorageParameter(PostgresIndexStorageParameter.Fillfactor, 80)
+                    .UseTablespace("idx_disk")
+                    .HasFilter(cc => cc.Column(x => x.CancelledAt).IsNull());
+            });
+        }
+    }
+
+    private sealed class BookingExclusionRegistryV3Dropped : IEntityRegistry
+    {
+        public void Configure(IEntityRegistryBuilder registry)
+        {
+            registry.Entity<RoomBooking>(b =>
+            {
+                b.ToTable("room_bookings");
+                b.Property(x => x.Period).HasColumnType("tstzrange");
+            });
+        }
+    }
+
+    [Fact]
+    public void GenerateDiff_PostgresExclusionConstraint_InitialRenameAndDrop()
+    {
+        var reg1 = new BookingExclusionRegistryV1();
+        var schema1 = SchemaScanner.ScanRegistry(reg1, SqlDialect.PostgreSql, SqlIdentifierCase.LowerSnakeCase, [reg1]);
+        var initial = StandaloneSchemaDiffer.GenerateDiff(schema1, null, SqlDialect.PostgreSql, interactiveRenamePrompt: false);
+
+        Assert.Contains(
+            "CONSTRAINT \"ex_bookings_no_overlap\" EXCLUDE USING gist (\"room\" WITH =, \"period\" WITH &&) INCLUDE (\"guest_name\") WITH (fillfactor = 80) USING INDEX TABLESPACE \"idx_disk\" WHERE (\"cancelled_at\" IS NULL);",
+            initial.SqlScript);
+
+        var reg2 = new BookingExclusionRegistryV2Renamed();
+        var schema2 = SchemaScanner.ScanRegistry(reg2, SqlDialect.PostgreSql, SqlIdentifierCase.LowerSnakeCase, [reg2]);
+        var renamed = StandaloneSchemaDiffer.GenerateDiff(schema2, initial.UpdatedSnapshotJson, SqlDialect.PostgreSql, interactiveRenamePrompt: false);
+
+        Assert.Contains("RENAME CONSTRAINT \"ex_bookings_no_overlap\" TO \"ex_room_bookings_no_overlap\";", renamed.SqlScript);
+
+        var reg3 = new BookingExclusionRegistryV3Dropped();
+        var schema3 = SchemaScanner.ScanRegistry(reg3, SqlDialect.PostgreSql, SqlIdentifierCase.LowerSnakeCase, [reg3]);
+        var dropped = StandaloneSchemaDiffer.GenerateDiff(schema3, renamed.UpdatedSnapshotJson, SqlDialect.PostgreSql, interactiveRenamePrompt: false);
+
+        Assert.Contains("DROP CONSTRAINT IF EXISTS \"ex_room_bookings_no_overlap\";", dropped.SqlScript);
+    }
+
+    private enum BookingStatus
+    {
+        Active,
+        Cancelled
+    }
+
+    private sealed class FluentConventionsRegistry : IEntityRegistry
+    {
+        public void Configure(IEntityRegistryBuilder registry)
+        {
+            registry.Entity<RoomBooking>(b =>
+            {
+                b.ToTable("room_bookings");
+                b.HasKey(x => x.Id).HasName("pk_custom_room_bookings");
+                b.HasIndex(x => x.Room)
+                    .HasDatabaseName("ix_active_room_bookings")
+                    .HasFilter(cc => cc.Column(x => x.CancelledAt).IsNull());
+            });
+        }
+    }
+
+    [Fact]
+    public void EfCoreConventions_KeyBuilderIndexDatabaseNameTypedFilterAndOptions()
+    {
+        var optionsBuilder = new MigrationManagerOptionsBuilder();
+        optionsBuilder
+            .UsePostgreSql("Host=localhost;Database=test")
+            .HasPostgresExtension("btree_gist")
+            .HasPostgresEnum<BookingStatus>()
+            .UseMigrationsDirectory("db/migrations")
+            .UseSnapshotDirectory("db/snapshots");
+
+        var options = optionsBuilder.Build();
+        Assert.Equal("db/migrations", options.MigrationsDirectory);
+        Assert.Equal("db/snapshots", options.SnapshotDirectory);
+        Assert.Single(options.Extensions, e => e.Name == "btree_gist");
+        Assert.Single(options.Enums, e => e.Name == "booking_status");
+
+        var reg = new FluentConventionsRegistry();
+        var schema = SchemaScanner.ScanRegistry(reg, SqlDialect.PostgreSql, SqlIdentifierCase.LowerSnakeCase, [reg]);
+        var diff = StandaloneSchemaDiffer.GenerateDiff(schema, null, SqlDialect.PostgreSql, interactiveRenamePrompt: false);
+
+        Assert.Contains("CONSTRAINT \"pk_custom_room_bookings\" PRIMARY KEY (\"id\")", diff.SqlScript);
+        Assert.Contains("CREATE INDEX IF NOT EXISTS \"ix_active_room_bookings\" ON \"room_bookings\" (\"room\") WHERE \"cancelled_at\" IS NULL;", diff.SqlScript);
+    }
+
+    private sealed class Reservation
+    {
+        public Guid Id { get; set; }
+        public string RoomCode { get; set; } = string.Empty;
+        public DateTimeOffset StartsAt { get; set; }
+        public DateTimeOffset EndsAt { get; set; }
+        public DateOnly ValidFrom { get; set; }
+        public DateOnly ValidTo { get; set; }
+    }
+
+    private sealed class ReservationRangeRegistry : IEntityRegistry
+    {
+        public void Configure(IEntityRegistryBuilder registry)
+        {
+            registry.Entity<Reservation>(b =>
+            {
+                b.ToTable("reservations");
+                b.Property(x => x.StartsAt).HasColumnName("start_time");
+
+                b.HasExclusionConstraint("ex_reservations_no_overlap")
+                    .WithExpression(x => x.RoomCode, col => $"lower({col})", PostgresExclusionOperator.Equals)
+                    .WithRange(x => x.StartsAt, x => x.EndsAt, PostgresExclusionOperator.Overlaps)
+                    .WithRange(x => x.ValidFrom, x => x.ValidTo, PostgresExclusionOperator.Overlaps, PostgresRangeBounds.Inclusive);
+            });
+        }
+    }
+
+    [Fact]
+    public void GenerateDiff_PostgresExclusionConstraint_TypedWithRangeAndWithExpression()
+    {
+        var reg = new ReservationRangeRegistry();
+        var schema = SchemaScanner.ScanRegistry(reg, SqlDialect.PostgreSql, SqlIdentifierCase.LowerSnakeCase, [reg]);
+        var diff = StandaloneSchemaDiffer.GenerateDiff(schema, null, SqlDialect.PostgreSql, interactiveRenamePrompt: false);
+
+        Assert.Contains(
+            "CONSTRAINT \"ex_reservations_no_overlap\" EXCLUDE USING gist (lower(\"room_code\") WITH =, tstzrange(\"start_time\", \"ends_at\", '[)') WITH &&, daterange(\"valid_from\", \"valid_to\", '[]') WITH &&);",
+            diff.SqlScript);
     }
 }

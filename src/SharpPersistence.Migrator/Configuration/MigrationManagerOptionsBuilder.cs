@@ -118,9 +118,16 @@ public class MigrationManagerOptionsBuilder
         return this;
     }
 
-    public MigrationManagerOptionsBuilder UsePaths(string migrationsDirectory, string snapshotDirectory)
+    public MigrationManagerOptionsBuilder UseMigrationsDirectory(string migrationsDirectory)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(migrationsDirectory);
         State.Options.MigrationsDirectory = migrationsDirectory;
+        return this;
+    }
+
+    public MigrationManagerOptionsBuilder UseSnapshotDirectory(string snapshotDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(snapshotDirectory);
         State.Options.SnapshotDirectory = snapshotDirectory;
         return this;
     }
@@ -207,14 +214,14 @@ public sealed class PostgreSqlOptionsBuilder : MigrationManagerOptionsBuilder
     {
     }
 
-    public PostgreSqlOptionsBuilder HasExtension(string name, string? schema = null)
+    public PostgreSqlOptionsBuilder HasPostgresExtension(string name, string? schema = null)
     {
         State.Extensions.RemoveAll(e => string.Equals(e.Name, name, StringComparison.Ordinal));
         State.Extensions.Add(new PostgresExtensionSchema(name, schema));
         return this;
     }
 
-    public PostgreSqlOptionsBuilder HasEnum<TEnum>(string? name = null, string? schema = null)
+    public PostgreSqlOptionsBuilder HasPostgresEnum<TEnum>(string? name = null, string? schema = null)
         where TEnum : struct, Enum
     {
         State.EnumRegistrations.RemoveAll(e => e.EnumType == typeof(TEnum));

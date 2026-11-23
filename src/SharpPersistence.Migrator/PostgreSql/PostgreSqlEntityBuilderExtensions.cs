@@ -14,13 +14,23 @@ public static class PostgreSqlEntityBuilderExtensions
         return builder;
     }
 
-    public static EntityBuilder<TEntity> HasTablespace<TEntity>(
+    public static EntityBuilder<TEntity> UseTablespace<TEntity>(
         this EntityBuilder<TEntity> builder,
         string? tablespace)
         where TEntity : class
     {
         builder.Definition.Tablespace = string.IsNullOrWhiteSpace(tablespace) ? null : tablespace.Trim();
         return builder;
+    }
+
+    public static PostgresExclusionConstraintBuilder<TEntity> HasExclusionConstraint<TEntity>(
+        this EntityBuilder<TEntity> builder,
+        string constraintName)
+        where TEntity : class
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(constraintName);
+        var def = builder.Definition.AddExclusionConstraint(constraintName.Trim());
+        return new PostgresExclusionConstraintBuilder<TEntity>(def);
     }
 
     public static EntityBuilder<TEntity> HasStorageParameter<TEntity>(

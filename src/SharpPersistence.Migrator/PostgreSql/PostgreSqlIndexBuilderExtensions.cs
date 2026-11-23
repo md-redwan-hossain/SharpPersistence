@@ -47,7 +47,7 @@ public static class PostgreSqlIndexBuilderExtensions
         return builder;
     }
 
-    public static IndexBuilder<TEntity, TKey> HasTablespace<TEntity, TKey>(
+    public static IndexBuilder<TEntity, TKey> UseTablespace<TEntity, TKey>(
         this IndexBuilder<TEntity, TKey> builder,
         string? tablespace)
         where TEntity : class

@@ -40,6 +40,10 @@ public sealed class TableSchema
     public List<ColumnSchema> Columns { get; set; } = [];
     public List<IndexSchema> Indexes { get; set; } = [];
     public List<CheckConstraintSchema> CheckConstraints { get; set; } = [];
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<ExclusionConstraintSchema>? ExclusionConstraints { get; set; }
+
     public List<ForeignKeySchema> ForeignKeys { get; set; } = [];
 
     [JsonIgnore]

@@ -155,6 +155,14 @@ public static class StandaloneSchemaDiffer
                 {
                     ops.Add(new AddCheckConstraintOp(table.Schema, table.TableName, ck));
                 }
+
+                if (table.ExclusionConstraints is { Count: > 0 })
+                {
+                    foreach (var ex in table.ExclusionConstraints)
+                    {
+                        ops.Add(new AddExclusionConstraintOp(table.Schema, table.TableName, ex));
+                    }
+                }
             }
 
             return ops;
@@ -353,6 +361,14 @@ public static class StandaloneSchemaDiffer
             {
                 ops.Add(new AddCheckConstraintOp(newTable.Schema, newTable.TableName, ck));
             }
+
+            if (newTable.ExclusionConstraints is { Count: > 0 })
+            {
+                foreach (var ex in newTable.ExclusionConstraints)
+                {
+                    ops.Add(new AddExclusionConstraintOp(newTable.Schema, newTable.TableName, ex));
+                }
+            }
         }
 
         foreach (var (oldTable, newTable) in matchedPairs)
@@ -441,6 +457,39 @@ public static class StandaloneSchemaDiffer
             ops.Add(new DropCheckConstraintOp(newTable.Schema, newTable.TableName, droppedCk.Name));
         }
 
+        var oldExs = new List<ExclusionConstraintSchema>(oldTable.ExclusionConstraints ?? []);
+        var newExs = new List<ExclusionConstraintSchema>(newTable.ExclusionConstraints ?? []);
+
+        for (var i = oldExs.Count - 1; i >= 0; i--)
+        {
+            var o = oldExs[i];
+            var exact = newExs.FirstOrDefault(n =>
+                string.Equals(o.Name, n.Name, StringComparison.Ordinal) &&
+                ExclusionConstraintEquals(o, n));
+            if (exact is not null)
+            {
+                oldExs.RemoveAt(i);
+                newExs.Remove(exact);
+            }
+        }
+
+        for (var i = oldExs.Count - 1; i >= 0; i--)
+        {
+            var o = oldExs[i];
+            var renamed = newExs.FirstOrDefault(n => ExclusionConstraintEquals(o, n));
+            if (renamed is not null)
+            {
+                ops.Add(new RenameConstraintOp(newTable.Schema, newTable.TableName, o.Name, renamed.Name));
+                oldExs.RemoveAt(i);
+                newExs.Remove(renamed);
+            }
+        }
+
+        foreach (var droppedEx in oldExs)
+        {
+            ops.Add(new DropExclusionConstraintOp(newTable.Schema, newTable.TableName, droppedEx.Name));
+        }
+
         var oldFks = new List<ForeignKeySchema>(oldTable.ForeignKeys);
         var newFks = new List<ForeignKeySchema>(newTable.ForeignKeys);
 
@@ -495,6 +544,11 @@ public static class StandaloneSchemaDiffer
         foreach (var addedCk in newCks)
         {
             ops.Add(new AddCheckConstraintOp(newTable.Schema, newTable.TableName, addedCk));
+        }
+
+        foreach (var addedEx in newExs)
+        {
+            ops.Add(new AddExclusionConstraintOp(newTable.Schema, newTable.TableName, addedEx));
         }
 
         if (!string.Equals(oldTable.Comment, newTable.Comment, StringComparison.Ordinal))
@@ -723,6 +777,35 @@ public static class StandaloneSchemaDiffer
         {
             ops.Add(new AlterIndexStorageParametersOp(schema, indexName, toSet, toReset));
         }
+    }
+
+    private static bool ExclusionConstraintEquals(ExclusionConstraintSchema a, ExclusionConstraintSchema b)
+    {
+        if (!string.Equals(a.Method, b.Method, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(a.FilterSql, b.FilterSql, StringComparison.Ordinal)
+            || !string.Equals(a.Tablespace, b.Tablespace, StringComparison.Ordinal)
+            || !NullableSequenceEqual(a.IncludedPropertyNames, b.IncludedPropertyNames)
+            || !NullableDictionaryEqual(a.StorageParameters, b.StorageParameters)
+            || a.Elements.Count != b.Elements.Count)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < a.Elements.Count; i++)
+        {
+            var ea = a.Elements[i];
+            var eb = b.Elements[i];
+            if (!string.Equals(ea.PropertyName, eb.PropertyName, StringComparison.Ordinal)
+                || !string.Equals(ea.ColumnName, eb.ColumnName, StringComparison.Ordinal)
+                || !string.Equals(ea.ExpressionSql, eb.ExpressionSql, StringComparison.Ordinal)
+                || !string.Equals(ea.OperatorClass, eb.OperatorClass, StringComparison.Ordinal)
+                || !string.Equals(ea.Operator, eb.Operator, StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static bool IndexDefinitionEquals(IndexSchema a, IndexSchema b)

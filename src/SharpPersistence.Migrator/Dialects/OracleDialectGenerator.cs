@@ -32,7 +32,8 @@ public sealed class OracleDialectGenerator : ISqlDialectGenerator
         {
             switch (op)
             {
-                case EnsureExtensionOp or DropExtensionOp or CreateEnumOp or AddEnumValueOp or DropEnumOp:
+                case EnsureExtensionOp or DropExtensionOp or CreateEnumOp or AddEnumValueOp or DropEnumOp
+                    or AddExclusionConstraintOp or DropExclusionConstraintOp:
                     throw new NotSupportedException($"Operation '{op.GetType().Name}' is PostgreSQL-specific and not supported on Oracle.");
 
                 case EnsureSchemaOp s:

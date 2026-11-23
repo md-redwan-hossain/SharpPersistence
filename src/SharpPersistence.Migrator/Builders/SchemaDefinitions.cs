@@ -28,6 +28,7 @@ internal sealed class TableDefinition
     public Dictionary<string, ColumnDefinition> ColumnsByProp { get; } = new(StringComparer.Ordinal);
     public List<IndexDefinition> Indexes { get; } = [];
     public Dictionary<string, CheckConstraintDefinition> CheckConstraints { get; } = new(StringComparer.Ordinal);
+    public Dictionary<string, ExclusionConstraintDefinition> ExclusionConstraints { get; } = new(StringComparer.Ordinal);
     public List<ForeignKeyDefinition> ForeignKeys { get; } = [];
 
     public TableDefinition(
@@ -46,9 +47,14 @@ internal sealed class TableDefinition
         CheckConstraintOptions = checkConstraintOptions ?? new CheckConstraintBuilderOptions();
     }
 
-    public void SetPrimaryKey(IReadOnlyList<string> propNames, string? constraintName)
+    public void SetPrimaryKey(IReadOnlyList<string> propNames, string? constraintName = null)
     {
         PkProperties = propNames;
+        PkName = constraintName;
+    }
+
+    public void SetPrimaryKeyName(string constraintName)
+    {
         PkName = constraintName;
     }
 
@@ -75,9 +81,9 @@ internal sealed class TableDefinition
         ColumnsByProp.Remove(propName);
     }
 
-    public IndexDefinition AddIndex(IReadOnlyList<string> propNames, string? indexName)
+    public IndexDefinition AddIndex(IReadOnlyList<string> propNames)
     {
-        var idx = new IndexDefinition(propNames, indexName);
+        var idx = new IndexDefinition(propNames);
         Indexes.Add(idx);
         return idx;
     }
@@ -91,6 +97,13 @@ internal sealed class TableDefinition
     {
         var def = new CheckConstraintDefinition(name, rawSql: null, sqlRenderer: sqlRenderer);
         CheckConstraints[name] = def;
+        return def;
+    }
+
+    public ExclusionConstraintDefinition AddExclusionConstraint(string name)
+    {
+        var def = new ExclusionConstraintDefinition(name);
+        ExclusionConstraints[name] = def;
         return def;
     }
 
@@ -143,6 +156,30 @@ internal sealed class CheckConstraintDefinition
     }
 }
 
+internal sealed record ExclusionConstraintElementDefinition(
+    string? PropertyName,
+    string? ExpressionSql,
+    string? OperatorClass,
+    string Operator,
+    Func<Func<string, string>, string>? ExpressionRenderer = null);
+
+internal sealed class ExclusionConstraintDefinition
+{
+    public string Name { get; }
+    public string Method { get; set; } = "gist";
+    public List<ExclusionConstraintElementDefinition> Elements { get; } = [];
+    public List<string>? IncludedPropertyNames { get; set; }
+    public Dictionary<string, string>? StorageParameters { get; set; }
+    public string? Tablespace { get; set; }
+    public string? FilterSql { get; set; }
+    public Func<SqlDialect, SqlIdentifierCase, bool, string, string>? FilterRenderer { get; set; }
+
+    public ExclusionConstraintDefinition(string name)
+    {
+        Name = name;
+    }
+}
+
 internal sealed class ColumnDefinition
 {
     public string PropertyName { get; }
@@ -181,6 +218,7 @@ internal sealed class IndexDefinition
     public string? IndexName { get; set; }
     public bool IsUnique { get; set; }
     public string? FilterSql { get; set; }
+    public Func<SqlDialect, SqlIdentifierCase, bool, string, string>? FilterRenderer { get; set; }
     public List<string>? IncludedPropertyNames { get; set; }
     public List<bool>? IsDescending { get; set; }
     public string? Method { get; set; }
@@ -188,10 +226,9 @@ internal sealed class IndexDefinition
     public Dictionary<string, string>? StorageParameters { get; set; }
     public Dictionary<string, string>? OperatorsByProperty { get; set; }
 
-    public IndexDefinition(IReadOnlyList<string> propertyNames, string? indexName)
+    public IndexDefinition(IReadOnlyList<string> propertyNames)
     {
         PropertyNames = propertyNames;
-        IndexName = indexName;
     }
 }
 

@@ -12,9 +12,10 @@ public class IndexBuilder<TEntity> where TEntity : class
         Definition = definition;
     }
 
-    public IndexBuilder<TEntity> HasName(string indexName)
+    public IndexBuilder<TEntity> HasDatabaseName(string indexName)
     {
-        Definition.IndexName = indexName;
+        ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
+        Definition.IndexName = indexName.Trim();
         return this;
     }
 
@@ -26,7 +27,31 @@ public class IndexBuilder<TEntity> where TEntity : class
 
     public IndexBuilder<TEntity> HasFilter(string? filterSql)
     {
-        Definition.FilterSql = filterSql;
+        Definition.FilterSql = string.IsNullOrWhiteSpace(filterSql) ? null : filterSql.Trim();
+        Definition.FilterRenderer = null;
+        return this;
+    }
+
+    public IndexBuilder<TEntity> HasFilter(
+        Func<SqlCheckConstraintBuilder<TEntity>, SqlPredicate> predicate)
+    {
+        ArgumentNullException.ThrowIfNull(predicate);
+        Definition.FilterSql = null;
+        Definition.FilterRenderer = (dialect, identifierCase, delimitIdentifiers, nestedSeparator) =>
+        {
+            var builder = new SqlCheckConstraintBuilder<TEntity>
+            {
+                Dialect = dialect,
+                IdentifierCase = identifierCase,
+                DelimitIdentifiers = delimitIdentifiers,
+                NestedSeparator = nestedSeparator
+            };
+
+            var result = predicate(builder)
+                ?? throw new InvalidOperationException(
+                    $"Index filter on entity '{typeof(TEntity).Name}' returned null.");
+            return result.ToString();
+        };
         return this;
     }
 
@@ -55,9 +80,9 @@ public sealed class IndexBuilder<TEntity, TKey> : IndexBuilder<TEntity> where TE
     {
     }
 
-    public new IndexBuilder<TEntity, TKey> HasName(string indexName)
+    public new IndexBuilder<TEntity, TKey> HasDatabaseName(string indexName)
     {
-        base.HasName(indexName);
+        base.HasDatabaseName(indexName);
         return this;
     }
 
@@ -70,6 +95,13 @@ public sealed class IndexBuilder<TEntity, TKey> : IndexBuilder<TEntity> where TE
     public new IndexBuilder<TEntity, TKey> HasFilter(string? filterSql)
     {
         base.HasFilter(filterSql);
+        return this;
+    }
+
+    public new IndexBuilder<TEntity, TKey> HasFilter(
+        Func<SqlCheckConstraintBuilder<TEntity>, SqlPredicate> predicate)
+    {
+        base.HasFilter(predicate);
         return this;
     }
 

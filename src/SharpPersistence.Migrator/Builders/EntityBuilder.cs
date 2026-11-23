@@ -71,13 +71,11 @@ public sealed class EntityBuilder<TEntity> where TEntity : class
         return this;
     }
 
-    public EntityBuilder<TEntity> HasKey(
-        Expression<Func<TEntity, object?>> keyExpression,
-        string? constraintName = null)
+    public KeyBuilder<TEntity> HasKey(Expression<Func<TEntity, object?>> keyExpression)
     {
         var propNames = ExpressionHelper.ExtractPropertyNames(keyExpression);
-        Definition.SetPrimaryKey(propNames, constraintName);
-        return this;
+        Definition.SetPrimaryKey(propNames);
+        return new KeyBuilder<TEntity>(Definition);
     }
 
     public ColumnBuilder Property<TProperty>(Expression<Func<TEntity, TProperty>> propertyExpression)
@@ -86,12 +84,10 @@ public sealed class EntityBuilder<TEntity> where TEntity : class
         return Definition.GetOrAddColumn(propName, typeof(TProperty), true);
     }
 
-    public IndexBuilder<TEntity, TKey> HasIndex<TKey>(
-        Expression<Func<TEntity, TKey>> indexExpression,
-        string? indexName = null)
+    public IndexBuilder<TEntity, TKey> HasIndex<TKey>(Expression<Func<TEntity, TKey>> indexExpression)
     {
         var propNames = ExpressionHelper.ExtractPropertyNames(indexExpression);
-        return new IndexBuilder<TEntity, TKey>(Definition.AddIndex(propNames, indexName));
+        return new IndexBuilder<TEntity, TKey>(Definition.AddIndex(propNames));
     }
 
     public EntityBuilder<TEntity> HasCheckConstraint(string constraintName, string sqlExpression)

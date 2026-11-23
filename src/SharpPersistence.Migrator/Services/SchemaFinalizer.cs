@@ -1,5 +1,6 @@
 using SharpPersistence.Enums;
 using SharpPersistence.Migrator.Builders;
+using SharpPersistence.Migrator.Dialects;
 using SharpPersistence.Migrator.Models;
 
 namespace SharpPersistence.Migrator.Services;
@@ -146,13 +147,21 @@ internal static class SchemaFinalizer
                 var ixName = NamingFormatter.TruncateIdentifier(
                     ib.IndexName ?? $"{ixPrefix}_{tb.TableName}_{string.Join("_", ixCols)}",
                     tb.Dialect);
+                var filterSql = ib.FilterRenderer is not null
+                    ? ib.FilterRenderer(
+                        tb.Dialect,
+                        tb.IdentifierCase,
+                        tb.CheckConstraintOptions.DelimitIdentifiers,
+                        tb.CheckConstraintOptions.NestedColumnSeparator)
+                    : ib.FilterSql;
+
                 table.Indexes.Add(new IndexSchema
                 {
                     Name = ixName,
                     ColumnNames = ixCols,
                     PropertyNames = [.. ib.PropertyNames],
                     IsUnique = ib.IsUnique,
-                    FilterSql = ib.FilterSql,
+                    FilterSql = filterSql,
                     IncludedColumnNames = incCols is { Count: > 0 } ? incCols : null,
                     IncludedPropertyNames = ib.IncludedPropertyNames is { Count: > 0 } ? [.. ib.IncludedPropertyNames] : null,
                     IsDescending = ib.IsDescending is { Count: > 0 } ? [.. ib.IsDescending] : null,
@@ -175,6 +184,81 @@ internal static class SchemaFinalizer
                     Name = NamingFormatter.TruncateIdentifier(ckName, tb.Dialect),
                     Sql = ckDef.RenderSql(tb.Dialect, tb.IdentifierCase, tb.CheckConstraintOptions)
                 });
+            }
+
+            if (tb.ExclusionConstraints.Count > 0)
+            {
+                table.ExclusionConstraints = [];
+                foreach (var (exName, exDef) in tb.ExclusionConstraints.OrderBy(x => x.Key, StringComparer.Ordinal))
+                {
+                    if (exDef.Elements.Count == 0)
+                    {
+                        throw new InvalidOperationException(
+                            $"Exclusion constraint '{exName}' on entity '{tb.EntityType.Name}' must define at least one element via WithElement or WithExpression.");
+                    }
+
+                    var elements = new List<ExclusionConstraintElementSchema>(exDef.Elements.Count);
+                    foreach (var el in exDef.Elements)
+                    {
+                        if (el.PropertyName is not null)
+                        {
+                            var colName = ResolveColumnName(tb, el.PropertyName, "Exclusion Constraint");
+                            elements.Add(new ExclusionConstraintElementSchema
+                            {
+                                ColumnName = colName,
+                                PropertyName = el.PropertyName,
+                                OperatorClass = el.OperatorClass,
+                                Operator = el.Operator
+                            });
+                        }
+                        else if (el.ExpressionRenderer is not null)
+                        {
+                            var exprSql = el.ExpressionRenderer(prop =>
+                                SqlFormatHelper.Quote(ResolveColumnName(tb, prop, "Exclusion Constraint")));
+                            elements.Add(new ExclusionConstraintElementSchema
+                            {
+                                ExpressionSql = exprSql,
+                                Operator = el.Operator
+                            });
+                        }
+                        else
+                        {
+                            elements.Add(new ExclusionConstraintElementSchema
+                            {
+                                ExpressionSql = el.ExpressionSql,
+                                Operator = el.Operator
+                            });
+                        }
+                    }
+
+                    var incCols = exDef.IncludedPropertyNames?
+                        .Select(p => ResolveColumnName(tb, p, "Exclusion Constraint Include"))
+                        .ToList();
+
+                    var filterSql = exDef.FilterRenderer is not null
+                        ? exDef.FilterRenderer(
+                            tb.Dialect,
+                            tb.IdentifierCase,
+                            tb.CheckConstraintOptions.DelimitIdentifiers,
+                            tb.CheckConstraintOptions.NestedColumnSeparator)
+                        : exDef.FilterSql;
+
+                    table.ExclusionConstraints.Add(new ExclusionConstraintSchema
+                    {
+                        Name = NamingFormatter.TruncateIdentifier(exName, tb.Dialect),
+                        Method = exDef.Method,
+                        Elements = elements,
+                        IncludedColumnNames = incCols is { Count: > 0 } ? incCols : null,
+                        IncludedPropertyNames = exDef.IncludedPropertyNames is { Count: > 0 } ? [.. exDef.IncludedPropertyNames] : null,
+                        StorageParameters = exDef.StorageParameters is { Count: > 0 }
+                            ? exDef.StorageParameters
+                                .OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
+                                .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase)
+                            : null,
+                        Tablespace = exDef.Tablespace,
+                        FilterSql = filterSql
+                    });
+                }
             }
 
             foreach (var fk in tb.ForeignKeys)

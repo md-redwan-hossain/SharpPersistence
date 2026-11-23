@@ -47,6 +47,11 @@ public sealed record DropCheckConstraintOp(string? Schema, string TableName, str
 public sealed record AddCheckConstraintOp(string? Schema, string TableName, CheckConstraintSchema Constraint)
     : SchemaOperation;
 
+public sealed record DropExclusionConstraintOp(string? Schema, string TableName, string Name) : SchemaOperation;
+
+public sealed record AddExclusionConstraintOp(string? Schema, string TableName, ExclusionConstraintSchema Constraint)
+    : SchemaOperation;
+
 public sealed record DropForeignKeyOp(string? Schema, string TableName, string Name) : SchemaOperation;
 
 public sealed record AddForeignKeyOp(string? Schema, string TableName, ForeignKeySchema ForeignKey) : SchemaOperation;
