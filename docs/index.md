@@ -256,6 +256,73 @@ builder.ToTable(t =>
 });
 ```
 
+You can also use the generic `SqlCheckConstraintBuilder<TEntity>` to avoid bouncing between `cc` and `cc.For<T>()`, attach column-level `RawPredicate` (postfix or formatted lambda), and compare `Case()` / `Raw()` expressions directly:
+
+```csharp
+var cc = new SqlCheckConstraintBuilder<Order>
+{
+    Dialect = SqlDialect.PostgreSql,
+    IdentifierCase = SqlIdentifierCase.LowerSnakeCase,
+    DelimitIdentifiers = true
+};
+
+// Column-level raw predicate (postfix or formatted lambda)
+string pgRegex = cc.Column(x => x.Code).RawPredicate("~ '^ORD-[0-9]+$'");
+string oracleRegex = cc.Column(x => x.Code).RawPredicate(col => $"REGEXP_LIKE({col}, '^ORD-[0-9]+$')");
+
+// Comparing a column against a CASE expression (or CASE against a literal)
+string tieredDiscount = cc.Column(x => x.Discount).LessThanOrEqual(
+    cc.Case()
+        .When(cc.Column(x => x.IsVip).EqualTo(true)).Then(50m)
+        .EndWithElse(10m));
+
+string caseCheck = cc.Case()
+    .When(cc.Column(x => x.Status).EqualTo(OrderStatus.Shipped)).Then(1)
+    .EndWithElse(0)
+    .EqualTo(1);
+```
+
+### **`SharpPersistence.Migrator` Check Constraint Integration**
+
+`SharpPersistence.Migrator` integrates directly with `SqlCheckConstraintBuilder<TEntity>`, automatically inheriting the active `SqlDialect` and `SqlIdentifierCase`:
+
+```csharp
+// Optional global defaults in DI setup (defaults: DelimitIdentifiers = true, NestedColumnSeparator = "_")
+services.AddDbMigrator(options =>
+{
+    options.UsePostgreSql(connectionString)
+           .UseIdentifierCase(SqlIdentifierCase.LowerSnakeCase)
+           .ConfigureCheckConstraintBuilder(cc => cc
+               .UseDelimitedIdentifiers(true)
+               .UseNestedColumnSeparator("_"));
+});
+
+// Inside IEntityConfiguration<Order> / EntityBuilder<Order>
+builder.HasCheckConstraint(
+    "ck_orders_total",
+    cc => cc.Column(x => x.Total).GreaterThanOrEqual(0));
+
+builder.HasCheckConstraint(
+        "ck_orders_shipping_zip",
+        cc => cc.NestedColumn(x => x.Shipping.ZipCode).IsNotNull())
+    .UseDelimitedIdentifiers(false)
+    .UseNestedColumnSeparator("__");
+
+builder.HasCheckConstraint(
+    "ck_orders_discount",
+    cc => cc.Column(x => x.Discount).LessThanOrEqual(
+        cc.Case()
+            .When(cc.Column(x => x.IsVip).EqualTo(true)).Then(50m)
+            .EndWithElse(10m)));
+
+builder.HasCheckConstraint(
+    "ck_orders_code",
+    cc => cc.Column(x => x.Code).RawPredicate("~ '^ORD-[0-9]+$'"));
+
+// Raw SQL overload remains available alongside the typed overload
+builder.HasCheckConstraint("ck_orders_custom", "total >= discount");
+```
+
 ### **`RepositoryCore` with `IRepositoryCore`**
 
 - `IRepositoryCore` is available in `SharpPersistence.Abstractions`

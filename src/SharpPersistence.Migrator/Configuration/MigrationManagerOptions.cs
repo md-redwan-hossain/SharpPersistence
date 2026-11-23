@@ -26,6 +26,7 @@ public sealed class MigrationManagerOptions
     public IReadOnlyList<PropertyConventionRule> PropertyConventions { get; internal set; } = [];
     public IReadOnlyList<PostgresExtensionSchema> Extensions { get; internal set; } = [];
     public IReadOnlyList<PostgresEnumSchema> Enums { get; internal set; } = [];
+    public CheckConstraintBuilderOptions CheckConstraintOptions { get; } = new();
 
     public void OverrideRootPath(string rootPath) => RootPath = rootPath;
 }

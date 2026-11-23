@@ -3,6 +3,7 @@
 !/**/dist/
 **/node_modules
 **/uploads
+/TestResults
 # Cross branch files
 /packages/
 riderModule.iml

@@ -168,12 +168,12 @@ internal static class SchemaFinalizer
                 });
             }
 
-            foreach (var (ckName, ckSql) in tb.CheckConstraints.OrderBy(x => x.Key, StringComparer.Ordinal))
+            foreach (var (ckName, ckDef) in tb.CheckConstraints.OrderBy(x => x.Key, StringComparer.Ordinal))
             {
                 table.CheckConstraints.Add(new CheckConstraintSchema
                 {
                     Name = NamingFormatter.TruncateIdentifier(ckName, tb.Dialect),
-                    Sql = ckSql
+                    Sql = ckDef.RenderSql(tb.Dialect, tb.IdentifierCase, tb.CheckConstraintOptions)
                 });
             }
 

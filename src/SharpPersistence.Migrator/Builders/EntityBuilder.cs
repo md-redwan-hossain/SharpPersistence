@@ -100,6 +100,34 @@ public sealed class EntityBuilder<TEntity> where TEntity : class
         return this;
     }
 
+    public CheckConstraintBuilder<TEntity> HasCheckConstraint(
+        string constraintName,
+        Func<SqlCheckConstraintBuilder<TEntity>, SqlPredicate> predicate)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(constraintName);
+        ArgumentNullException.ThrowIfNull(predicate);
+
+        var def = Definition.AddCheckConstraint(
+            constraintName,
+            (dialect, identifierCase, delimitIdentifiers, nestedSeparator) =>
+            {
+                var builder = new SqlCheckConstraintBuilder<TEntity>
+                {
+                    Dialect = dialect,
+                    IdentifierCase = identifierCase,
+                    DelimitIdentifiers = delimitIdentifiers,
+                    NestedSeparator = nestedSeparator
+                };
+
+                var result = predicate(builder)
+                    ?? throw new InvalidOperationException(
+                        $"Check constraint '{constraintName}' on entity '{typeof(TEntity).Name}' returned null.");
+                return result.ToString();
+            });
+
+        return new CheckConstraintBuilder<TEntity>(def);
+    }
+
     public ForeignKeyBuilder<TEntity, TPrincipal> HasForeignKey<TPrincipal>(
         Expression<Func<TEntity, object?>> dependentProperties)
         where TPrincipal : class

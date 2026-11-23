@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using SharpPersistence.Enums;
+using SharpPersistence.Migrator.Configuration;
 using SharpPersistence.Migrator.Enums;
 using SharpPersistence.Migrator.Services;
 
@@ -21,11 +22,12 @@ internal sealed class TableDefinition
     public HashSet<string> IgnoredProperties { get; } = new(StringComparer.Ordinal);
     public SqlDialect Dialect { get; }
     public SqlIdentifierCase IdentifierCase { get; }
+    public CheckConstraintBuilderOptions CheckConstraintOptions { get; }
     public IReadOnlyList<string> PkProperties { get; private set; } = [];
     public string? PkName { get; private set; }
     public Dictionary<string, ColumnDefinition> ColumnsByProp { get; } = new(StringComparer.Ordinal);
     public List<IndexDefinition> Indexes { get; } = [];
-    public Dictionary<string, string> CheckConstraints { get; } = new(StringComparer.Ordinal);
+    public Dictionary<string, CheckConstraintDefinition> CheckConstraints { get; } = new(StringComparer.Ordinal);
     public List<ForeignKeyDefinition> ForeignKeys { get; } = [];
 
     public TableDefinition(
@@ -33,13 +35,15 @@ internal sealed class TableDefinition
         string tableName,
         string? schema,
         SqlDialect dialect,
-        SqlIdentifierCase identifierCase)
+        SqlIdentifierCase identifierCase,
+        CheckConstraintBuilderOptions? checkConstraintOptions = null)
     {
         EntityType = entityType;
         TableName = tableName;
         Schema = schema;
         Dialect = dialect;
         IdentifierCase = identifierCase;
+        CheckConstraintOptions = checkConstraintOptions ?? new CheckConstraintBuilderOptions();
     }
 
     public void SetPrimaryKey(IReadOnlyList<string> propNames, string? constraintName)
@@ -78,7 +82,17 @@ internal sealed class TableDefinition
         return idx;
     }
 
-    public void AddCheckConstraint(string name, string sql) => CheckConstraints[name] = sql;
+    public void AddCheckConstraint(string name, string sql) =>
+        CheckConstraints[name] = new CheckConstraintDefinition(name, rawSql: sql, sqlRenderer: null);
+
+    public CheckConstraintDefinition AddCheckConstraint(
+        string name,
+        Func<SqlDialect, SqlIdentifierCase, bool, string, string> sqlRenderer)
+    {
+        var def = new CheckConstraintDefinition(name, rawSql: null, sqlRenderer: sqlRenderer);
+        CheckConstraints[name] = def;
+        return def;
+    }
 
     public void SetForeignKey(
         Type principalType,
@@ -91,6 +105,41 @@ internal sealed class TableDefinition
     {
         ForeignKeys.RemoveAll(x => x.DependentProps.SequenceEqual(depProps, StringComparer.Ordinal));
         ForeignKeys.Add(new ForeignKeyDefinition(principalType, depProps, principalProps, name, onDelete, isCircular, isUnique));
+    }
+}
+
+internal sealed class CheckConstraintDefinition
+{
+    private readonly string? _rawSql;
+    private readonly Func<SqlDialect, SqlIdentifierCase, bool, string, string>? _sqlRenderer;
+
+    public string Name { get; }
+    public bool? DelimitIdentifiers { get; set; }
+    public string? NestedColumnSeparator { get; set; }
+
+    public CheckConstraintDefinition(
+        string name,
+        string? rawSql,
+        Func<SqlDialect, SqlIdentifierCase, bool, string, string>? sqlRenderer)
+    {
+        Name = name;
+        _rawSql = rawSql;
+        _sqlRenderer = sqlRenderer;
+    }
+
+    public string RenderSql(
+        SqlDialect dialect,
+        SqlIdentifierCase identifierCase,
+        CheckConstraintBuilderOptions defaults)
+    {
+        if (_rawSql is not null)
+        {
+            return _rawSql;
+        }
+
+        var delimit = DelimitIdentifiers ?? defaults.DelimitIdentifiers;
+        var separator = NestedColumnSeparator ?? defaults.NestedColumnSeparator;
+        return _sqlRenderer!(dialect, identifierCase, delimit, separator);
     }
 }
 

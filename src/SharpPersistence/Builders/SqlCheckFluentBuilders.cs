@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using SharpPersistence.Builders;
 using SharpPersistence.Models.Internals;
 
@@ -132,6 +133,30 @@ public sealed class SqlColumnBuilder<TEntity, TProp>
     public SqlPredicate LessThanOrEqual<TOther>(SqlColumnBuilder<TEntity, TOther> other)
         => Compare(SqlOperators.LessThanOrEqual, RequireOther(other).Node);
 
+    [OverloadResolutionPriority(-1)]
+    public SqlPredicate EqualTo(SqlBuiltExpression other)
+        => Compare(SqlOperators.Equal, RequireBuilt(other).Node);
+
+    [OverloadResolutionPriority(-1)]
+    public SqlPredicate NotEqualTo(SqlBuiltExpression other)
+        => Compare(SqlOperators.NotEqual, RequireBuilt(other).Node);
+
+    [OverloadResolutionPriority(-1)]
+    public SqlPredicate GreaterThan(SqlBuiltExpression other)
+        => Compare(SqlOperators.GreaterThan, RequireBuilt(other).Node);
+
+    [OverloadResolutionPriority(-1)]
+    public SqlPredicate GreaterThanOrEqual(SqlBuiltExpression other)
+        => Compare(SqlOperators.GreaterThanOrEqual, RequireBuilt(other).Node);
+
+    [OverloadResolutionPriority(-1)]
+    public SqlPredicate LessThan(SqlBuiltExpression other)
+        => Compare(SqlOperators.LessThan, RequireBuilt(other).Node);
+
+    [OverloadResolutionPriority(-1)]
+    public SqlPredicate LessThanOrEqual(SqlBuiltExpression other)
+        => Compare(SqlOperators.LessThanOrEqual, RequireBuilt(other).Node);
+
     public SqlPredicate EqualToRawColumn(string columnName)
         => Compare(SqlOperators.Equal, RawColExpression(columnName));
 
@@ -212,8 +237,36 @@ public sealed class SqlColumnBuilder<TEntity, TProp>
 
     public SqlPredicate IsNotNull() => new(new SqlNullCheckExpression(Node, Negated: true), Context);
 
+    /// <summary>
+    /// Appends a raw SQL condition after the rendered column expression (e.g. <c>"~ '^ORD-[0-9]+$'"</c>).
+    /// </summary>
+    public SqlPredicate RawPredicate(string rawCondition)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(rawCondition);
+        var renderedColumn = SqlCheckRenderer.Render(Node, Context);
+        return new SqlPredicate(new SqlRawExpression($"{renderedColumn} {rawCondition.Trim()}"), Context);
+    }
+
+    /// <summary>
+    /// Formats a raw SQL boolean predicate using the rendered column expression (e.g. <c>col =&gt; $"REGEXP_LIKE({col}, '^ORD-[0-9]+$')"</c>).
+    /// </summary>
+    public SqlPredicate RawPredicate(Func<string, string> format)
+    {
+        ArgumentNullException.ThrowIfNull(format);
+        var renderedColumn = SqlCheckRenderer.Render(Node, Context);
+        var sql = format(renderedColumn);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sql);
+        return new SqlPredicate(new SqlRawExpression(sql), Context);
+    }
+
     private SqlPredicate Compare(string op, SqlExpression right)
         => new(new SqlBinaryExpression(Node, op, right), Context);
+
+    private static SqlBuiltExpression RequireBuilt(SqlBuiltExpression other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        return other;
+    }
 
     private static SqlColumnBuilder<TEntity, TOther> RequireOther<TOther>(SqlColumnBuilder<TEntity, TOther> other)
     {
@@ -445,6 +498,55 @@ public class SqlBuiltExpression
     }
 
     public override string ToString() => SqlCheckRenderer.Render(Node, Context);
+
+    public SqlPredicate EqualTo(object? value) => Compare(SqlOperators.Equal, new SqlLiteralExpression(value));
+
+    public SqlPredicate NotEqualTo(object? value) => Compare(SqlOperators.NotEqual, new SqlLiteralExpression(value));
+
+    public SqlPredicate GreaterThan(object value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return Compare(SqlOperators.GreaterThan, new SqlLiteralExpression(value));
+    }
+
+    public SqlPredicate GreaterThanOrEqual(object value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return Compare(SqlOperators.GreaterThanOrEqual, new SqlLiteralExpression(value));
+    }
+
+    public SqlPredicate LessThan(object value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return Compare(SqlOperators.LessThan, new SqlLiteralExpression(value));
+    }
+
+    public SqlPredicate LessThanOrEqual(object value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return Compare(SqlOperators.LessThanOrEqual, new SqlLiteralExpression(value));
+    }
+
+    [OverloadResolutionPriority(-1)]
+    public SqlPredicate EqualTo(SqlBuiltExpression other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        return Compare(SqlOperators.Equal, other.Node);
+    }
+
+    [OverloadResolutionPriority(-1)]
+    public SqlPredicate NotEqualTo(SqlBuiltExpression other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        return Compare(SqlOperators.NotEqual, other.Node);
+    }
+
+    public SqlPredicate IsNull() => new(new SqlNullCheckExpression(Node, Negated: false), Context);
+
+    public SqlPredicate IsNotNull() => new(new SqlNullCheckExpression(Node, Negated: true), Context);
+
+    private SqlPredicate Compare(string op, SqlExpression right)
+        => new(new SqlBinaryExpression(Node, op, right), Context);
 
     public static implicit operator string(SqlBuiltExpression expression) => expression.ToString();
     public static implicit operator SqlExpression(SqlBuiltExpression expression) => expression.Node;

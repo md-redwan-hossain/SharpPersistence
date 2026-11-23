@@ -155,7 +155,8 @@ public sealed class MigrationManager : IMigrationManager
                 _options.IdentifierCase,
                 sortedRegistries,
                 _options.PropertyConventions,
-                _options.Enums);
+                _options.Enums,
+                _options.CheckConstraintOptions);
 
             var result = StandaloneSchemaDiffer.GenerateDiff(
                 currentSchema,

@@ -31,7 +31,8 @@ internal sealed class SchemaDriftVerifier
                 _options.IdentifierCase,
                 sortedRegistries,
                 _options.PropertyConventions,
-                _options.Enums);
+                _options.Enums,
+                _options.CheckConstraintOptions);
 
             var registryName = registry.GetType().Name;
             foreach (var table in schema.Tables)

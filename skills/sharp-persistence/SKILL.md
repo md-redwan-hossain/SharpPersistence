@@ -13,12 +13,21 @@ Never use the obsolete `SqlCheckConstraintGenerator`, `Rdbms`, or `SqlNamingConv
 ## Setup
 
 ```csharp
+// Non-generic (multi-entity)
 var cc = new SqlCheckConstraintBuilder
 {
     Dialect = SqlDialect.PostgreSql,            // PostgreSql | MySql | SqlServer | Oracle | Sqlite
     IdentifierCase = SqlIdentifierCase.LowerSnakeCase, // PascalCase | LowerSnakeCase | UpperSnakeCase
     DelimitIdentifiers = true,                  // required
     NestedSeparator = "_"                       // optional, default "_"
+};
+
+// Entity-scoped generic (single entity — combines cc + cc.For<Order>() into one object)
+var orderCc = new SqlCheckConstraintBuilder<Order>
+{
+    Dialect = SqlDialect.PostgreSql,
+    IdentifierCase = SqlIdentifierCase.LowerSnakeCase,
+    DelimitIdentifiers = true
 };
 ```
 
@@ -34,9 +43,13 @@ Every predicate/built expression implicitly converts to `string` (`HasCheckConst
 
 ## Fluent Operations
 
-- **Comparisons (value or lambda/column):** `EqualTo`, `NotEqualTo`, `GreaterThan`, `GreaterThanOrEqual`, `LessThan`, `LessThanOrEqual`, `Between`, `NotBetween`, `In`, `NotIn`, `IsNull`, `IsNotNull`.
+- **Comparisons (value, lambda/column, or `SqlBuiltExpression`):** `EqualTo`, `NotEqualTo`, `GreaterThan`, `GreaterThanOrEqual`, `LessThan`, `LessThanOrEqual`, `Between`, `NotBetween`, `In`, `NotIn`, `IsNull`, `IsNotNull`.
   - `EqualTo(null)` / `NotEqualTo(null)` render `IS NULL` / `IS NOT NULL`.
   - Use `*RawColumn` / `*RawColumns` when comparing against a raw string column name (`EqualToRawColumn("usr_Email")`).
+  - `SqlBuiltExpression` (from `Case()` or `Raw(...)`) also supports `EqualTo`, `NotEqualTo`, `GreaterThan`, `GreaterThanOrEqual`, `LessThan`, `LessThanOrEqual`, `IsNull`, and `IsNotNull`, returning a `SqlPredicate`.
+- **Column-level raw predicates:**
+  - `col.RawPredicate("~ '^ORD-[0-9]+$'")` — appends a postfix/infix raw condition after the rendered column (`"code" ~ '^ORD-[0-9]+$'`).
+  - `col.RawPredicate(c => $"REGEXP_LIKE({c}, '^ORD-[0-9]+$')")` — formats a function-wrapped or multi-reference raw predicate using the rendered column without magic placeholders.
 - **String (`string` columns only):** `.Length()` (returns comparisons only—no math), `.Trim()`, `.Lower()`, `.Upper()`, `.Like(pattern)`, `.NotLike(pattern)`.
   - Reject whitespace: `col.Trim().Length().GreaterThan(0)` (for **Oracle**, use `col.Trim().IsNotNull()` because Oracle treats `''` as `NULL`).
 - **Arithmetic (`INumber<T>` / `INumber<T>?` columns only):** `.Math()` unlocks `.Plus(...)`, `.Minus(...)`, `.MultiplyBy(...)`, `.DivideBy(...)`, `.Modulo(...)`, and `.Abs()`, plus numeric comparisons.
@@ -94,6 +107,35 @@ builder.ToTable(t =>
     t.HasCheckConstraint("ck_order_tenant",
         cc.RawColumn<Guid>("tenant_id").NotEqualTo(Guid.Empty));
 });
+```
+
+## Using with `SharpPersistence.Migrator`
+
+`EntityBuilder<TEntity>.HasCheckConstraint` accepts `Func<SqlCheckConstraintBuilder<TEntity>, SqlPredicate>` directly (inheriting `Dialect` and `IdentifierCase` automatically) and returns `CheckConstraintBuilder<TEntity>` for per-constraint fluent overrides:
+
+```csharp
+// Global defaults in AddDbMigrator (defaults: DelimitIdentifiers = true, NestedColumnSeparator = "_")
+options.ConfigureCheckConstraintBuilder(cc => cc
+    .UseDelimitedIdentifiers(false)
+    .UseNestedColumnSeparator("__"));
+
+// Entity configuration
+builder.HasCheckConstraint(
+    "ck_orders_discount",
+    cc => cc.Column(x => x.Discount).LessThanOrEqual(
+        cc.Case()
+            .When(cc.Column(x => x.IsVip).EqualTo(true)).Then(50m)
+            .EndWithElse(10m)));
+
+builder.HasCheckConstraint(
+        "ck_orders_shipping_zip",
+        cc => cc.NestedColumn(x => x.Shipping.ZipCode).IsNotNull())
+    .UseDelimitedIdentifiers(true)
+    .UseNestedColumnSeparator("__");
+
+builder.HasCheckConstraint(
+    "ck_orders_code",
+    cc => cc.Column(x => x.Code).RawPredicate("~ '^ORD-[0-9]+$'"));
 ```
 
 ## Migrating from `SqlCheckConstraintGenerator`

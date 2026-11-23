@@ -137,6 +137,14 @@ public class MigrationManagerOptionsBuilder
         return this;
     }
 
+    public MigrationManagerOptionsBuilder ConfigureCheckConstraintBuilder(
+        Action<CheckConstraintBuilderOptionsBuilder> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        configure(new CheckConstraintBuilderOptionsBuilder(State.Options.CheckConstraintOptions));
+        return this;
+    }
+
     public MigrationManagerOptionsBuilder AddRegistry<TRegistry>()
         where TRegistry : class, IEntityRegistry, new()
     {

@@ -47,10 +47,11 @@ public static class SchemaScanner
         SqlIdentifierCase identifierCase,
         IReadOnlyList<PropertyConventionRule>? propertyConventions = null,
         IReadOnlyList<PostgresEnumSchema>? pgEnums = null,
+        CheckConstraintBuilderOptions? checkConstraintOptions = null,
         params Assembly[] assemblies)
     {
         var registries = DiscoverRegistries(assemblies);
-        return ScanRegistries(dialect, identifierCase, propertyConventions, pgEnums, [.. registries]);
+        return ScanRegistries(dialect, identifierCase, propertyConventions, pgEnums, checkConstraintOptions, [.. registries]);
     }
 
     public static DatabaseSchema ScanRegistries(
@@ -58,9 +59,10 @@ public static class SchemaScanner
         SqlIdentifierCase identifierCase,
         IReadOnlyList<PropertyConventionRule>? propertyConventions = null,
         IReadOnlyList<PostgresEnumSchema>? pgEnums = null,
+        CheckConstraintBuilderOptions? checkConstraintOptions = null,
         params IEntityRegistry[] registries)
     {
-        var (buildersByType, sequences) = BuildTableBuilders(registries, dialect, identifierCase, propertyConventions);
+        var (buildersByType, sequences) = BuildTableBuilders(registries, dialect, identifierCase, propertyConventions, checkConstraintOptions);
         return SchemaFinalizer.FinalizeSchema(buildersByType, includedEntityTypes: null, sequences, pgEnums);
     }
 
@@ -70,14 +72,15 @@ public static class SchemaScanner
         SqlIdentifierCase identifierCase,
         IReadOnlyList<IEntityRegistry>? allRegistries = null,
         IReadOnlyList<PropertyConventionRule>? propertyConventions = null,
-        IReadOnlyList<PostgresEnumSchema>? pgEnums = null)
+        IReadOnlyList<PostgresEnumSchema>? pgEnums = null,
+        CheckConstraintBuilderOptions? checkConstraintOptions = null)
     {
         var contextRegistries = allRegistries is { Count: > 0 }
             ? allRegistries
             : [registry];
 
         var evaluated = EntityRegistryBuilder.Evaluate(registry);
-        var (buildersByType, _) = BuildTableBuilders(contextRegistries, dialect, identifierCase, propertyConventions);
+        var (buildersByType, _) = BuildTableBuilders(contextRegistries, dialect, identifierCase, propertyConventions, checkConstraintOptions);
         var ownedTypes = evaluated.Mappings.Keys.ToHashSet();
         var ownedSequences = BuildSequenceSchemas(evaluated, dialect);
 
@@ -88,7 +91,8 @@ public static class SchemaScanner
         IReadOnlyList<IEntityRegistry> registries,
         SqlDialect dialect,
         SqlIdentifierCase identifierCase,
-        IReadOnlyList<PropertyConventionRule>? propertyConventions)
+        IReadOnlyList<PropertyConventionRule>? propertyConventions,
+        CheckConstraintBuilderOptions? checkConstraintOptions)
     {
         var buildersByType = new Dictionary<Type, TableDefinition>();
         var sequences = new List<SequenceSchema>();
@@ -116,7 +120,8 @@ public static class SchemaScanner
                     defaultTableName,
                     defaultSchema,
                     dialect,
-                    identifierCase);
+                    identifierCase,
+                    checkConstraintOptions);
 
                 foreach (var prop in entityType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
                 {

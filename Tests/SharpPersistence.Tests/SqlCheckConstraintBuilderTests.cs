@@ -487,6 +487,61 @@ public class SqlCheckConstraintBuilderTests
                     .Replace("is_overridable", "is_active"));
         }
     }
+
+    [Fact]
+    public void GenericSqlCheckConstraintBuilder_ComposesColumnsIfAndCase()
+    {
+        var cc = new SqlCheckConstraintBuilder<InvoiceLine>
+        {
+            Dialect = SqlDialect.PostgreSql,
+            IdentifierCase = SqlIdentifierCase.LowerSnakeCase,
+            DelimitIdentifiers = true
+        };
+
+        cc.If(cc.Column(x => x.Discount).GreaterThan(0))
+            .Then(cc.Column(x => x.UnitPrice).GreaterThan(0))
+            .ShouldRender("""(NOT ("discount" > 0) OR "unit_price" > 0)""");
+
+        cc.Column(x => x.Discount).LessThanOrEqual(
+            cc.Case()
+                .When(cc.Column(x => x.UnitPrice).GreaterThan(100)).Then(50)
+                .EndWithElse(10))
+            .ShouldRender("""
+                          "discount" <= (CASE WHEN "unit_price" > 100 THEN 50 ELSE 10 END)
+                          """);
+
+        cc.Case()
+            .When(cc.Column(x => x.UnitPrice).GreaterThan(0)).Then(1)
+            .EndWithElse(0)
+            .EqualTo(1)
+            .ShouldRender("""(CASE WHEN "unit_price" > 0 THEN 1 ELSE 0 END) = 1""");
+    }
+
+    [Fact]
+    public void ColumnRawPredicate_SupportsPostfixAndFormattedLambda()
+    {
+        var pg = new SqlCheckConstraintBuilder<AppPolicy>
+        {
+            Dialect = SqlDialect.PostgreSql,
+            IdentifierCase = SqlIdentifierCase.LowerSnakeCase,
+            DelimitIdentifiers = true
+        };
+
+        pg.Column(x => x.Code).RawPredicate("~ '^ORD-[0-9]+$'")
+            .ShouldRender("""
+                          "code" ~ '^ORD-[0-9]+$'
+                          """);
+
+        var oracle = new SqlCheckConstraintBuilder<AppPolicy>
+        {
+            Dialect = SqlDialect.Oracle,
+            IdentifierCase = SqlIdentifierCase.UpperSnakeCase,
+            DelimitIdentifiers = true
+        };
+
+        oracle.Column(x => x.Code).RawPredicate(col => $"REGEXP_LIKE({col}, '^ORD-[0-9]+$')")
+            .ShouldRender("""REGEXP_LIKE("CODE", '^ORD-[0-9]+$')""");
+    }
 }
 
 internal static class SqlBuiltExpressionTestExtensions
