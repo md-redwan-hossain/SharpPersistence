@@ -568,11 +568,6 @@
           "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.15"
         }
       },
-      "Microsoft.Extensions.DependencyInjection.Abstractions": {
-        "type": "Transitive",
-        "resolved": "10.0.15",
-        "contentHash": "KczR2nV7ooeimtZxAawPht/FJUHnX+uoWy7y4pba+iaRQBwUM2NwtiqZg+/FpZDHUf2RkkzveGkhMTWDNzmDUA=="
-      },
       "Microsoft.Extensions.DependencyModel": {
         "type": "Transitive",
         "resolved": "10.0.15",
@@ -775,7 +770,7 @@
         "type": "Project",
         "dependencies": {
           "Humanizer": "[3.0.10, )",
-          "SharpPersistence.Abstractions": "[1.0.3, )"
+          "SharpPersistence.Abstractions": "[2.1.0, )"
         }
       },
       "sharppersistence.abstractions": {
@@ -786,7 +781,7 @@
         "dependencies": {
           "Microsoft.EntityFrameworkCore": "[10.0.15, )",
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.15, )",
-          "SharpPersistence.Abstractions": "[1.0.3, )"
+          "SharpPersistence.Abstractions": "[2.1.0, )"
         }
       },
       "Humanizer": {
@@ -871,6 +866,12 @@
           "Microsoft.Extensions.Configuration.Abstractions": "10.0.15",
           "Microsoft.Extensions.Logging": "10.0.15"
         }
+      },
+      "Microsoft.Extensions.DependencyInjection.Abstractions": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.0, )",
+        "resolved": "10.0.15",
+        "contentHash": "KczR2nV7ooeimtZxAawPht/FJUHnX+uoWy7y4pba+iaRQBwUM2NwtiqZg+/FpZDHUf2RkkzveGkhMTWDNzmDUA=="
       }
     },
     "net11.0": {
@@ -1598,7 +1599,7 @@
         "type": "Project",
         "dependencies": {
           "Humanizer": "[3.0.10, )",
-          "SharpPersistence.Abstractions": "[1.0.3, )"
+          "SharpPersistence.Abstractions": "[2.1.0, )"
         }
       },
       "sharppersistence.abstractions": {
@@ -1609,7 +1610,7 @@
         "dependencies": {
           "Microsoft.EntityFrameworkCore": "[11.0.0, )",
           "Microsoft.EntityFrameworkCore.Relational": "[11.0.0, )",
-          "SharpPersistence.Abstractions": "[1.0.3, )"
+          "SharpPersistence.Abstractions": "[2.1.0, )"
         }
       },
       "Humanizer": {

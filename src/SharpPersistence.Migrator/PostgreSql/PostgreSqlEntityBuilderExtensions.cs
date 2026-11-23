@@ -1,0 +1,57 @@
+using System.Globalization;
+using SharpPersistence.Migrator.Builders;
+
+namespace SharpPersistence.Migrator.PostgreSql;
+
+public static class PostgreSqlEntityBuilderExtensions
+{
+    public static EntityBuilder<TEntity> IsUnlogged<TEntity>(
+        this EntityBuilder<TEntity> builder,
+        bool unlogged = true)
+        where TEntity : class
+    {
+        builder.Definition.IsUnlogged = unlogged;
+        return builder;
+    }
+
+    public static EntityBuilder<TEntity> HasTablespace<TEntity>(
+        this EntityBuilder<TEntity> builder,
+        string? tablespace)
+        where TEntity : class
+    {
+        builder.Definition.Tablespace = string.IsNullOrWhiteSpace(tablespace) ? null : tablespace.Trim();
+        return builder;
+    }
+
+    public static EntityBuilder<TEntity> HasStorageParameter<TEntity>(
+        this EntityBuilder<TEntity> builder,
+        PostgresStorageParameter parameter,
+        object value)
+        where TEntity : class =>
+        builder.HasStorageParameter(parameter.ToSqlName(), value);
+
+    public static EntityBuilder<TEntity> HasStorageParameter<TEntity>(
+        this EntityBuilder<TEntity> builder,
+        string name,
+        object value)
+        where TEntity : class
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new ArgumentException("Storage parameter name cannot be empty.", nameof(name));
+        }
+
+        ArgumentNullException.ThrowIfNull(value);
+
+        var formatted = value switch
+        {
+            bool b => b ? "true" : "false",
+            IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
+            _ => value.ToString() ?? string.Empty
+        };
+
+        builder.Definition.StorageParameters ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        builder.Definition.StorageParameters[name.Trim()] = formatted;
+        return builder;
+    }
+}
