@@ -13,7 +13,7 @@ using SharpPersistence.Migrator.Models;
 using SharpPersistence.Migrator.Services;
 using static SharpPersistence.Migrator.Dialects.SqlFormatHelper;
 
-namespace SharpPersistence.Migrator.EfCore;
+namespace SharpPersistence.Migrator.Cli.Translators;
 
 internal sealed record TranslatedEfCoreMigration(string MigrationId, string SqlScript);
 

@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using SharpPersistence.Abstractions;
+using SharpPersistence.Abstractions.Attributes;
 
 namespace SharpPersistence.Migrator.Attributes;
 

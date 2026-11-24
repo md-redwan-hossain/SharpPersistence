@@ -2,7 +2,7 @@ using SharpPersistence.Migrator.Abstractions;
 using SharpPersistence.Migrator.Models;
 using SharpPersistence.Migrator.Services;
 
-namespace SharpPersistence.Migrator.EfCore;
+namespace SharpPersistence.Migrator.Cli.Translators;
 
 internal static class EfCoreMigrationManagerExtensions
 {

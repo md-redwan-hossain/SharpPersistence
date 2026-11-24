@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace SharpPersistence.Migrator.EfCore;
+namespace SharpPersistence.Migrator.Cli.Translators;
 
 internal sealed record TranslatedEfCoreConfig(
     string SourceFilePath,

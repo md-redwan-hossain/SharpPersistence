@@ -1,5 +1,5 @@
 using System.ComponentModel;
-using SharpPersistence.Migrator.EfCore;
+using SharpPersistence.Migrator.Cli.Translators;
 using SharpPersistence.Migrator.Models;
 using Spectre.Console;
 using Spectre.Console.Cli;

@@ -1,6 +1,6 @@
 using System.ComponentModel;
 
-namespace SharpPersistence.Abstractions;
+namespace SharpPersistence.Abstractions.Attributes;
 
 /// <summary>
 /// Base class for module-specific entity marker attributes used by compile-time entity discovery.

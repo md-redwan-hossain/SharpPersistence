@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 using SharpPersistence.Enums;
 using SharpPersistence.Migrator.EfCore;
 using SharpPersistence.Migrator.Enums;
+using EfCoreMigrationTranslator = SharpPersistence.Migrator.Cli.Translators.EfCoreMigrationTranslator;
 
 namespace SharpPersistence.Migrator.Tests;
 

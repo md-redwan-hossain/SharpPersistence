@@ -1,3 +1,4 @@
+using SharpPersistence.Migrator.Cli.Translators;
 using SharpPersistence.Migrator.EfCore;
 
 namespace SharpPersistence.Migrator.Tests;
