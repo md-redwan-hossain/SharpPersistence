@@ -2,14 +2,13 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using SharpPersistence.Enums;
-using SharpPersistence.Migrator.Abstractions;
 using SharpPersistence.Migrator.Dialects;
 using SharpPersistence.Migrator.Enums;
 using SharpPersistence.Migrator.Models;
 
 namespace SharpPersistence.Migrator.Diffing;
 
-public static class StandaloneSchemaDiffer
+internal static class StandaloneSchemaDiffer
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -54,18 +53,24 @@ public static class StandaloneSchemaDiffer
             }
         }
 
-        ISqlDialectGenerator generator = sqlDialect switch
-        {
-            SqlDialect.PostgreSql => new PostgresDialectGenerator(),
-            SqlDialect.Oracle => new OracleDialectGenerator(oracleCompatibility),
-            _ => throw new NotSupportedException($"SQL generator for '{sqlDialect}' is not supported yet.")
-        };
+        var generator = MigrationDialectRegistry.Get(sqlDialect, oracleCompatibility).CreateDdlGenerator();
 
         var sql = mainOps.Count > 0 ? generator.GenerateSql(mainOps) : string.Empty;
         var deferredSql = deferredOps.Count > 0 ? generator.GenerateSql(deferredOps) : string.Empty;
         var updatedJson = JsonSerializer.Serialize(currentSchema, JsonOptions);
 
         return new SchemaDiffResult(true, sql, deferredSql, updatedJson);
+    }
+
+    internal static int CountPendingOperations(DatabaseSchema currentSchema, string? existingSnapshotJson)
+    {
+        DatabaseSchema? previousSchema = null;
+        if (!string.IsNullOrWhiteSpace(existingSnapshotJson))
+        {
+            previousSchema = JsonSerializer.Deserialize<DatabaseSchema>(existingSnapshotJson, JsonOptions);
+        }
+
+        return ComputeOperations(previousSchema, currentSchema, confirmRename: null).Count;
     }
 
     private static List<SchemaOperation> ComputeOperations(

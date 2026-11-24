@@ -7,7 +7,7 @@ using static SharpPersistence.Migrator.Dialects.SqlFormatHelper;
 
 namespace SharpPersistence.Migrator.Dialects;
 
-public sealed class PostgresDialectGenerator : ISqlDialectGenerator
+internal sealed class PostgresDialectGenerator : ISqlDialectGenerator
 {
     public string GenerateSql(IReadOnlyList<SchemaOperation> ops)
     {

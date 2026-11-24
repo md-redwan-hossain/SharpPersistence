@@ -7,9 +7,9 @@ using SharpPersistence.Migrator.Models;
 
 namespace SharpPersistence.Migrator.Configuration;
 
-public sealed record PropertyConventionRule(Type TargetClrType, Action<ColumnBuilder> Configure);
+internal sealed record PropertyConventionRule(Type TargetClrType, Action<ColumnBuilder> Configure);
 
-public sealed class MigrationManagerOptions
+internal sealed class MigrationManagerOptions
 {
     public SqlDialect Dialect { get; internal set; }
     public SqlIdentifierCase IdentifierCase { get; internal set; }

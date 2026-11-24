@@ -15,9 +15,9 @@ using static SharpPersistence.Migrator.Dialects.SqlFormatHelper;
 
 namespace SharpPersistence.Migrator.EfCore;
 
-public sealed record TranslatedEfCoreMigration(string MigrationId, string SqlScript);
+internal sealed record TranslatedEfCoreMigration(string MigrationId, string SqlScript);
 
-public static partial class EfCoreMigrationTranslator
+internal static partial class EfCoreMigrationTranslator
 {
     private const string NpgsqlProviderName = "Npgsql.EntityFrameworkCore.PostgreSQL";
 

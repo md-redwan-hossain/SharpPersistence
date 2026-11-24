@@ -5,7 +5,7 @@ using SharpPersistence.Enums;
 
 namespace SharpPersistence.Migrator.Services;
 
-public static class NamingFormatter
+internal static class NamingFormatter
 {
     public static string Format(string identifier, SqlIdentifierCase convention)
     {

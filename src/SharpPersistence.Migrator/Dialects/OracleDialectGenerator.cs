@@ -8,7 +8,7 @@ using static SharpPersistence.Migrator.Dialects.SqlFormatHelper;
 
 namespace SharpPersistence.Migrator.Dialects;
 
-public sealed class OracleDialectGenerator : ISqlDialectGenerator
+internal sealed class OracleDialectGenerator : ISqlDialectGenerator
 {
     private readonly OracleDbCompatibility _compatibility;
 

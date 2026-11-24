@@ -20,6 +20,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <InternalsVisibleTo Include="SharpPersistence.Migrator.Cli" />
         <InternalsVisibleTo Include="SharpPersistence.Migrator.EfCore" />
         <InternalsVisibleTo Include="SharpPersistence.Migrator.Tests" />
     </ItemGroup>
@@ -47,6 +48,13 @@
 
     <ItemGroup>
         <ProjectReference Include="..\SharpPersistence\SharpPersistence.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="buildTransitive\SharpPersistence.Migrator.props"
+              Pack="true"
+              PackagePath="buildTransitive\SharpPersistence.Migrator.props"
+              Visible="false" />
     </ItemGroup>
 
 </Project>

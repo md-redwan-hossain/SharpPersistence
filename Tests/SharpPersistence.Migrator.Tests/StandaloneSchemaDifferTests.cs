@@ -35,9 +35,9 @@ public sealed class StandaloneSchemaDifferTests
             registry.Entity<Profile>(b =>
             {
                 b.ToTable("profiles");
-                b.HasForeignKey<Account>(x => x.AccountId)
-                    .References(a => a.Id)
-                    .IsUnique()
+                b.HasForeignKey(x => x.AccountId)
+                    .References<Account>(a => a.Id)
+                    .IsOneToOne()
                     .OnDelete(DbReferentialAction.Cascade);
             });
         }

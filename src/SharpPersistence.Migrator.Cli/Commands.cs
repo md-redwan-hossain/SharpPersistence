@@ -1,11 +1,12 @@
 using System.ComponentModel;
 using SharpPersistence.Migrator.EfCore;
+using SharpPersistence.Migrator.Models;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
 namespace SharpPersistence.Migrator.Cli;
 
-public class SharedSettings : CommandSettings
+internal class SharedSettings : CommandSettings
 {
     [CommandOption("-s|--startup-project <PATH>")]
     [Description("Startup .csproj file or directory containing IDesignTimeMigrationFactory (auto-detected from current directory if omitted).")]
@@ -24,7 +25,7 @@ public class SharedSettings : CommandSettings
     public bool NoBuild { get; init; }
 }
 
-public sealed class DiffSettings : SharedSettings
+internal sealed class DiffSettings : SharedSettings
 {
     [CommandOption("-n|--name <NAME>")]
     [Description("Migration name (required).")]
@@ -52,7 +53,7 @@ public sealed class DiffSettings : SharedSettings
             : ValidationResult.Success();
 }
 
-public sealed class MigrateSettings : SharedSettings
+internal sealed class MigrateSettings : SharedSettings
 {
     [CommandOption("--dry-run")]
     [Description("Preview pending scripts without executing against the database.")]
@@ -63,7 +64,7 @@ public sealed class MigrateSettings : SharedSettings
     public bool SyncEfHistory { get; init; }
 }
 
-public sealed class TranslateEfSettings : SharedSettings
+internal sealed class TranslateEfSettings : SharedSettings
 {
     [CommandArgument(0, "<MIGRATIONS_DIR>")]
     [Description("Path to the EF Core Migrations folder containing *.cs migration files.")]
@@ -74,14 +75,44 @@ public sealed class TranslateEfSettings : SharedSettings
     public bool DryRun { get; init; }
 }
 
-public sealed class DryRunSettings : SharedSettings
+internal sealed class DryRunSettings : SharedSettings
 {
     [CommandOption("--dry-run")]
     [Description("Preview without writing changes.")]
     public bool DryRun { get; init; }
 }
 
-public sealed class DiffCommand : AsyncCommand<DiffSettings>
+internal sealed class DoctorSettings : SharedSettings
+{
+    [CommandOption("-r|--registry <REGISTRY>")]
+    [Description("Optional registry class name to check.")]
+    public string? RegistryFilter { get; init; }
+
+    [CommandOption("--check-db")]
+    [Description("Also verify live database connectivity, migration history, and schema sync.")]
+    public bool CheckDb { get; init; }
+}
+
+internal sealed class TranslateEfConfigsSettings : CommandSettings
+{
+    [CommandArgument(0, "<CONFIGS_DIR>")]
+    [Description("Directory containing EF Core IEntityTypeConfiguration<T> .cs files.")]
+    public string ConfigsDirectory { get; init; } = string.Empty;
+
+    [CommandOption("-o|--output-dir <DIR>")]
+    [Description("Output directory for translated IEntityConfiguration<T> files (defaults to overwriting in place).")]
+    public string? OutputDir { get; init; }
+
+    [CommandOption("--no-attribute")]
+    [Description("Do not add [EntityConfiguration<T>] attributes to translated classes.")]
+    public bool NoAttribute { get; init; }
+
+    [CommandOption("--dry-run")]
+    [Description("Preview translated files without writing to disk.")]
+    public bool DryRun { get; init; }
+}
+
+internal sealed class DiffCommand : AsyncCommand<DiffSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, DiffSettings settings)
     {
@@ -137,7 +168,45 @@ public sealed class DiffCommand : AsyncCommand<DiffSettings>
     }
 }
 
-public sealed class VerifyCommand : AsyncCommand<SharedSettings>
+internal sealed class TranslateEfConfigsCommand : Command<TranslateEfConfigsSettings>
+{
+    public override int Execute(CommandContext context, TranslateEfConfigsSettings settings)
+    {
+        var inputDir = Path.GetFullPath(settings.ConfigsDirectory);
+        var translated = EfCoreConfigTranslator.TranslateDirectory(
+            inputDir,
+            settings.OutputDir,
+            dryRun: settings.DryRun,
+            addEntityConfigurationAttribute: !settings.NoAttribute);
+
+        if (translated.Count == 0)
+        {
+            AnsiConsole.MarkupLine($"[grey]No IEntityTypeConfiguration<T> classes found in: {Markup.Escape(inputDir)}[/]");
+            return 0;
+        }
+
+        var badge = settings.DryRun ? "[yellow][[DRY-RUN]][/] " : string.Empty;
+        foreach (var item in translated)
+        {
+            AnsiConsole.MarkupLine(
+                $"{badge}[cyan][[{Markup.Escape(item.EntityTypeName)}]][/] {(settings.DryRun ? "Preview" : "Translated")}: [green]{Markup.Escape(item.RelativePath)}[/]");
+
+            foreach (var warning in item.Warnings)
+            {
+                AnsiConsole.MarkupLine($"  [yellow]WARN:[/] {Markup.Escape(warning)}");
+            }
+
+            if (settings.DryRun)
+            {
+                AnsiConsole.WriteLine(item.TranslatedSource);
+            }
+        }
+
+        return 0;
+    }
+}
+
+internal sealed class VerifyCommand : AsyncCommand<SharedSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, SharedSettings settings)
     {
@@ -185,7 +254,7 @@ public sealed class VerifyCommand : AsyncCommand<SharedSettings>
     }
 }
 
-public sealed class MigrateCommand : AsyncCommand<MigrateSettings>
+internal sealed class MigrateCommand : AsyncCommand<MigrateSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, MigrateSettings settings)
     {
@@ -224,7 +293,7 @@ public sealed class MigrateCommand : AsyncCommand<MigrateSettings>
     }
 }
 
-public sealed class StatusCommand : AsyncCommand<SharedSettings>
+internal sealed class StatusCommand : AsyncCommand<SharedSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, SharedSettings settings)
     {
@@ -268,7 +337,7 @@ public sealed class StatusCommand : AsyncCommand<SharedSettings>
     }
 }
 
-public sealed class PendingCommand : AsyncCommand<SharedSettings>
+internal sealed class PendingCommand : AsyncCommand<SharedSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, SharedSettings settings)
     {
@@ -296,7 +365,7 @@ public sealed class PendingCommand : AsyncCommand<SharedSettings>
     }
 }
 
-public sealed class TranslateEfMigrationCommand : AsyncCommand<TranslateEfSettings>
+internal sealed class TranslateEfMigrationCommand : AsyncCommand<TranslateEfSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, TranslateEfSettings settings)
     {
@@ -330,7 +399,7 @@ public sealed class TranslateEfMigrationCommand : AsyncCommand<TranslateEfSettin
     }
 }
 
-public sealed class SyncEfCoreHistoryCommand : AsyncCommand<DryRunSettings>
+internal sealed class SyncEfCoreHistoryCommand : AsyncCommand<DryRunSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, DryRunSettings settings)
     {
@@ -355,6 +424,150 @@ public sealed class SyncEfCoreHistoryCommand : AsyncCommand<DryRunSettings>
         finally
         {
             await TargetAssemblyLoader.DisposeAsync(owner);
+        }
+    }
+}
+
+internal sealed class DoctorCommand : AsyncCommand<DoctorSettings>
+{
+    private const string PassIcon = "\u2713";
+    private const string FailIcon = "\u2717";
+    private const string ArrowIcon = "\u2192";
+    private const string DotIcon = "\u2022";
+
+    public override async Task<int> ExecuteAsync(CommandContext context, DoctorSettings settings)
+    {
+        LoadedMigrationContext loaded;
+        try
+        {
+            loaded = TargetAssemblyLoader.CreateManagerContext(settings);
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine("[bold]SharpPersistence Migrator Doctor[/]");
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("[bold underline]DI & Wiring[/]");
+            AnsiConsole.MarkupLine($"  [red]{FailIcon}[/] Failed to bootstrap DI container: {Markup.Escape(ex.Message)}");
+            AnsiConsole.WriteLine();
+            AnsiConsole.Write(new Rule().RuleStyle("grey"));
+            AnsiConsole.MarkupLine("Summary: [green]0 passed[/], [yellow]0 warnings[/], [red]1 error[/]  (exit code 1)");
+            return 1;
+        }
+
+        try
+        {
+            var report = await loaded.Manager.DiagnoseAsync(
+                settings.RegistryFilter,
+                checkDatabase: settings.CheckDb,
+                discoveredAssemblies: loaded.LoadedAssemblies);
+
+            var modeLabel = settings.CheckDb ? "Live DB" : "Offline";
+            AnsiConsole.MarkupLine("[bold]SharpPersistence Migrator Doctor[/]");
+            AnsiConsole.MarkupLine(
+                $"[grey]Host: {Markup.Escape(loaded.HostName)} ({report.Dialect})  {DotIcon}  Mode: {modeLabel}  {DotIcon}  Registries: {report.RegistryReports.Count}[/]");
+            AnsiConsole.WriteLine();
+
+            // DI & Wiring
+            AnsiConsole.MarkupLine("[bold]DI & Wiring[/]");
+            AnsiConsole.MarkupLine($"  [green]{PassIcon}[/] ServiceProvider bootstrapped ({Markup.Escape(loaded.BootstrapSource)})");
+            RenderItems(report.WiringChecks);
+
+            // Per-Registry summary
+            foreach (var reg in report.RegistryReports)
+            {
+                AnsiConsole.WriteLine();
+                AnsiConsole.MarkupLine(
+                    $"[bold]Registry: {Markup.Escape(reg.RegistryName)}[/] [grey]({reg.EntityCount} entities, {reg.ColumnCount} columns)[/]");
+                RenderItems(reg.Items);
+            }
+
+            // Cross-Registry Checks
+            if (report.CrossRegistryChecks.Count > 0)
+            {
+                AnsiConsole.WriteLine();
+                AnsiConsole.MarkupLine("[bold]Cross-Registry Checks[/]");
+                RenderItems(report.CrossRegistryChecks);
+            }
+
+            // Migration Scripts Coverage
+            if (report.MigrationCoverageChecks.Count > 0)
+            {
+                AnsiConsole.WriteLine();
+                AnsiConsole.MarkupLine("[bold]Migration Scripts[/]");
+                RenderItems(report.MigrationCoverageChecks);
+            }
+
+            // Live Database
+            if (report.DatabaseChecks.Count > 0)
+            {
+                AnsiConsole.WriteLine();
+                AnsiConsole.MarkupLine("[bold]Live Database[/]");
+                RenderItems(report.DatabaseChecks);
+            }
+
+            var totalPassed = report.PassedCount + 1; // includes ServiceProvider bootstrapped
+            var exitCode = report.HasErrors ? 1 : 0;
+
+            AnsiConsole.WriteLine();
+            AnsiConsole.Write(new Rule().RuleStyle("grey"));
+            AnsiConsole.MarkupLine(
+                $"Summary: [green]{totalPassed} passed[/], [yellow]{report.WarningCount} {(report.WarningCount == 1 ? "warning" : "warnings")}[/], [red]{report.ErrorCount} {(report.ErrorCount == 1 ? "error" : "errors")}[/]  (exit code {exitCode})");
+
+            if (!settings.CheckDb)
+            {
+                AnsiConsole.MarkupLine("[grey]Tip: Pass --check-db to also verify live database connectivity and schema sync.[/]");
+            }
+
+            return exitCode;
+        }
+        finally
+        {
+            await TargetAssemblyLoader.DisposeAsync(loaded.ServiceScopeOwner);
+        }
+    }
+
+    private static void RenderItems(IReadOnlyList<DoctorCheckItem> items)
+    {
+        var ungrouped = items.Where(i => string.IsNullOrWhiteSpace(i.EntityName));
+        foreach (var item in ungrouped)
+        {
+            RenderSingleItem(item, indent: "  ");
+        }
+
+        var groupedByEntity = items
+            .Where(i => !string.IsNullOrWhiteSpace(i.EntityName))
+            .GroupBy(i => i.EntityName!, StringComparer.Ordinal);
+
+        foreach (var group in groupedByEntity)
+        {
+            var worst = group.Max(i => i.Severity);
+            var badge = worst == DoctorSeverity.Error ? $"[red]{FailIcon}[/]" : "[yellow]![/]";
+            AnsiConsole.MarkupLine($"  {badge} [bold]{Markup.Escape(group.Key)}[/]");
+            foreach (var item in group)
+            {
+                var itemBadge = item.Severity == DoctorSeverity.Error ? $"[red]{FailIcon}[/]" : "[yellow]![/]";
+                AnsiConsole.MarkupLine($"      {itemBadge} {Markup.Escape(item.Message)}");
+                if (!string.IsNullOrWhiteSpace(item.Hint))
+                {
+                    AnsiConsole.MarkupLine($"        [grey]{ArrowIcon} {Markup.Escape(item.Hint)}[/]");
+                }
+            }
+        }
+    }
+
+    private static void RenderSingleItem(DoctorCheckItem item, string indent)
+    {
+        var badge = item.Severity switch
+        {
+            DoctorSeverity.Pass => $"[green]{PassIcon}[/]",
+            DoctorSeverity.Warning => "[yellow]![/]",
+            _ => $"[red]{FailIcon}[/]"
+        };
+
+        AnsiConsole.MarkupLine($"{indent}{badge} {Markup.Escape(item.Message)}");
+        if (!string.IsNullOrWhiteSpace(item.Hint))
+        {
+            AnsiConsole.MarkupLine($"{indent}    [grey]{ArrowIcon} {Markup.Escape(item.Hint)}[/]");
         }
     }
 }

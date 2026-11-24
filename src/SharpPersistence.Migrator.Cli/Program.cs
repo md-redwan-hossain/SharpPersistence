@@ -24,12 +24,21 @@ app.Configure(config =>
         .WithDescription("Translate existing EF Core C# migrations in a folder 1-to-1 into SQL scripts.")
         .WithExample("translate-ef-migration", "WebApi/Migrations", "--startup-project", "WebApi/WebApi.csproj");
 
+    config.AddCommand<TranslateEfConfigsCommand>("translate-ef-configs")
+        .WithDescription("Translate EF Core IEntityTypeConfiguration<T> C# files into SharpPersistence.Migrator IEntityConfiguration<T> files.")
+        .WithExample("translate-ef-configs", "Infrastructure/Configurations", "--output-dir", "Infrastructure/MigratorConfigs", "--dry-run");
+
     config.AddCommand<SyncEfCoreHistoryCommand>("sync-ef-history")
         .WithDescription("Mark _translated scripts already present in __EFMigrationsHistory as applied.");
 
     config.AddCommand<VerifyCommand>("verify")
         .WithDescription("Compare live database tables and columns against your C# schema to detect drift.")
         .WithExample("verify", "--startup-project", "WebApi/WebApi.csproj");
+
+    config.AddCommand<DoctorCommand>("doctor")
+        .WithDescription("Validate DI wiring, entity registries, configurations, migration script coverage, and optionally live database connectivity.")
+        .WithExample("doctor", "--startup-project", "WebApi/WebApi.csproj")
+        .WithExample("doctor", "--registry", "SalesRegistry", "--check-db");
 });
 
 return await app.RunAsync(args);

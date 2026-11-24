@@ -3,7 +3,7 @@ using SharpPersistence.Migrator.Enums;
 
 namespace SharpPersistence.Migrator.Models;
 
-public sealed class ForeignKeySchema
+internal sealed class ForeignKeySchema
 {
     public string Name { get; set; } = string.Empty;
     public List<string> DependentColumns { get; set; } = [];

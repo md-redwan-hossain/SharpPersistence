@@ -1,6 +1,6 @@
 namespace SharpPersistence.Migrator.Models;
 
-public sealed class PrimaryKeySchema
+internal sealed class PrimaryKeySchema
 {
     public string Name { get; set; } = string.Empty;
     public List<string> ColumnNames { get; set; } = [];

@@ -6,12 +6,27 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SharpPersistence.Migrator.Abstractions;
 using SharpPersistence.Migrator.Configuration;
+using SharpPersistence.Migrator.Services;
 
 namespace SharpPersistence.Migrator.Cli;
 
+internal sealed record LoadedMigrationContext(
+    object? ServiceScopeOwner,
+    MigrationManager Manager,
+    string RootPath,
+    string HostName,
+    string BootstrapSource,
+    IReadOnlyList<Assembly> LoadedAssemblies);
+
 internal static class TargetAssemblyLoader
 {
-    public static (object? ServiceScopeOwner, IMigrationManager Manager, string RootPath) CreateManager(SharedSettings settings)
+    public static (object? ServiceScopeOwner, MigrationManager Manager, string RootPath) CreateManager(SharedSettings settings)
+    {
+        var ctx = CreateManagerContext(settings);
+        return (ctx.ServiceScopeOwner, ctx.Manager, ctx.RootPath);
+    }
+
+    public static LoadedMigrationContext CreateManagerContext(SharedSettings settings)
     {
         var (assemblyPath, startupDir) = ResolveStartupAssembly(settings.StartupProjectPath, settings.NoBuild);
         var destinationRoot = ResolveDestinationDirectory(settings.DestinationProjectPath, startupDir);
@@ -19,6 +34,7 @@ internal static class TargetAssemblyLoader
 
         var alc = new TargetLoadContext(assemblyPath);
         var primaryAssembly = alc.LoadFromAssemblyPath(assemblyPath);
+        var hostName = primaryAssembly.GetName().Name ?? Path.GetFileNameWithoutExtension(assemblyPath);
         var loadedAssemblies = new List<Assembly> { primaryAssembly };
 
         var targetDir = Path.GetDirectoryName(assemblyPath)!;
@@ -75,13 +91,13 @@ internal static class TargetAssemblyLoader
             });
 
             var provider = services.BuildServiceProvider();
-            var manager = provider.GetRequiredService<IMigrationManager>();
-            return (provider, manager, outputRoot);
+            var manager = (MigrationManager)provider.GetRequiredService<IMigrationManager>();
+            return new LoadedMigrationContext(provider, manager, outputRoot, hostName, factoryType.Name, loadedAssemblies);
         }
 
         // Tier 2: Resolve IHost / IServiceProvider from Program.Main via Microsoft.Extensions.Hosting DiagnosticListener
         var host = ResolveHostFromEntryPoint(primaryAssembly, startupDir);
-        var hostManager = host.Services.GetService<IMigrationManager>()
+        var hostManager = host.Services.GetService<IMigrationManager>() as MigrationManager
             ?? throw new InvalidOperationException(
                 $"'{primaryAssembly.GetName().Name}' built an IHost, but IMigrationManager is not registered in DI. " +
                 "Call builder.Services.AddDbMigrator(...) in Program.cs or add an IDesignTimeMigrationFactory.");
@@ -89,7 +105,7 @@ internal static class TargetAssemblyLoader
         var options = host.Services.GetRequiredService<MigrationManagerOptions>();
         options.OverrideRootPath(outputRoot);
 
-        return (host, hostManager, outputRoot);
+        return new LoadedMigrationContext(host, hostManager, outputRoot, hostName, "Program.cs", loadedAssemblies);
     }
 
     public static async ValueTask DisposeAsync(object? owner)

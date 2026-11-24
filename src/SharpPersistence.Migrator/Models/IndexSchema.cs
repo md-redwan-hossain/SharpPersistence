@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace SharpPersistence.Migrator.Models;
 
-public sealed class IndexSchema
+internal sealed class IndexSchema
 {
     public string Name { get; set; } = string.Empty;
     public List<string> ColumnNames { get; set; } = [];

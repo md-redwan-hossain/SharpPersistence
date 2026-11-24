@@ -3,7 +3,7 @@ using SharpPersistence.Migrator.Enums;
 
 namespace SharpPersistence.Migrator.Models;
 
-public sealed class ColumnSchema
+internal sealed class ColumnSchema
 {
     public string PropertyName { get; set; } = string.Empty;
     public string ColumnName { get; set; } = string.Empty;

@@ -2,6 +2,7 @@ using System.Linq.Expressions;
 using SharpPersistence.Enums;
 using SharpPersistence.Migrator.Configuration;
 using SharpPersistence.Migrator.Enums;
+using SharpPersistence.Migrator.Models;
 using SharpPersistence.Migrator.Services;
 
 namespace SharpPersistence.Migrator.Builders;
@@ -105,6 +106,54 @@ internal sealed class TableDefinition
         var def = new ExclusionConstraintDefinition(name);
         ExclusionConstraints[name] = def;
         return def;
+    }
+
+    public void SetTablespace(string? tablespace)
+    {
+        Tablespace = string.IsNullOrWhiteSpace(tablespace) ? null : tablespace.Trim();
+    }
+
+    public void SetStorageParameter(string name, string value)
+    {
+        StorageParameters ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        StorageParameters[name.Trim()] = value;
+    }
+
+    public bool IsPostgresXmin(ColumnDefinition col)
+    {
+        var unwrapped = Nullable.GetUnderlyingType(col.ClrType) ?? col.ClrType;
+        return Dialect == SqlDialect.PostgreSql && col.IsRowVersion && unwrapped == typeof(uint);
+    }
+
+    public string ResolveColumnSqlType(
+        ColumnDefinition col,
+        IReadOnlyDictionary<string, PostgresEnumSchema>? enumLookup = null) =>
+        IsPostgresXmin(col)
+            ? "xid"
+            : SqlTypeResolver.Resolve(
+                Dialect,
+                col.ProviderClrType ?? col.ClrType,
+                col.ExplicitSqlType,
+                col.MaxLength,
+                col.Precision,
+                col.Scale,
+                col.IsUnicode,
+                enumLookup);
+
+    public string ResolveIndexName(IndexDefinition ix, IReadOnlyList<string>? resolvedColumnNames = null)
+    {
+        if (!string.IsNullOrWhiteSpace(ix.IndexName))
+        {
+            return NamingFormatter.TruncateIdentifier(ix.IndexName, Dialect);
+        }
+
+        var cols = resolvedColumnNames ?? ix.PropertyNames
+            .Select(p => ColumnsByProp.TryGetValue(p, out var c) ? c.ColumnName : p)
+            .ToList();
+        var prefix = NamingFormatter.FormatPrefix(ix.IsUnique ? "uq" : "ix", IdentifierCase);
+        return NamingFormatter.TruncateIdentifier(
+            $"{prefix}_{TableName}_{string.Join("_", cols)}",
+            Dialect);
     }
 
     public void SetForeignKey(

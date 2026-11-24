@@ -1,6 +1,6 @@
 namespace SharpPersistence.Migrator.Configuration;
 
-public sealed class CheckConstraintBuilderOptions
+internal sealed class CheckConstraintBuilderOptions
 {
     public bool DelimitIdentifiers { get; internal set; } = true;
     public string NestedColumnSeparator { get; internal set; } = "_";

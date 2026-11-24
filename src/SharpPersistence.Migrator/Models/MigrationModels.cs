@@ -14,7 +14,7 @@ public sealed record MigrationStatusItem(
     bool HasChecksumMismatch,
     DateTimeOffset? AppliedAt);
 
-public sealed record GeneratedMigrationItem(
+internal sealed record GeneratedMigrationItem(
     string RegistryName,
     string? ScriptPath,
     string? DeferredScriptPath,
@@ -22,7 +22,7 @@ public sealed record GeneratedMigrationItem(
     string DeferredSqlScript,
     bool IsEmpty);
 
-public sealed record SchemaDriftItem(
+internal sealed record SchemaDriftItem(
     string RegistryName,
     string TableName,
     string? ColumnName,

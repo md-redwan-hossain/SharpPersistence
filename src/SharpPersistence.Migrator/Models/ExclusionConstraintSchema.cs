@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace SharpPersistence.Migrator.Models;
 
-public sealed class ExclusionConstraintElementSchema
+internal sealed class ExclusionConstraintElementSchema
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ColumnName { get; set; }
@@ -19,7 +19,7 @@ public sealed class ExclusionConstraintElementSchema
     public string Operator { get; set; } = string.Empty;
 }
 
-public sealed class ExclusionConstraintSchema
+internal sealed class ExclusionConstraintSchema
 {
     public string Name { get; set; } = string.Empty;
     public string Method { get; set; } = "gist";

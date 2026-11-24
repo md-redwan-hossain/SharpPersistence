@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace SharpPersistence.Migrator.Models;
 
-public sealed class PostgresEnumSchema
+internal sealed class PostgresEnumSchema
 {
     public string Name { get; set; } = string.Empty;
     public string? Schema { get; set; }

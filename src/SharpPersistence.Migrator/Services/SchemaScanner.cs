@@ -7,7 +7,7 @@ using SharpPersistence.Migrator.Models;
 
 namespace SharpPersistence.Migrator.Services;
 
-public static class SchemaScanner
+internal static class SchemaScanner
 {
     public static IReadOnlyList<IEntityRegistry> DiscoverRegistries(params Assembly[] assemblies)
     {
@@ -112,62 +112,87 @@ public static class SchemaScanner
                         $"Entity '{entityType.FullName ?? entityType.Name}' is mapped in multiple registries.");
                 }
 
-                var defaultTableName = NamingFormatter.Format(entityType.Name, identifierCase);
-                var defaultSchema = registrySchema;
-
-                var tableBuilder = new TableDefinition(
+                var tableBuilder = BuildSingleTableDefinition(
                     entityType,
-                    defaultTableName,
-                    defaultSchema,
+                    configType,
+                    evaluated.InlineConfigurations.TryGetValue(entityType, out var inlineActions) ? inlineActions : null,
+                    registrySchema,
                     dialect,
                     identifierCase,
-                    checkConstraintOptions);
-
-                foreach (var prop in entityType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
-                {
-                    if (!prop.CanRead || !prop.CanWrite || !IsScalarType(prop.PropertyType))
-                    {
-                        continue;
-                    }
-
-                    var nullability = nullabilityContext.Create(prop);
-                    var isNullable = nullability.ReadState == NullabilityState.Nullable
-                                     || Nullable.GetUnderlyingType(prop.PropertyType) is not null;
-
-                    var col = tableBuilder.GetOrAddColumn(prop.Name, prop.PropertyType);
-                    col.ColumnName = NamingFormatter.Format(prop.Name, identifierCase);
-                    col.IsNullable = isNullable;
-
-                    ApplyGlobalPropertyConventions(col, prop.PropertyType, propertyConventions);
-
-                    if (string.Equals(prop.Name, "Id", StringComparison.OrdinalIgnoreCase))
-                    {
-                        tableBuilder.SetPrimaryKey([prop.Name], null);
-                    }
-                }
-
-                if (configType is not null)
-                {
-                    InvokeEntityConfig(entityType, configType, tableBuilder);
-                }
-
-                if (evaluated.InlineConfigurations.TryGetValue(entityType, out var inlineActions))
-                {
-                    var entityBuilder = CreateEntityBuilder(entityType, tableBuilder);
-                    if (entityBuilder is not null)
-                    {
-                        foreach (var action in inlineActions)
-                        {
-                            action(entityBuilder);
-                        }
-                    }
-                }
+                    propertyConventions,
+                    checkConstraintOptions,
+                    nullabilityContext);
 
                 buildersByType[entityType] = tableBuilder;
             }
         }
 
         return (buildersByType, sequences);
+    }
+
+    internal static TableDefinition BuildSingleTableDefinition(
+        Type entityType,
+        Type? configType,
+        IReadOnlyList<Action<object>>? inlineActions,
+        string? defaultSchema,
+        SqlDialect dialect,
+        SqlIdentifierCase identifierCase,
+        IReadOnlyList<PropertyConventionRule>? propertyConventions,
+        CheckConstraintBuilderOptions? checkConstraintOptions,
+        NullabilityInfoContext? nullabilityContext = null)
+    {
+        nullabilityContext ??= new NullabilityInfoContext();
+        var defaultTableName = NamingFormatter.Format(entityType.Name, identifierCase);
+
+        var tableBuilder = new TableDefinition(
+            entityType,
+            defaultTableName,
+            defaultSchema,
+            dialect,
+            identifierCase,
+            checkConstraintOptions);
+
+        foreach (var prop in entityType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            if (!prop.CanRead || !prop.CanWrite || !IsScalarType(prop.PropertyType))
+            {
+                continue;
+            }
+
+            var nullability = nullabilityContext.Create(prop);
+            var isNullable = nullability.ReadState == NullabilityState.Nullable
+                             || Nullable.GetUnderlyingType(prop.PropertyType) is not null;
+
+            var col = tableBuilder.GetOrAddColumn(prop.Name, prop.PropertyType);
+            col.ColumnName = NamingFormatter.Format(prop.Name, identifierCase);
+            col.IsNullable = isNullable;
+
+            ApplyGlobalPropertyConventions(col, prop.PropertyType, propertyConventions);
+
+            if (string.Equals(prop.Name, "Id", StringComparison.OrdinalIgnoreCase))
+            {
+                tableBuilder.SetPrimaryKey([prop.Name], null);
+            }
+        }
+
+        if (configType is not null)
+        {
+            InvokeEntityConfig(entityType, configType, tableBuilder);
+        }
+
+        if (inlineActions is not null)
+        {
+            var entityBuilder = CreateEntityBuilder(entityType, tableBuilder);
+            if (entityBuilder is not null)
+            {
+                foreach (var action in inlineActions)
+                {
+                    action(entityBuilder);
+                }
+            }
+        }
+
+        return tableBuilder;
     }
 
     private static List<SequenceSchema> BuildSequenceSchemas(EntityRegistryBuilder evaluated, SqlDialect dialect)
@@ -269,6 +294,7 @@ public static class SchemaScanner
                || unwrapped == typeof(DateTimeOffset)
                || unwrapped == typeof(DateOnly)
                || unwrapped == typeof(TimeOnly)
+               || unwrapped == typeof(TimeSpan)
                || unwrapped == typeof(Guid)
                || unwrapped == typeof(byte[]);
     }

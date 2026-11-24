@@ -13,6 +13,7 @@
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
         <PackageReference Include="Shouldly" />
         <PackageReference Include="xunit.runner.visualstudio">
@@ -27,7 +28,9 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\..\src\SharpPersistence.Abstractions\SharpPersistence.Abstractions.csproj" />
         <ProjectReference Include="..\..\src\SharpPersistence.Migrator.EfCore\SharpPersistence.Migrator.EfCore.csproj" />
+        <ProjectReference Include="..\..\src\SharpPersistence.Migrator.Generators\SharpPersistence.Migrator.Generators.csproj" />
         <ProjectReference Include="..\..\src\SharpPersistence.Migrator\SharpPersistence.Migrator.csproj" />
         <ProjectReference Include="..\..\src\SharpPersistence\SharpPersistence.csproj" />
     </ItemGroup>

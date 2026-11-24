@@ -40,8 +40,8 @@ public sealed class ValueConverterAndCircularFkTests
             {
                 b.ToTable("customers");
                 b.Property(x => x.Id).HasConversion(customerIdConverter);
-                b.HasForeignKey<Order>(x => x.PrimaryOrderId)
-                    .References(o => o.Id)
+                b.HasForeignKey(x => x.PrimaryOrderId)
+                    .References<Order>(o => o.Id)
                     .IsCircular();
             });
 
@@ -50,8 +50,8 @@ public sealed class ValueConverterAndCircularFkTests
                 b.ToTable("orders");
                 b.Property(x => x.CustomerId).HasConversion(customerIdConverter);
                 b.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
-                b.HasForeignKey<Customer>(x => x.CustomerId)
-                    .References(c => c.Id);
+                b.HasForeignKey(x => x.CustomerId)
+                    .References<Customer>(c => c.Id);
             });
         }
     }

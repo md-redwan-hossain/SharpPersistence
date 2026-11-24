@@ -64,7 +64,7 @@ public class RepositoryBaseTests : IAsyncLifetime
     {
         var entity = new TestEntity { Name = "E", NumericValue = 5 };
 
-        await _repository.CreateAsync(entity);
+        await _repository.CreateAsync(entity, TestContext.Current.CancellationToken);
 
         await _dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
@@ -77,7 +77,7 @@ public class RepositoryBaseTests : IAsyncLifetime
         var entities = new[]
             { new TestEntity { Name = "F", NumericValue = 6 }, new TestEntity { Name = "G", NumericValue = 7 } };
 
-        await _repository.CreateManyAsync(entities);
+        await _repository.CreateManyAsync(entities, TestContext.Current.CancellationToken);
 
         await _dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 

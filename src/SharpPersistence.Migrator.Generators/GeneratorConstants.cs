@@ -1,0 +1,189 @@
+using System.Text;
+using Microsoft.CodeAnalysis;
+
+namespace SharpPersistence.Migrator.Generators;
+
+internal static class GeneratorConstants
+{
+    public const string DisablePropertyName = "build_property.DisableEntityDiscovery";
+    public const string RootPropertyName = "build_property.EntityRegistryRoot";
+
+    public const string GeneratedNamespace = "SharpPersistence.Migrator.Generated";
+    public const string ManifestPrefix = "EntityManifest_";
+    public const string AggregatorPrefix = "EntityRegistryAggregator_";
+
+    public const string EntityMarkerAttributeMetadataName = "SharpPersistence.Abstractions.EntityMarkerAttribute";
+    public const string DefaultEntityAttributeMetadataName = "SharpPersistence.Abstractions.EntityAttribute";
+    public const string DiscoverEntitiesByAttributeMetadataName = "SharpPersistence.Abstractions.DiscoverEntitiesByAttribute`1";
+    public const string DisableEntityDiscoveryAttributeMetadataName = "SharpPersistence.Abstractions.DisableEntityDiscoveryAttribute";
+    public const string EntityManifestAttributeMetadataName = "SharpPersistence.Abstractions.EntityManifestAttribute";
+    public const string EntityManifestEntryAttributeMetadataName = "SharpPersistence.Abstractions.EntityManifestEntryAttribute";
+
+    public const string EntityRegistryAttributeMetadataName = "SharpPersistence.Migrator.Attributes.EntityRegistryAttribute";
+    public const string GenericEntityRegistryAttributeMetadataName = "SharpPersistence.Migrator.Attributes.EntityRegistryAttribute`1";
+    public const string EntityConfigurationAttributeMetadataName = "SharpPersistence.Migrator.Attributes.EntityConfigurationAttribute`1";
+    public const string EntityRegistryRootAttributeMetadataName = "SharpPersistence.Migrator.Attributes.EntityRegistryRootAttribute";
+    public const string EntityRegistryAggregatorAttributeMetadataName = "SharpPersistence.Migrator.Attributes.EntityRegistryAggregatorAttribute";
+    public const string EntityRegistryAggregatorEntryAttributeMetadataName = "SharpPersistence.Migrator.Attributes.EntityRegistryAggregatorEntryAttribute";
+
+    public const string IEntityRegistryMetadataName = "SharpPersistence.Migrator.Abstractions.IEntityRegistry";
+    public const string IEntityRegistryBuilderMetadataName = "SharpPersistence.Migrator.Abstractions.IEntityRegistryBuilder";
+    public const string IEntityConfigurationMetadataName = "SharpPersistence.Migrator.Abstractions.IEntityConfiguration`1";
+
+    public const string DiagnosticCategory = "SharpPersistence.Migrator";
+
+    public static readonly DiagnosticDescriptor RegistryMustBeSealedPartialImplementingInterface = new(
+        id: "SPM001",
+        title: "Invalid [EntityRegistry] class declaration",
+        messageFormat: "Type '{0}' decorated with [EntityRegistry] must be sealed, partial, and implement IEntityRegistry",
+        category: DiagnosticCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor ConfigurationInvalid = new(
+        id: "SPM002",
+        title: "Invalid [EntityConfiguration<TEntity>] class declaration",
+        messageFormat: "Type '{0}' decorated with [EntityConfiguration<{1}>] must be sealed, have an accessible parameterless constructor, and implement IEntityConfiguration<{1}>",
+        category: DiagnosticCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor DuplicateEntityConfiguration = new(
+        id: "SPM003",
+        title: "Duplicate [EntityConfiguration<TEntity>] detected",
+        messageFormat: "Multiple [EntityConfiguration] classes found for entity '{0}': {1}",
+        category: DiagnosticCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor RegistryMustDeclareConfigure = new(
+        id: "SPM004",
+        title: "Missing Configure(IEntityRegistryBuilder) method",
+        messageFormat: "Type '{0}' decorated with [EntityRegistry] must declare 'public void Configure(IEntityRegistryBuilder registry)'",
+        category: DiagnosticCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor DuplicateEntityAcrossRegistries = new(
+        id: "SPM005",
+        title: "Entity matched by multiple registries",
+        messageFormat: "Entity '{0}' is matched by multiple [EntityRegistry] classes in this compilation: {1}",
+        category: DiagnosticCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor EntityOrMarkerMustBePublic = new(
+        id: "SPM006",
+        title: "Discovered entity or marker attribute must be public",
+        messageFormat: "Type '{0}' marked with '{1}' must be publicly accessible for compile-time entity manifest generation",
+        category: DiagnosticCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor OrphanEntityConfiguration = new(
+        id: "SPM007",
+        title: "Unpaired [EntityConfiguration<TEntity>]",
+        messageFormat: "Configuration '{0}' targets entity '{1}', which is not matched by any [EntityRegistry] in this compilation",
+        category: DiagnosticCategory,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    public static bool HasAssemblyAttribute(Compilation compilation, string attributeMetadataName)
+    {
+        var attrSymbol = compilation.GetTypeByMetadataName(attributeMetadataName);
+        if (attrSymbol is null)
+        {
+            return false;
+        }
+
+        foreach (var attr in compilation.Assembly.GetAttributes())
+        {
+            if (SymbolEqualityComparer.Default.Equals(attr.AttributeClass, attrSymbol))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static string StripGlobalPrefix(string fullTypeName) =>
+        fullTypeName.StartsWith("global::", StringComparison.Ordinal)
+            ? fullTypeName.Substring("global::".Length)
+            : fullTypeName;
+
+    public static bool IsPubliclyAccessible(INamedTypeSymbol symbol)
+    {
+        var current = symbol;
+        while (current is not null)
+        {
+            if (current.DeclaredAccessibility != Accessibility.Public)
+            {
+                return false;
+            }
+
+            current = current.ContainingType;
+        }
+
+        return true;
+    }
+
+    public static string SanitizeAssemblyName(string? assemblyName)
+    {
+        if (string.IsNullOrWhiteSpace(assemblyName))
+        {
+            return "Unknown";
+        }
+
+        var sb = new StringBuilder(assemblyName!.Length);
+        for (var i = 0; i < assemblyName.Length; i++)
+        {
+            var c = assemblyName[i];
+            if (char.IsLetterOrDigit(c) || c == '_')
+            {
+                if (i == 0 && char.IsDigit(c))
+                {
+                    sb.Append('_');
+                }
+
+                sb.Append(c);
+            }
+            else
+            {
+                sb.Append('_');
+            }
+        }
+
+        return sb.Length == 0 ? "Unknown" : sb.ToString();
+    }
+
+    public static string GetSimpleAttributeName(string metadataName)
+    {
+        var lastDot = metadataName.LastIndexOf('.');
+        var name = lastDot >= 0 ? metadataName.Substring(lastDot + 1) : metadataName;
+        var tick = name.IndexOf('`');
+        if (tick >= 0)
+        {
+            name = name.Substring(0, tick);
+        }
+
+        return name.EndsWith("Attribute", StringComparison.Ordinal)
+            ? name.Substring(0, name.Length - "Attribute".Length)
+            : name;
+    }
+
+    public static string GetAttributeSyntaxSimpleName(Microsoft.CodeAnalysis.CSharp.Syntax.NameSyntax nameSyntax)
+    {
+        var raw = nameSyntax switch
+        {
+            Microsoft.CodeAnalysis.CSharp.Syntax.IdentifierNameSyntax id => id.Identifier.ValueText,
+            Microsoft.CodeAnalysis.CSharp.Syntax.QualifiedNameSyntax q => q.Right.Identifier.ValueText,
+            Microsoft.CodeAnalysis.CSharp.Syntax.AliasQualifiedNameSyntax a => a.Name.Identifier.ValueText,
+            _ => nameSyntax.ToString()
+        };
+
+        return raw.EndsWith("Attribute", StringComparison.Ordinal)
+            ? raw.Substring(0, raw.Length - "Attribute".Length)
+            : raw;
+    }
+}

@@ -4,7 +4,7 @@ using SharpPersistence.Migrator.Services;
 
 namespace SharpPersistence.Migrator.EfCore;
 
-public static class EfCoreMigrationManagerExtensions
+internal static class EfCoreMigrationManagerExtensions
 {
     public static async Task<IReadOnlyList<GeneratedMigrationItem>> TranslateEfCoreMigrationsAsync(
         this IMigrationManager manager,

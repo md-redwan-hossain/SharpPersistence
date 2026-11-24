@@ -5,7 +5,7 @@ using SharpPersistence.Migrator.Configuration;
 
 namespace SharpPersistence.Migrator.Services;
 
-public static class RegistryDependencyResolver
+internal static class RegistryDependencyResolver
 {
     public static IReadOnlyList<IEntityRegistry> SortTopologically(
         IReadOnlyList<IEntityRegistry> registries,

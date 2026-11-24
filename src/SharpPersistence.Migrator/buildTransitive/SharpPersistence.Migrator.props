@@ -1,0 +1,6 @@
+<Project>
+  <ItemGroup>
+    <CompilerVisibleProperty Include="EntityRegistryRoot" />
+    <CompilerVisibleProperty Include="DisableEntityDiscovery" />
+  </ItemGroup>
+</Project>

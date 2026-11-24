@@ -124,11 +124,10 @@ public sealed class EntityBuilder<TEntity> where TEntity : class
         return new CheckConstraintBuilder<TEntity>(def);
     }
 
-    public ForeignKeyBuilder<TEntity, TPrincipal> HasForeignKey<TPrincipal>(
+    public ForeignKeyReferenceBuilder<TEntity> HasForeignKey(
         Expression<Func<TEntity, object?>> dependentProperties)
-        where TPrincipal : class
     {
         var depProps = ExpressionHelper.ExtractPropertyNames(dependentProperties);
-        return new ForeignKeyBuilder<TEntity, TPrincipal>(Definition, depProps);
+        return new ForeignKeyReferenceBuilder<TEntity>(Definition, depProps);
     }
 }

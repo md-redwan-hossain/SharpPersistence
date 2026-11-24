@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace SharpPersistence.Migrator.Models;
 
-public sealed class TableSchema
+internal sealed class TableSchema
 {
     public string EntityName { get; set; } = string.Empty;
     public string TableName { get; set; } = string.Empty;

@@ -323,6 +323,69 @@ builder.HasCheckConstraint(
 builder.HasCheckConstraint("ck_orders_custom", "total >= discount");
 ```
 
+#### PostgreSQL Exclusion Constraints, Tablespaces & Typed Index Filters
+
+```csharp
+builder.HasKey(x => x.Id).HasName("pk_reservations");
+
+builder.HasIndex(x => x.RoomCode)
+    .HasDatabaseName("ix_active_reservations")
+    .UseTablespace("idx_disk")
+    .HasFilter(cc => cc.Column(x => x.CancelledAt).IsNull());
+
+builder.HasExclusionConstraint("ex_reservations_no_overlap")
+    .HasMethod(PostgresIndexMethod.Gist)
+    .WithExpression(x => x.RoomCode, col => $"lower({col})", PostgresExclusionOperator.Equals)
+    .WithRange(x => x.StartsAt, x => x.EndsAt, PostgresExclusionOperator.Overlaps)
+    .UseTablespace("idx_disk")
+    .HasFilter(cc => cc.Column(x => x.CancelledAt).IsNull());
+```
+
+#### Compile-Time Entity Discovery & Registry Source Generation
+
+Avoid central `Map<...>()` merge conflicts using built-in `[Entity]` + `[EntityRegistry]` or per-module `EntityMarkerAttribute` + `[assembly: DiscoverEntitiesBy<T>]`:
+
+```csharp
+// Domain (zero reference to SharpPersistence.Migrator — uses SharpPersistence.Abstractions)
+[assembly: DiscoverEntitiesBy<AccessControl.Domain.AccessControlEntityAttribute>]
+
+public sealed class AccessControlEntityAttribute : EntityMarkerAttribute;
+
+[AccessControlEntity]
+public sealed class Role { public Guid Id { get; set; } }
+
+[AccessControlEntity]
+public sealed class UserRole { public Guid Id { get; set; } } // no config class needed
+
+// Infrastructure
+[EntityConfiguration<Role>]
+public sealed class RoleConfiguration : IEntityConfiguration<Role>
+{
+    public void Configure(EntityBuilder<Role> builder) => builder.ToTable("roles");
+}
+
+[EntityRegistry<AccessControlEntityAttribute>]
+public sealed partial class AccessControlRegistry : IEntityRegistry
+{
+    public void Configure(IEntityRegistryBuilder registry)
+    {
+        registry.HasDefaultSchema("acl");
+    }
+}
+
+// Startup project ([assembly: EntityRegistryRoot] or <EntityRegistryRoot>true</EntityRegistryRoot>)
+[assembly: EntityRegistryRoot]
+
+services.AddDbMigrator(options =>
+{
+    options.UsePostgreSql(connectionString)
+           .HasPostgresExtension("btree_gist")
+           .UseMigrationsDirectory("MigrationScripts")
+           .UseSnapshotDirectory("EntityChangelogs")
+           .AddGeneratedEntityRegistries();
+});
+```
+
 ### **`RepositoryCore` with `IRepositoryCore`**
 
 - `IRepositoryCore` is available in `SharpPersistence.Abstractions`

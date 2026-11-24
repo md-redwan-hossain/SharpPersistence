@@ -1,0 +1,91 @@
+using System.Data.Common;
+using SharpPersistence.Enums;
+using SharpPersistence.Migrator.Abstractions;
+using SharpPersistence.Migrator.Configuration;
+using SharpPersistence.Migrator.Enums;
+using SharpPersistence.Migrator.Models;
+
+namespace SharpPersistence.Migrator.Dialects;
+
+internal interface IMigrationDialect
+{
+    SqlDialect Dialect { get; }
+    string PingSql { get; }
+    bool SupportsGlobalExtensionsAndEnums { get; }
+
+    ISqlDialectGenerator CreateDdlGenerator();
+    DbProviderFactory? ResolveDefaultProviderFactory();
+    string NormalizeSchemaName(string? schema);
+    bool AreSqlTypesCompatible(string depSqlType, string prinSqlType);
+    IEnumerable<string> SplitScriptStatements(string sql);
+
+    Task<IAsyncDisposable?> AcquireLockAsync(DbConnection conn, MigrationManagerOptions options, CancellationToken ct);
+    Task EnsureHistoryTableAsync(DbConnection conn, MigrationManagerOptions options, CancellationToken ct);
+    Task<bool> HistoryTableExistsAsync(DbConnection conn, MigrationManagerOptions options, CancellationToken ct);
+    Task RecordAppliedAsync(
+        DbConnection conn,
+        MigrationManagerOptions options,
+        string registryName,
+        string scriptName,
+        string checksum,
+        CancellationToken ct);
+    Task<IReadOnlyList<string>> ReadEfCoreMigrationIdsAsync(DbConnection conn, CancellationToken ct);
+    Task<Dictionary<(string Schema, string Table), Dictionary<string, bool>>> ReadLiveColumnsAsync(
+        DbConnection conn,
+        IReadOnlyList<(string RegistryName, TableSchema Table)> expectedTables,
+        CancellationToken ct);
+}
+
+internal static class MigrationDialectRegistry
+{
+    private static readonly PostgresMigrationDialect PostgresInstance = new();
+
+    public static IMigrationDialect Get(MigrationManagerOptions options) =>
+        Get(options.Dialect, options.OracleCompatibility);
+
+    public static IMigrationDialect Get(
+        SqlDialect dialect,
+        OracleDbCompatibility oracleCompatibility = OracleDbCompatibility.OracleDb19) =>
+        dialect switch
+        {
+            SqlDialect.PostgreSql => PostgresInstance,
+            SqlDialect.Oracle => new OracleMigrationDialect(oracleCompatibility),
+            _ => throw new NotSupportedException($"SQL dialect '{dialect}' is not supported yet.")
+        };
+
+    internal static DbProviderFactory? ResolveProviderFactory(string typeName, string assemblyName)
+    {
+        var type = Type.GetType($"{typeName}, {assemblyName}");
+        if (type is null)
+        {
+            var asm = AppDomain.CurrentDomain.GetAssemblies()
+                .FirstOrDefault(a => string.Equals(a.GetName().Name, assemblyName, StringComparison.OrdinalIgnoreCase));
+            type = asm?.GetType(typeName);
+        }
+
+        var prop = type?.GetProperty("Instance", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+        return prop?.GetValue(null) as DbProviderFactory;
+    }
+
+    internal static void AddLiveColumn(
+        Dictionary<(string Schema, string Table), Dictionary<string, bool>> result,
+        string schema,
+        string table,
+        string column,
+        bool isNullable)
+    {
+        var key = (schema, table);
+        if (!result.TryGetValue(key, out var cols))
+        {
+            cols = new Dictionary<string, bool>(StringComparer.Ordinal);
+            result[key] = cols;
+        }
+
+        cols[column] = isNullable;
+    }
+
+    internal sealed class AsyncDisposableLock(Func<Task> release) : IAsyncDisposable
+    {
+        public async ValueTask DisposeAsync() => await release();
+    }
+}

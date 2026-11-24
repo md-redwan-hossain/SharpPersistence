@@ -19,7 +19,7 @@ public static class PostgreSqlEntityBuilderExtensions
         string? tablespace)
         where TEntity : class
     {
-        builder.Definition.Tablespace = string.IsNullOrWhiteSpace(tablespace) ? null : tablespace.Trim();
+        builder.Definition.SetTablespace(tablespace);
         return builder;
     }
 
@@ -60,8 +60,7 @@ public static class PostgreSqlEntityBuilderExtensions
             _ => value.ToString() ?? string.Empty
         };
 
-        builder.Definition.StorageParameters ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        builder.Definition.StorageParameters[name.Trim()] = formatted;
+        builder.Definition.SetStorageParameter(name, formatted);
         return builder;
     }
 }

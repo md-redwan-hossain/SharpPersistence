@@ -1,0 +1,14 @@
+; Unshipped analyzer releases
+; https://github.com/dotnet/roslyn-analyzers/blob/main/src/Microsoft.CodeAnalysis.Analyzers/ReleaseTrackingAnalyzers.Help.md
+
+### New Rules
+
+Rule ID | Category | Severity | Notes
+--------|----------|----------|-------
+SPM001 | SharpPersistence.Migrator | Error | EntityRegistry class must be sealed, partial, and implement IEntityRegistry
+SPM002 | SharpPersistence.Migrator | Error | EntityConfiguration class must be sealed, have an accessible parameterless constructor, and implement IEntityConfiguration<TEntity>
+SPM003 | SharpPersistence.Migrator | Error | Multiple EntityConfiguration classes found for the same entity
+SPM004 | SharpPersistence.Migrator | Error | EntityRegistry class must declare public void Configure(IEntityRegistryBuilder registry)
+SPM005 | SharpPersistence.Migrator | Error | Entity matched by more than one EntityRegistry in the same compilation
+SPM006 | SharpPersistence.Migrator | Error | Entity or marker attribute decorated for compile-time discovery must be public
+SPM007 | SharpPersistence.Migrator | Warning | EntityConfiguration class is not matched by any EntityRegistry in this compilation

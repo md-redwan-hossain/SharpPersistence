@@ -4,17 +4,26 @@ namespace SharpPersistence.Migrator.Models;
 
 public sealed class DatabaseSchema
 {
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public List<PostgresExtensionSchema>? Extensions { get; set; }
+    [JsonConstructor]
+    internal DatabaseSchema()
+    {
+    }
 
+    [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public List<PostgresEnumSchema>? Enums { get; set; }
+    internal List<PostgresExtensionSchema>? Extensions { get; set; }
 
+    [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public List<SequenceSchema>? Sequences { get; set; }
+    internal List<PostgresEnumSchema>? Enums { get; set; }
 
-    public List<TableSchema> Tables { get; set; } = [];
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    internal List<SequenceSchema>? Sequences { get; set; }
+
+    [JsonInclude]
+    internal List<TableSchema> Tables { get; set; } = [];
 
     [JsonIgnore]
-    public Dictionary<Type, TableSchema> ByClrType { get; } = [];
+    internal Dictionary<Type, TableSchema> ByClrType { get; } = [];
 }
