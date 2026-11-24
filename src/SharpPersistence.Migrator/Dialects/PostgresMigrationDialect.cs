@@ -17,6 +17,9 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
     public SqlDialect Dialect => SqlDialect.PostgreSql;
     public string PingSql => "SELECT 1";
     public bool SupportsGlobalExtensionsAndEnums => true;
+    public bool SupportsComputedStorageMode => true;
+    public bool SupportsTransactionalDdl => true;
+    public string ProviderPackageHint => "Install the Npgsql NuGet package or pass a DbProviderFactory / connection factory.";
 
     public ISqlDialectGenerator CreateDdlGenerator() => new PostgresDialectGenerator();
 
@@ -27,11 +30,61 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
 
     public bool AreSqlTypesCompatible(string depSqlType, string prinSqlType) =>
         string.Equals(depSqlType, prinSqlType, StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(NormalizeTypeAlias(depSqlType), NormalizeTypeAlias(prinSqlType), StringComparison.OrdinalIgnoreCase);
+        string.Equals(NormalizeTypeName(depSqlType), NormalizeTypeName(prinSqlType), StringComparison.OrdinalIgnoreCase);
+
+    public string ResolveSequenceSqlType(Type clrType)
+    {
+        var t = Nullable.GetUnderlyingType(clrType) ?? clrType;
+        return t == typeof(short) ? "smallint" : t == typeof(int) ? "integer" : "bigint";
+    }
 
     public IEnumerable<string> SplitScriptStatements(string sql)
     {
         yield return sql;
+    }
+
+    public string FormatEmptyMigration(string migrationName) =>
+        $"-- Empty migration: {migrationName}{Environment.NewLine}BEGIN;{Environment.NewLine}{Environment.NewLine}-- Add custom SQL here{Environment.NewLine}{Environment.NewLine}COMMIT;{Environment.NewLine}";
+
+    public bool TryStripOuterTransaction(string sql, out string innerSql)
+    {
+        var lines = sql.Replace("\r\n", "\n").Split('\n');
+        var firstIdx = -1;
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var trimmed = lines[i].Trim();
+            if (trimmed.Length == 0 || trimmed.StartsWith("--", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            firstIdx = i;
+            break;
+        }
+
+        var lastIdx = -1;
+        for (var i = lines.Length - 1; i >= 0; i--)
+        {
+            var trimmed = lines[i].Trim();
+            if (trimmed.Length == 0 || trimmed.StartsWith("--", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            lastIdx = i;
+            break;
+        }
+
+        if (firstIdx >= 0 && lastIdx > firstIdx &&
+            string.Equals(lines[firstIdx].Trim(), "BEGIN;", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(lines[lastIdx].Trim(), "COMMIT;", StringComparison.OrdinalIgnoreCase))
+        {
+            innerSql = string.Join(Environment.NewLine, lines.Skip(firstIdx + 1).Take(lastIdx - firstIdx - 1));
+            return true;
+        }
+
+        innerSql = sql;
+        return false;
     }
 
     public async Task<IAsyncDisposable?> AcquireLockAsync(
@@ -95,10 +148,12 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
         string registryName,
         string scriptName,
         string checksum,
-        CancellationToken ct)
+        CancellationToken ct,
+        DbTransaction? transaction = null)
     {
         var table = Qualify(options.HistorySchema, options.HistoryTableName);
         await using var cmd = conn.CreateCommand();
+        cmd.Transaction = transaction;
         cmd.CommandText =
             $"INSERT INTO {table} (\"registry_name\", \"script_name\", \"checksum_sha256\") VALUES (@reg, @script, @sum) ON CONFLICT (\"registry_name\", \"script_name\") DO NOTHING;";
 
@@ -195,20 +250,21 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
         }
     }
 
-    private static string NormalizeTypeAlias(string sqlType)
+    internal static string NormalizeTypeName(string sqlType)
     {
         var trimmed = sqlType.Trim();
-        if (trimmed.StartsWith("varchar(", StringComparison.OrdinalIgnoreCase))
+        var lower = trimmed.ToLowerInvariant();
+        if (lower.StartsWith("varchar(", StringComparison.Ordinal))
         {
-            return "character varying" + trimmed["varchar".Length..];
+            return "character varying" + lower["varchar".Length..];
         }
 
-        if (trimmed.StartsWith("decimal(", StringComparison.OrdinalIgnoreCase))
+        if (lower.StartsWith("decimal(", StringComparison.Ordinal))
         {
-            return "numeric" + trimmed["decimal".Length..];
+            return "numeric" + lower["decimal".Length..];
         }
 
-        return trimmed.ToLowerInvariant() switch
+        var normalized = lower switch
         {
             "int" or "int4" or "serial" or "serial4" => "integer",
             "int8" or "bigserial" or "serial8" => "bigint",
@@ -222,7 +278,44 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
             "timestamp" => "timestamp without time zone",
             "timetz" => "time with time zone",
             "time" => "time without time zone",
-            _ => trimmed
+            _ => null
         };
+
+        if (normalized is not null)
+        {
+            return normalized;
+        }
+
+        if (trimmed.Contains('"', StringComparison.Ordinal))
+        {
+            var parts = trimmed.Split('.', 2);
+            if (parts.Length == 2)
+            {
+                var schemaPart = UnquoteIfSimpleLowercase(parts[0]);
+                var typePart = UnquoteIfSimpleLowercase(parts[1]);
+                return string.Equals(schemaPart, "public", StringComparison.Ordinal)
+                    ? typePart
+                    : $"{schemaPart}.{typePart}";
+            }
+
+            return UnquoteIfSimpleLowercase(trimmed);
+        }
+
+        return lower;
+    }
+
+    private static string UnquoteIfSimpleLowercase(string identifier)
+    {
+        var t = identifier.Trim();
+        if (t.Length >= 2 && t[0] == '"' && t[^1] == '"')
+        {
+            var inner = t[1..^1].Replace("\"\"", "\"");
+            var isSimpleLower = inner.Length > 0 &&
+                                (char.IsLower(inner[0]) || inner[0] == '_') &&
+                                inner.All(c => char.IsLower(c) || char.IsDigit(c) || c == '_');
+            return isSimpleLower ? inner : t;
+        }
+
+        return t;
     }
 }

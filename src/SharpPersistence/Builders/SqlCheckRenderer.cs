@@ -7,6 +7,22 @@ namespace SharpPersistence.Builders;
 
 internal static class SqlCheckRenderer
 {
+    private readonly record struct SqlExpressionDialectRules(
+        string QuoteOpen,
+        string QuoteClose,
+        string LengthFunction,
+        bool UseNumericBooleans);
+
+    private static SqlExpressionDialectRules GetDialectRules(SqlDialect dialect) => dialect switch
+    {
+        SqlDialect.PostgreSql => new("\"", "\"", "length", UseNumericBooleans: false),
+        SqlDialect.Oracle => new("\"", "\"", "LENGTH", UseNumericBooleans: true),
+        SqlDialect.Sqlite => new("\"", "\"", "LENGTH", UseNumericBooleans: false),
+        SqlDialect.MySql => new("`", "`", "CHAR_LENGTH", UseNumericBooleans: false),
+        SqlDialect.SqlServer => new("[", "]", "LEN", UseNumericBooleans: true),
+        _ => new(string.Empty, string.Empty, string.Empty, UseNumericBooleans: false)
+    };
+
     public static string Render(SqlExpression expression, SqlRenderContext ctx) => expression switch
     {
         SqlRawExpression raw => raw.Sql,
@@ -97,8 +113,14 @@ internal static class SqlCheckRenderer
 
     private static string FormatColumn(SqlColumnExpression col, SqlRenderContext ctx)
     {
-        var cased = col.ApplyCase
-            ? ctx.IdentifierCase switch
+        string cased;
+        if (col.ApplyCase && ctx.ColumnNameResolver?.Invoke(col.Name) is { Length: > 0 } resolvedName)
+        {
+            cased = resolvedName;
+        }
+        else if (col.ApplyCase)
+        {
+            cased = ctx.IdentifierCase switch
             {
                 SqlIdentifierCase.LowerSnakeCase => col.Name.Underscore().ToLowerInvariant(),
                 SqlIdentifierCase.UpperSnakeCase => col.Name.Underscore().ToUpperInvariant(),
@@ -107,8 +129,12 @@ internal static class SqlCheckRenderer
                 SqlIdentifierCase.LowerCase => col.Name.ToLowerInvariant(),
                 SqlIdentifierCase.UpperCase => col.Name.ToUpperInvariant(),
                 _ => col.Name
-            }
-            : col.Name;
+            };
+        }
+        else
+        {
+            cased = col.Name;
+        }
 
         var delimit = col.Delimit ?? ctx.DelimitIdentifiers;
         if (!delimit)
@@ -116,31 +142,23 @@ internal static class SqlCheckRenderer
             return cased;
         }
 
-        return ctx.Dialect switch
-        {
-            SqlDialect.PostgreSql or SqlDialect.Oracle or SqlDialect.Sqlite => $"\"{cased}\"",
-            SqlDialect.MySql => $"`{cased}`",
-            SqlDialect.SqlServer => $"[{cased}]",
-            _ => cased
-        };
+        var rules = GetDialectRules(ctx.Dialect);
+        return $"{rules.QuoteOpen}{cased}{rules.QuoteClose}";
     }
 
-    private static string FormatLength(string columnSql, SqlDialect dialect) => dialect switch
+    private static string FormatLength(string columnSql, SqlDialect dialect)
     {
-        SqlDialect.SqlServer => $"LEN({columnSql})",
-        SqlDialect.PostgreSql => $"length({columnSql})",
-        SqlDialect.MySql => $"CHAR_LENGTH({columnSql})",
-        SqlDialect.Oracle or SqlDialect.Sqlite => $"LENGTH({columnSql})",
-        _ => columnSql
-    };
+        var fn = GetDialectRules(dialect).LengthFunction;
+        return string.IsNullOrEmpty(fn) ? columnSql : $"{fn}({columnSql})";
+    }
 
     private static string FormatLiteral(object? value, SqlDialect dialect) => value switch
     {
         null => SqlOperators.Null,
-        bool b => dialect == SqlDialect.SqlServer
+        bool b => GetDialectRules(dialect).UseNumericBooleans
             ? b ? "1" : "0"
             : b ? "TRUE" : "FALSE",
-        Enum e => Convert.ToInt32(e, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture),
+        Enum e => FormatEnumNumeric(e),
         string s => $"'{s.Replace("'", "''")}'",
         Guid g => $"'{g}'",
         DateOnly d => $"'{d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}'",
@@ -150,4 +168,9 @@ internal static class SqlCheckRenderer
         IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
         _ => value.ToString() ?? SqlOperators.Null
     };
+
+    private static string FormatEnumNumeric(Enum value) =>
+        Enum.GetUnderlyingType(value.GetType()) == typeof(ulong)
+            ? Convert.ToUInt64(value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture)
+            : Convert.ToInt64(value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture);
 }

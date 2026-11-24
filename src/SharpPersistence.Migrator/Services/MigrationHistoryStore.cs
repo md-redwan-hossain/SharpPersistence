@@ -55,8 +55,9 @@ internal sealed class MigrationHistoryStore
         string registryName,
         string scriptName,
         string checksum,
-        CancellationToken ct) =>
-        _dialect.RecordAppliedAsync(conn, _options, registryName, scriptName, checksum, ct);
+        CancellationToken ct,
+        DbTransaction? transaction = null) =>
+        _dialect.RecordAppliedAsync(conn, _options, registryName, scriptName, checksum, ct, transaction);
 
     public Task<IReadOnlyList<string>> ReadEfCoreMigrationIdsAsync(DbConnection conn, CancellationToken ct) =>
         _dialect.ReadEfCoreMigrationIdsAsync(conn, ct);

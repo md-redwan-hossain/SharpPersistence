@@ -20,12 +20,7 @@ internal sealed class MigrationScriptStore
 
     public List<(string RegistryName, string ScriptName, string FullPath)> DiscoverScripts()
     {
-        var sortedRegistries = RegistryDependencyResolver.SortTopologically(
-            _options.Registries,
-            _options.Dialect,
-            _options.IdentifierCase,
-            _options.PropertyConventions,
-            _options.PluralizeTableNames);
+        var sortedRegistries = RegistryDependencyResolver.SortTopologically(_options);
 
         var folders = new List<string> { "_global", "_translated" };
         folders.AddRange(sortedRegistries.Select(r => r.GetType().Name));

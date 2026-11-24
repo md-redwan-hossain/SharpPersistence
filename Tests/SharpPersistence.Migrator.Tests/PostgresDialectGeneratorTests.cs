@@ -334,4 +334,52 @@ public sealed class PostgresDialectGeneratorTests
             "CONSTRAINT \"ex_reservations_no_overlap\" EXCLUDE USING gist (LOWER(\"room_code\") WITH =, tstzrange(\"start_time\", \"ends_at\", '[)') WITH &&, daterange(\"valid_from\", \"valid_to\", '[]') WITH &&);",
             diff.SqlScript);
     }
+
+    private sealed class CrtpChainedIndexRegistry : IEntityRegistry
+    {
+        public void Configure(IEntityRegistryBuilder registry)
+        {
+            registry.Entity<SearchUser>(b =>
+            {
+                b.ToTable("search_users");
+
+                // Base CRTP methods (HasDatabaseName, IsUnique, IncludeProperties) must preserve IndexBuilder<TEntity, TKey>
+                // so HasOperator(k => k.Email, ...) remains directly chainable.
+                b.HasIndex(x => new { x.TenantId, x.Email })
+                    .HasDatabaseName("uq_crtp_tenant_email")
+                    .IsUnique()
+                    .IncludeProperties(x => x.Name)
+                    .HasOperator(k => k.Email, "varchar_pattern_ops");
+            });
+        }
+    }
+
+    [Fact]
+    public void IndexBuilder_CrtpChaining_PreservesKeyTypeForPostgresOperators()
+    {
+        var reg = new CrtpChainedIndexRegistry();
+        var schema = SchemaScanner.ScanRegistry(reg, SqlDialect.PostgreSql, SqlIdentifierCase.LowerSnakeCase, [reg]);
+        var diff = StandaloneSchemaDiffer.GenerateDiff(schema, null, SqlDialect.PostgreSql, interactiveRenamePrompt: false);
+
+        Assert.Contains(
+            "CREATE UNIQUE INDEX IF NOT EXISTS \"uq_crtp_tenant_email\" ON \"search_users\" (\"tenant_id\", \"email\" varchar_pattern_ops) INCLUDE (\"name\");",
+            diff.SqlScript);
+    }
+
+    [Fact]
+    public void UsePostgreSql_CallbackOverload_PreservesFluentChainAndConfiguresOptions()
+    {
+        var options = new MigrationManagerOptionsBuilder()
+            .UsePostgreSql("Host=localhost;Database=test", pg => pg
+                .HasPostgresExtension("btree_gist")
+                .HasPostgresEnum<BookingStatus>())
+            .UseNamingConvention(SqlIdentifierCase.LowerSnakeCase)
+            .UseMigrationsDirectory("db/pg_migrations")
+            .Build();
+
+        Assert.Equal(SqlDialect.PostgreSql, options.Dialect);
+        Assert.Equal("db/pg_migrations", options.MigrationsDirectory);
+        Assert.Single(options.Extensions, e => e.Name == "btree_gist");
+        Assert.Single(options.Enums, e => e.Name == "booking_status");
+    }
 }

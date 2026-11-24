@@ -116,7 +116,8 @@ internal static class SchemaFinalizer
                         tb.Dialect,
                         tb.IdentifierCase,
                         tb.SqlExpressionOptions.DelimitIdentifiers,
-                        tb.SqlExpressionOptions.NestedColumnSeparator)
+                        tb.SqlExpressionOptions.NestedColumnSeparator,
+                        tb.ResolveMappedColumnName)
                     : cb.ComputedColumnSql,
                 IsComputedStored = cb.IsComputedStored,
                 Comment = cb.Comment,
@@ -181,7 +182,8 @@ internal static class SchemaFinalizer
                     tb.Dialect,
                     tb.IdentifierCase,
                     tb.SqlExpressionOptions.DelimitIdentifiers,
-                    tb.SqlExpressionOptions.NestedColumnSeparator)
+                    tb.SqlExpressionOptions.NestedColumnSeparator,
+                    tb.ResolveMappedColumnName)
                 : ib.FilterSql;
 
             table.Indexes.Add(new IndexSchema
@@ -214,7 +216,7 @@ internal static class SchemaFinalizer
             table.CheckConstraints.Add(new CheckConstraintSchema
             {
                 Name = NamingFormatter.TruncateIdentifier(ckName, tb.Dialect),
-                Sql = ckDef.RenderSql(tb.Dialect, tb.IdentifierCase, tb.SqlExpressionOptions)
+                Sql = ckDef.RenderSql(tb.Dialect, tb.IdentifierCase, tb.SqlExpressionOptions, tb.ResolveMappedColumnName)
             });
         }
     }
@@ -255,7 +257,8 @@ internal static class SchemaFinalizer
                         tb.Dialect,
                         tb.IdentifierCase,
                         tb.SqlExpressionOptions.DelimitIdentifiers,
-                        tb.SqlExpressionOptions.NestedColumnSeparator);
+                        tb.SqlExpressionOptions.NestedColumnSeparator,
+                        tb.ResolveMappedColumnName);
                     elements.Add(new ExclusionConstraintElementSchema
                     {
                         ExpressionSql = exprSql,
@@ -291,7 +294,8 @@ internal static class SchemaFinalizer
                     tb.Dialect,
                     tb.IdentifierCase,
                     tb.SqlExpressionOptions.DelimitIdentifiers,
-                    tb.SqlExpressionOptions.NestedColumnSeparator)
+                    tb.SqlExpressionOptions.NestedColumnSeparator,
+                    tb.ResolveMappedColumnName)
                 : exDef.FilterSql;
 
             table.ExclusionConstraints.Add(new ExclusionConstraintSchema

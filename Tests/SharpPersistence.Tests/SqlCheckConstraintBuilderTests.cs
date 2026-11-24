@@ -12,6 +12,16 @@ public class SqlCheckConstraintBuilderTests
         Archived = 3
     }
 
+    private enum LargeStatus : long
+    {
+        Huge = 5_000_000_000L
+    }
+
+    private enum UnsignedLargeStatus : ulong
+    {
+        Maxed = 10_000_000_000UL
+    }
+
     private sealed class AppPolicy
     {
         public int IsOverrideAllowed { get; set; }
@@ -541,6 +551,33 @@ public class SqlCheckConstraintBuilderTests
 
         oracle.Column(x => x.Code).RawPredicate(col => $"REGEXP_LIKE({col}, '^ORD-[0-9]+$')")
             .ShouldRender("""REGEXP_LIKE("CODE", '^ORD-[0-9]+$')""");
+    }
+
+    [Theory]
+    [InlineData(true, "\"is_active\" = 1", "\"is_active\" = 0")]
+    [InlineData(false, "is_active = 1", "is_active = 0")]
+    public void Oracle_Boolean_GeneratesNumericLiterals(
+        bool delimitIdentifiers,
+        string expectedTrue,
+        string expectedFalse)
+    {
+        var cc = CreateBuilder(SqlDialect.Oracle, delimitIdentifiers);
+        var policy = cc.For<AppPolicy>();
+
+        policy.Column(x => x.IsActive).EqualTo(true).ShouldRender(expectedTrue);
+        policy.Column(x => x.IsActive).EqualTo(false).ShouldRender(expectedFalse);
+    }
+
+    [Fact]
+    public void LargeInt64AndUInt64Enums_DoNotOverflow()
+    {
+        var cc = CreateBuilder(SqlDialect.PostgreSql, delimitIdentifiers: false);
+
+        cc.RawColumn<LargeStatus>("status").EqualTo(LargeStatus.Huge)
+            .ShouldRender("status = 5000000000");
+
+        cc.RawColumn<UnsignedLargeStatus>("u_status").EqualTo(UnsignedLargeStatus.Maxed)
+            .ShouldRender("u_status = 10000000000");
     }
 }
 

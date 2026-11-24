@@ -8,7 +8,7 @@ namespace SharpPersistence.Migrator.Services;
 
 internal sealed class DoctorEntityValidator(
     MigrationManagerOptions options,
-    IMigrationDialect dialect)
+    ISqlDialectMetadata dialect)
 {
     public void ValidateTable(
         TableDefinition tb,
@@ -83,7 +83,8 @@ internal sealed class DoctorEntityValidator(
                         tb.Dialect,
                         tb.IdentifierCase,
                         tb.SqlExpressionOptions.DelimitIdentifiers,
-                        tb.SqlExpressionOptions.NestedColumnSeparator);
+                        tb.SqlExpressionOptions.NestedColumnSeparator,
+                        tb.ResolveMappedColumnName);
                     if (string.IsNullOrWhiteSpace(sql))
                     {
                         items.Add(new DoctorCheckItem(
@@ -142,7 +143,8 @@ internal sealed class DoctorEntityValidator(
                         tb.Dialect,
                         tb.IdentifierCase,
                         tb.SqlExpressionOptions.DelimitIdentifiers,
-                        tb.SqlExpressionOptions.NestedColumnSeparator);
+                        tb.SqlExpressionOptions.NestedColumnSeparator,
+                        tb.ResolveMappedColumnName);
                 }
                 catch (Exception ex)
                 {
@@ -161,7 +163,7 @@ internal sealed class DoctorEntityValidator(
         {
             try
             {
-                var sql = ckDef.RenderSql(tb.Dialect, tb.IdentifierCase, tb.SqlExpressionOptions);
+                var sql = ckDef.RenderSql(tb.Dialect, tb.IdentifierCase, tb.SqlExpressionOptions, tb.ResolveMappedColumnName);
                 if (string.IsNullOrWhiteSpace(sql))
                 {
                     items.Add(new DoctorCheckItem(
@@ -250,7 +252,8 @@ internal sealed class DoctorEntityValidator(
                             tb.Dialect,
                             tb.IdentifierCase,
                             tb.SqlExpressionOptions.DelimitIdentifiers,
-                            tb.SqlExpressionOptions.NestedColumnSeparator);
+                            tb.SqlExpressionOptions.NestedColumnSeparator,
+                            tb.ResolveMappedColumnName);
                         if (string.IsNullOrWhiteSpace(sql))
                         {
                             items.Add(new DoctorCheckItem(
@@ -277,7 +280,8 @@ internal sealed class DoctorEntityValidator(
                         tb.Dialect,
                         tb.IdentifierCase,
                         tb.SqlExpressionOptions.DelimitIdentifiers,
-                        tb.SqlExpressionOptions.NestedColumnSeparator);
+                        tb.SqlExpressionOptions.NestedColumnSeparator,
+                        tb.ResolveMappedColumnName);
                 }
                 catch (Exception ex)
                 {

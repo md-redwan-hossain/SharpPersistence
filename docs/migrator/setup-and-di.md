@@ -54,13 +54,15 @@ builder.Services.AddDbMigrator(opt =>
 | `UseNamingConvention(case)` | Dialect default | `LowerSnakeCase`, `UpperSnakeCase`, `PascalCase`, `CamelCase`, `LowerCase`, or `UpperCase` |
 | `PluralizeTableNames(bool)` | `false` | Pluralizes convention-derived table names (`Order` → `orders`, `OrderCategory` → `order_categories`) |
 | `UseHistoryTable(name, schema?)` | `__db_migration_logs` | Customizes the applied-migrations tracking table |
+| `UseTableNameConvention(fn)` | — | Customizes convention-derived table names (`(entityType, defaultName) => ...`) |
 | `UseMigrationsDirectory(dir)` | `MigrationScripts` | Output folder for generated `.sql` scripts |
 | `UseSnapshotDirectory(dir)` | `EntityChangelogs` | Output folder for schema snapshot `.json` files |
 | `UseRootPath(path)` | Working dir | Base directory for relative migration/snapshot paths |
 | `ConfigureProperties<T>(action)` | — | Global CLR-type conventions (e.g. all `string` max length `255`, or `Enum`) |
+| `ConfigureEntities<T>(action)` | — | Global entity/interface conventions (e.g. shared audit FKs, keys, schemas) |
+| `ConfigureEntityStubs(cfg)` | — | Maps cross-module `Ref*` stub types to their owning entity (`stubs.Map<RefUser, User>()`) |
 | `ConfigureSqlExpressionBuilder(cfg)` | `DelimitIdentifiers = true`, `NestedColumnSeparator = "_"` | Global defaults for typed `HasCheckConstraint`, `HasFilter`, and `HasComputedColumnSql` |
-| `AddRegistry<T>()` / `AddRegistry(reg)` | — | Manually register an `IEntityRegistry` |
-| `AddRegistriesFromAssembly(...)` | — | Reflection-based registry scan (prefer `AddGeneratedEntityRegistries()`) |
+| `AddRegistry<T>()` / `AddRegistry(reg)` | — | Manually register an `IEntityRegistry` (prefer `AddGeneratedEntityRegistries()`) |
 
 ## Global Property Conventions
 
@@ -71,6 +73,27 @@ opt.ConfigureProperties<string>(c => c.HasMaxLength(200))
    .ConfigureProperties<decimal>(c => c.HasPrecision(18, 4))
    .ConfigureProperties<Enum>(c => c.HasMaxLength(50));
 ```
+
+## Global Entity Conventions & Cross-Module Stubs
+
+Apply shared foreign keys, keys, schemas, or table-naming rules across any entity implementing an interface or base class without reflection in your application code:
+
+```csharp
+opt.UseTableNameConvention((entityType, defaultName) =>
+    typeof(ILookupEntity).IsAssignableFrom(entityType) ? $"lk_{defaultName}" : defaultName);
+
+opt.ConfigureEntities<ICreateTracking>(e =>
+    e.HasForeignKey(x => x.CreatedByUserId)
+        .References<RefUser>(u => u.Id)
+        .OnDelete(DbReferentialAction.Restrict));
+
+// In your startup project, map each Ref* stub to its owning entity once
+opt.ConfigureEntityStubs(stubs => stubs
+    .Map<RefUser, User>()
+    .Map<RefCompany, Company>());
+```
+
+`ConfigureEntities<T>` runs before per-entity `IEntityConfiguration<T>` classes, so any entity can override a conventional FK or index without creating duplicates. `ConfigureEntityStubs` lets module registries reference local `Ref*` stubs while generated foreign keys and topological sorting target the owning tables.
 
 ## Custom Connection Factory
 

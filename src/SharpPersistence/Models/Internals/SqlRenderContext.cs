@@ -6,4 +6,5 @@ internal sealed record SqlRenderContext(
     SqlDialect Dialect,
     SqlIdentifierCase IdentifierCase,
     bool DelimitIdentifiers,
-    string NestedSeparator);
+    string NestedSeparator,
+    Func<string, string?>? ColumnNameResolver = null);

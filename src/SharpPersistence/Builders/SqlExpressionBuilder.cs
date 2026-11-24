@@ -39,8 +39,9 @@ public class SqlExpressionBuilder
     public required SqlIdentifierCase IdentifierCase { get; init; }
     public required bool DelimitIdentifiers { get; init; }
     public string NestedSeparator { get; init; } = "_";
+    public Func<string, string?>? ColumnNameResolver { get; init; }
 
-    internal SqlRenderContext Context => new(Dialect, IdentifierCase, DelimitIdentifiers, NestedSeparator);
+    internal SqlRenderContext Context => new(Dialect, IdentifierCase, DelimitIdentifiers, NestedSeparator, ColumnNameResolver);
 
     /// <summary>
     /// Creates an entity-scoped column builder for <typeparamref name="TEntity"/>.

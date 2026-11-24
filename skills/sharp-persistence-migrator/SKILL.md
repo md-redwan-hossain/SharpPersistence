@@ -38,7 +38,14 @@ builder.Services.AddDbMigrator(opt =>
         .UseHistoryTable("__db_migration_logs", "public")
         .UseNamingConvention(SqlIdentifierCase.LowerSnakeCase)
         .PluralizeTableNames()
+        .UseTableNameConvention((entityType, defaultName) =>
+            typeof(ILookupEntity).IsAssignableFrom(entityType) ? $"lk_{defaultName}" : defaultName)
         .ConfigureProperties<string>(c => c.HasMaxLength(200))
+        .ConfigureEntities<ICreateTracking>(e =>
+            e.HasForeignKey(x => x.CreatedByUserId)
+                .References<RefUser>(u => u.Id)
+                .OnDelete(DbReferentialAction.Restrict))
+        .ConfigureEntityStubs(stubs => stubs.Map<RefUser, User>())
         .ConfigureSqlExpressionBuilder(cc => cc
             .UseDelimitedIdentifiers(true)
             .UseNestedColumnSeparator("_"))
@@ -65,7 +72,9 @@ public sealed class BookingConfiguration : IEntityConfiguration<Booking>
 
         builder.HasKey(x => x.Id).HasName("pk_bookings");
         builder.Property(x => x.Code).HasMaxLength(32).IsRequired();
-        builder.Property(x => x.Total).HasComputedColumnSql(e => e.Column(x => x.Amount).Math().Plus(x => x.Tax), stored: true);
+        builder.Property(x => x.Total)
+            .HasComputedColumnSql(e => e.Column(x => x.Amount).Math().Plus(x => x.Tax))
+            .IsStored();
         builder.Ignore(x => x.ComputedLabel);
 
         builder.HasForeignKey(x => x.CustomerId)

@@ -7,6 +7,31 @@ using SharpPersistence.Migrator.Services;
 
 namespace SharpPersistence.Migrator.Builders;
 
+internal delegate string SqlExpressionRenderDelegate(
+    SqlDialect dialect,
+    SqlIdentifierCase identifierCase,
+    bool delimitIdentifiers,
+    string nestedSeparator,
+    Func<string, string?> resolveColumnName);
+
+internal static class SqlExpressionBuilderFactory
+{
+    public static SqlExpressionBuilder<TEntity> Create<TEntity>(
+        SqlDialect dialect,
+        SqlIdentifierCase identifierCase,
+        bool delimitIdentifiers,
+        string nestedSeparator,
+        Func<string, string?> resolveColumnName) =>
+        new()
+        {
+            Dialect = dialect,
+            IdentifierCase = identifierCase,
+            DelimitIdentifiers = delimitIdentifiers,
+            NestedSeparator = nestedSeparator,
+            ColumnNameResolver = resolveColumnName
+        };
+}
+
 internal sealed class TableDefinition
 {
     public Type EntityType { get; }
@@ -33,6 +58,18 @@ internal sealed class TableDefinition
     public Dictionary<string, CheckConstraintDefinition> CheckConstraints { get; } = new(StringComparer.Ordinal);
     public Dictionary<string, ExclusionConstraintDefinition> ExclusionConstraints { get; } = new(StringComparer.Ordinal);
     public List<ForeignKeyDefinition> ForeignKeys { get; } = [];
+    private bool _isApplyingEntityConventions;
+
+    public IDisposable BeginConventionScope()
+    {
+        _isApplyingEntityConventions = true;
+        return new ConventionScope(this);
+    }
+
+    private sealed class ConventionScope(TableDefinition owner) : IDisposable
+    {
+        public void Dispose() => owner._isApplyingEntityConventions = false;
+    }
 
     public TableDefinition(
         Type entityType,
@@ -78,20 +115,29 @@ internal sealed class TableDefinition
         ColumnsByProp.Remove(propName);
     }
 
+    public string? ResolveMappedColumnName(string propertyName) =>
+        ColumnsByProp.TryGetValue(propertyName, out var col) ? col.ColumnName : null;
+
     public IndexDefinition AddIndex(IReadOnlyList<string> propNames)
     {
         var existing = Indexes.FirstOrDefault(ix =>
-            ix.IndexName is null &&
-            ix.FilterSql is null &&
-            ix.FilterRenderer is null &&
+            ix.IsFromConvention &&
             ix.PropertyNames.SequenceEqual(propNames, StringComparer.Ordinal));
 
         if (existing is not null)
         {
+            if (!_isApplyingEntityConventions)
+            {
+                existing.IsFromConvention = false;
+            }
+
             return existing;
         }
 
-        var idx = new IndexDefinition(propNames);
+        var idx = new IndexDefinition(propNames)
+        {
+            IsFromConvention = _isApplyingEntityConventions
+        };
         Indexes.Add(idx);
         return idx;
     }
@@ -101,7 +147,7 @@ internal sealed class TableDefinition
 
     public CheckConstraintDefinition AddCheckConstraint(
         string name,
-        Func<SqlDialect, SqlIdentifierCase, bool, string, string> sqlRenderer)
+        SqlExpressionRenderDelegate sqlRenderer)
     {
         var def = new CheckConstraintDefinition(name, rawSql: null, sqlRenderer: sqlRenderer);
         CheckConstraints[name] = def;
@@ -193,7 +239,7 @@ internal sealed class TableDefinition
 internal sealed class CheckConstraintDefinition
 {
     private readonly string? _rawSql;
-    private readonly Func<SqlDialect, SqlIdentifierCase, bool, string, string>? _sqlRenderer;
+    private readonly SqlExpressionRenderDelegate? _sqlRenderer;
 
     public string Name { get; }
     public bool? DelimitIdentifiers { get; set; }
@@ -202,7 +248,7 @@ internal sealed class CheckConstraintDefinition
     public CheckConstraintDefinition(
         string name,
         string? rawSql,
-        Func<SqlDialect, SqlIdentifierCase, bool, string, string>? sqlRenderer)
+        SqlExpressionRenderDelegate? sqlRenderer)
     {
         Name = name;
         _rawSql = rawSql;
@@ -212,7 +258,8 @@ internal sealed class CheckConstraintDefinition
     public string RenderSql(
         SqlDialect dialect,
         SqlIdentifierCase identifierCase,
-        SqlExpressionBuilderOptions defaults)
+        SqlExpressionBuilderOptions defaults,
+        Func<string, string?> resolveColumnName)
     {
         if (_rawSql is not null)
         {
@@ -221,7 +268,7 @@ internal sealed class CheckConstraintDefinition
 
         var delimit = DelimitIdentifiers ?? defaults.DelimitIdentifiers;
         var separator = NestedColumnSeparator ?? defaults.NestedColumnSeparator;
-        return _sqlRenderer!(dialect, identifierCase, delimit, separator);
+        return _sqlRenderer!(dialect, identifierCase, delimit, separator, resolveColumnName);
     }
 }
 
@@ -231,7 +278,7 @@ internal sealed record ExclusionConstraintElementDefinition(
     string? OperatorClass,
     string Operator,
     Func<Func<string, string>, string>? ExpressionRenderer = null,
-    Func<SqlDialect, SqlIdentifierCase, bool, string, string>? SqlExpressionRenderer = null);
+    SqlExpressionRenderDelegate? SqlExpressionRenderer = null);
 
 internal sealed class ExclusionConstraintDefinition
 {
@@ -242,7 +289,7 @@ internal sealed class ExclusionConstraintDefinition
     public Dictionary<string, string>? StorageParameters { get; set; }
     public string? Tablespace { get; set; }
     public string? FilterSql { get; set; }
-    public Func<SqlDialect, SqlIdentifierCase, bool, string, string>? FilterRenderer { get; set; }
+    public SqlExpressionRenderDelegate? FilterRenderer { get; set; }
 
     public ExclusionConstraintDefinition(string name)
     {
@@ -266,7 +313,7 @@ internal sealed class ColumnDefinition
     public bool IsIdentity { get; set; }
     public ValueGenerationMode ValueGenerated { get; set; }
     public string? ComputedColumnSql { get; set; }
-    public Func<SqlDialect, SqlIdentifierCase, bool, string, string>? ComputedColumnSqlRenderer { get; set; }
+    public SqlExpressionRenderDelegate? ComputedColumnSqlRenderer { get; set; }
     public bool IsComputedStored { get; set; }
     public string? Comment { get; set; }
     public bool IsConcurrencyToken { get; set; }
@@ -303,13 +350,14 @@ internal sealed class IndexDefinition
     public string? IndexName { get; set; }
     public bool IsUnique { get; set; }
     public string? FilterSql { get; set; }
-    public Func<SqlDialect, SqlIdentifierCase, bool, string, string>? FilterRenderer { get; set; }
+    public SqlExpressionRenderDelegate? FilterRenderer { get; set; }
     public List<string>? IncludedPropertyNames { get; set; }
     public List<bool>? IsDescending { get; set; }
     public string? Method { get; set; }
     public string? Tablespace { get; set; }
     public Dictionary<string, string>? StorageParameters { get; set; }
     public Dictionary<string, string>? OperatorsByProperty { get; set; }
+    public bool IsFromConvention { get; set; }
 
     public IndexDefinition(IReadOnlyList<string> propertyNames)
     {

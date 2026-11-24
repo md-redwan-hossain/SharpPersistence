@@ -2,12 +2,26 @@ using SharpPersistence.Enums;
 using SharpPersistence.Migrator.Abstractions;
 using SharpPersistence.Migrator.Builders;
 using SharpPersistence.Migrator.Configuration;
+using SharpPersistence.Migrator.Dialects;
 using SharpPersistence.Migrator.Models;
 
 namespace SharpPersistence.Migrator.Services;
 
 internal static class RegistryDependencyResolver
 {
+    public static IReadOnlyList<IEntityRegistry> SortTopologically(MigrationManagerOptions options) =>
+        SortTopologically(
+            options.Registries,
+            options.Dialect,
+            options.IdentifierCase,
+            options.PropertyConventions,
+            options.PluralizeTableNames,
+            options.EntityConventions,
+            options.TableNameConvention,
+            options.EntityStubs,
+            options.Enums,
+            options.SqlExpressionOptions);
+
     public static IReadOnlyList<IEntityRegistry> SortTopologically(
         IReadOnlyList<IEntityRegistry> registries,
         SqlDialect dialect,
@@ -16,13 +30,16 @@ internal static class RegistryDependencyResolver
         bool pluralizeTableNames = false,
         IReadOnlyList<EntityConventionRule>? entityConventions = null,
         Func<Type, string, string>? tableNameConvention = null,
-        IReadOnlyDictionary<Type, Type>? entityStubs = null)
+        IReadOnlyDictionary<Type, Type>? entityStubs = null,
+        IReadOnlyList<PostgresEnumSchema>? pgEnums = null,
+        SqlExpressionBuilderOptions? sqlExpressionOptions = null)
     {
         if (registries.Count <= 1)
         {
             return registries;
         }
 
+        var dialectMeta = MigrationDialectRegistry.Get(dialect);
         var registryByName = registries.ToDictionary(r => r.GetType().Name, StringComparer.Ordinal);
         var ownerByEntityName = new Dictionary<string, string>(StringComparer.Ordinal);
         var ownerByQualifiedTable = new Dictionary<(string Schema, string Table), string>();
@@ -45,6 +62,8 @@ internal static class RegistryDependencyResolver
                 identifierCase,
                 registries,
                 propertyConventions,
+                pgEnums: pgEnums,
+                sqlExpressionOptions: sqlExpressionOptions,
                 pluralizeTableNames: pluralizeTableNames,
                 entityConventions: entityConventions,
                 tableNameConvention: tableNameConvention,
@@ -60,7 +79,7 @@ internal static class RegistryDependencyResolver
                     continue;
                 }
 
-                var key = (NormalizeSchema(table.Schema, dialect), table.TableName);
+                var key = (dialectMeta.NormalizeSchemaName(table.Schema), table.TableName);
                 ownerByQualifiedTable.TryAdd(key, regName);
             }
         }
@@ -90,7 +109,7 @@ internal static class RegistryDependencyResolver
                     string? principalName = null;
                     if (excludedEntities.Contains(fk.PrincipalEntityName))
                     {
-                        var tableKey = (NormalizeSchema(fk.PrincipalSchema, dialect), fk.PrincipalTable);
+                        var tableKey = (dialectMeta.NormalizeSchemaName(fk.PrincipalSchema), fk.PrincipalTable);
                         ownerByQualifiedTable.TryGetValue(tableKey, out principalName);
                     }
                     else
@@ -139,15 +158,5 @@ internal static class RegistryDependencyResolver
         }
 
         return ordered;
-    }
-
-    private static string NormalizeSchema(string? schema, SqlDialect dialect)
-    {
-        if (string.IsNullOrWhiteSpace(schema))
-        {
-            return dialect == SqlDialect.PostgreSql ? "public" : string.Empty;
-        }
-
-        return schema.Trim();
     }
 }

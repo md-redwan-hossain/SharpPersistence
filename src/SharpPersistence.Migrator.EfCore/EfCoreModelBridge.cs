@@ -90,6 +90,10 @@ public static class EfCoreModelBridge
                     entity.HasKey([.. table.PrimaryKey.PropertyNames])
                           .HasName(table.PrimaryKey.Name);
                 }
+                else if (table.ExcludeFromMigrations)
+                {
+                    entity.HasNoKey();
+                }
 
                 foreach (var col in table.Columns)
                 {

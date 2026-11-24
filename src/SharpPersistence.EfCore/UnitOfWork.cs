@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -43,11 +43,8 @@ public abstract class UnitOfWork<TDbContext> : IUnitOfWork
         await _dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }
 
-
-    public DbTransaction? CurrentTransaction
-    {
-        get { return _dbContext.Database.CurrentTransaction?.GetDbTransaction(); }
-    }
+    public DbTransaction? CurrentTransaction =>
+        _dbContext.Database.CurrentTransaction?.GetDbTransaction();
 
     public async Task<DbTransaction> BeginTransactionAsync()
     {
@@ -66,17 +63,18 @@ public abstract class UnitOfWork<TDbContext> : IUnitOfWork
         var trx = await _dbContext.Database
             .BeginTransactionAsync(isolationLevel)
             .ConfigureAwait(false);
-        
+
         return trx.GetDbTransaction();
     }
 
-    public async Task<DbTransaction> BeginTransactionAsync(IsolationLevel isolationLevel,
+    public async Task<DbTransaction> BeginTransactionAsync(
+        IsolationLevel isolationLevel,
         CancellationToken cancellationToken)
     {
         var trx = await _dbContext.Database
             .BeginTransactionAsync(isolationLevel, cancellationToken)
             .ConfigureAwait(false);
-        
+
         return trx.GetDbTransaction();
     }
 

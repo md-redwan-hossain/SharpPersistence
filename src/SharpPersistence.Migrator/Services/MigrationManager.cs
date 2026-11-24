@@ -50,15 +50,7 @@ internal sealed class MigrationManager : IMigrationManager
             Directory.CreateDirectory(sqlRootDir);
         }
 
-        var sortedRegistries = RegistryDependencyResolver.SortTopologically(
-            _options.Registries,
-            _options.Dialect,
-            _options.IdentifierCase,
-            _options.PropertyConventions,
-            _options.PluralizeTableNames,
-            _options.EntityConventions,
-            _options.TableNameConvention,
-            _options.EntityStubs);
+        var sortedRegistries = RegistryDependencyResolver.SortTopologically(_options);
 
         var targets = string.IsNullOrWhiteSpace(registryFilter)
             ? sortedRegistries
@@ -90,18 +82,7 @@ internal sealed class MigrationManager : IMigrationManager
                 ? await File.ReadAllTextAsync(snapshotPath, ct)
                 : null;
 
-            var currentSchema = SchemaScanner.ScanRegistry(
-                registry,
-                _options.Dialect,
-                _options.IdentifierCase,
-                sortedRegistries,
-                _options.PropertyConventions,
-                _options.Enums,
-                _options.SqlExpressionOptions,
-                _options.PluralizeTableNames,
-                _options.EntityConventions,
-                _options.TableNameConvention,
-                _options.EntityStubs);
+            var currentSchema = SchemaScanner.ScanRegistry(registry, _options, sortedRegistries);
 
             var result = StandaloneSchemaDiffer.GenerateDiff(
                 currentSchema,
@@ -120,8 +101,7 @@ internal sealed class MigrationManager : IMigrationManager
 
                 var emptyDir = Path.Combine(sqlRootDir, registryName);
                 var emptySqlPath = Path.Combine(emptyDir, $"{timestamp}_{migrationName}.sql");
-                var emptySql =
-                    $"-- Empty migration: {migrationName}{Environment.NewLine}BEGIN;{Environment.NewLine}{Environment.NewLine}-- Add custom SQL here{Environment.NewLine}{Environment.NewLine}COMMIT;{Environment.NewLine}";
+                var emptySql = _dialect.FormatEmptyMigration(migrationName);
 
                 if (!dryRun)
                 {
@@ -250,14 +230,50 @@ internal sealed class MigrationManager : IMigrationManager
                 var sql = await File.ReadAllTextAsync(fullPath, ct);
                 var checksum = MigrationScriptStore.ComputeSha256(sql);
 
-                foreach (var stmt in _dialect.SplitScriptStatements(sql))
+                if (_dialect.TryStripOuterTransaction(sql, out var innerSql))
                 {
-                    await using var execCmd = conn.CreateCommand();
-                    execCmd.CommandText = stmt;
-                    await execCmd.ExecuteNonQueryAsync(ct);
+                    await using var tx = await conn.BeginTransactionAsync(ct);
+                    try
+                    {
+                        foreach (var stmt in _dialect.SplitScriptStatements(innerSql))
+                        {
+                            if (string.IsNullOrWhiteSpace(stmt))
+                            {
+                                continue;
+                            }
+
+                            await using var execCmd = conn.CreateCommand();
+                            execCmd.Transaction = tx;
+                            execCmd.CommandText = stmt;
+                            await execCmd.ExecuteNonQueryAsync(ct);
+                        }
+
+                        await _historyStore.RecordAppliedAsync(conn, registryName, scriptName, checksum, ct, tx);
+                        await tx.CommitAsync(ct);
+                    }
+                    catch
+                    {
+                        await tx.RollbackAsync(CancellationToken.None);
+                        throw;
+                    }
+                }
+                else
+                {
+                    foreach (var stmt in _dialect.SplitScriptStatements(sql))
+                    {
+                        if (string.IsNullOrWhiteSpace(stmt))
+                        {
+                            continue;
+                        }
+
+                        await using var execCmd = conn.CreateCommand();
+                        execCmd.CommandText = stmt;
+                        await execCmd.ExecuteNonQueryAsync(ct);
+                    }
+
+                    await _historyStore.RecordAppliedAsync(conn, registryName, scriptName, checksum, ct);
                 }
 
-                await _historyStore.RecordAppliedAsync(conn, registryName, scriptName, checksum, ct);
                 executed.Add($"{registryName}/{scriptName}");
             }
 

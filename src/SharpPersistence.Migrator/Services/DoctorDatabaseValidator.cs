@@ -1,6 +1,5 @@
 using System.Data.Common;
 using System.Diagnostics;
-using System.Reflection;
 using SharpPersistence.Migrator.Configuration;
 using SharpPersistence.Migrator.Dialects;
 using SharpPersistence.Migrator.Models;
@@ -44,7 +43,7 @@ internal sealed class DoctorDatabaseValidator(
         }
         catch (Exception ex)
         {
-            var root = UnwrapException(ex);
+            var root = MigrationDoctor.UnwrapException(ex);
             checks.Add(new DoctorCheckItem(
                 DoctorSeverity.Error,
                 $"Failed to connect to database: {root.Message}",
@@ -68,7 +67,7 @@ internal sealed class DoctorDatabaseValidator(
         }
         catch (Exception ex)
         {
-            var root = UnwrapException(ex);
+            var root = MigrationDoctor.UnwrapException(ex);
             checks.Add(new DoctorCheckItem(
                 DoctorSeverity.Error,
                 $"Live database verification failed: {root.Message}"));
@@ -169,9 +168,4 @@ internal sealed class DoctorDatabaseValidator(
                 $"[{diff.RegistryName}] {diff.TableName}: {diff.Details}"));
         }
     }
-
-    private static Exception UnwrapException(Exception ex) =>
-        ex is TargetInvocationException tie && tie.InnerException is not null
-            ? tie.InnerException
-            : ex;
 }

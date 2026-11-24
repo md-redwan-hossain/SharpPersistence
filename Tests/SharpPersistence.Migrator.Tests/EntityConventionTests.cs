@@ -217,7 +217,7 @@ public sealed class EntityConventionTests
         var excludedDef = SchemaScanner.BuildSingleTableDefinition(
             typeof(ExcludedView),
             null,
-            [obj => ((SharpPersistence.Migrator.Builders.EntityBuilder<ExcludedView>)obj).ExcludeFromMigrations()],
+            [obj => ((Builders.EntityBuilder<ExcludedView>)obj).ExcludeFromMigrations()],
             null,
             options.Dialect,
             options.IdentifierCase,
@@ -227,7 +227,7 @@ public sealed class EntityConventionTests
         var brokenDef = SchemaScanner.BuildSingleTableDefinition(
             typeof(BrokenComputedEntity),
             null,
-            [obj => ((SharpPersistence.Migrator.Builders.EntityBuilder<BrokenComputedEntity>)obj)
+            [obj => ((Builders.EntityBuilder<BrokenComputedEntity>)obj)
                 .Property(x => x.Total)
                 .HasComputedColumnSql(_ => throw new InvalidOperationException("broken computed expr"))],
             null,
@@ -236,12 +236,12 @@ public sealed class EntityConventionTests
             options.PropertyConventions,
             options.SqlExpressionOptions);
 
-        var allTables = new Dictionary<Type, (string, SharpPersistence.Migrator.Builders.TableDefinition)>
+        var allTables = new Dictionary<Type, (string, Builders.TableDefinition)>
         {
             [typeof(ExcludedView)] = (nameof(DoctorTestRegistry), excludedDef),
             [typeof(BrokenComputedEntity)] = (nameof(DoctorTestRegistry), brokenDef)
         };
-        var enumLookup = new Dictionary<string, SharpPersistence.Migrator.Models.PostgresEnumSchema>();
+        var enumLookup = new Dictionary<string, PostgresEnumSchema>();
 
         var excludedItems = new List<DoctorCheckItem>();
         validator.ValidateTable(excludedDef, allTables, enumLookup, excludedItems);

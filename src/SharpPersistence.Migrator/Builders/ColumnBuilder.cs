@@ -70,10 +70,16 @@ public abstract class ColumnBuilderBase<TBuilder>
         return Self;
     }
 
-    public TBuilder HasComputedColumnSql(string? sql, bool stored = false)
+    public TBuilder HasComputedColumnSql(string? sql)
     {
         Definition.ComputedColumnSql = sql;
         Definition.ComputedColumnSqlRenderer = null;
+        Definition.IsComputedStored = false;
+        return Self;
+    }
+
+    public TBuilder IsStored(bool stored = true)
+    {
         Definition.IsComputedStored = stored;
         return Self;
     }
@@ -165,28 +171,26 @@ public sealed class ColumnBuilder<TEntity> : ColumnBuilderBase<ColumnBuilder<TEn
     }
 
     public ColumnBuilder<TEntity> HasComputedColumnSql(
-        Func<ISqlExpressionBuilder<TEntity>, SqlBuiltExpression> expression,
-        bool stored = false)
+        Func<ISqlExpressionBuilder<TEntity>, SqlBuiltExpression> expression)
     {
         ArgumentNullException.ThrowIfNull(expression);
 
         Definition.ComputedColumnSql = null;
-        Definition.ComputedColumnSqlRenderer = (dialect, identifierCase, delimitIdentifiers, nestedSeparator) =>
+        Definition.ComputedColumnSqlRenderer = (dialect, identifierCase, delimitIdentifiers, nestedSeparator, resolveColumnName) =>
         {
-            ISqlExpressionBuilder<TEntity> builder = new SqlExpressionBuilder<TEntity>
-            {
-                Dialect = dialect,
-                IdentifierCase = identifierCase,
-                DelimitIdentifiers = delimitIdentifiers,
-                NestedSeparator = nestedSeparator
-            };
+            ISqlExpressionBuilder<TEntity> builder = SqlExpressionBuilderFactory.Create<TEntity>(
+                dialect,
+                identifierCase,
+                delimitIdentifiers,
+                nestedSeparator,
+                resolveColumnName);
 
             var result = expression(builder)
                 ?? throw new InvalidOperationException(
                     $"Computed column expression for '{Definition.PropertyName}' on entity '{typeof(TEntity).Name}' returned null.");
             return result.ToString();
         };
-        Definition.IsComputedStored = stored;
+        Definition.IsComputedStored = false;
         return this;
     }
 }

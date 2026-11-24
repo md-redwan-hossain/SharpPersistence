@@ -603,7 +603,7 @@ internal sealed class PostgresDialectGenerator : ISqlDialectGenerator
 
         if (!string.Equals(alt.OldCol.SqlType, alt.NewCol.SqlType, StringComparison.OrdinalIgnoreCase))
         {
-            var targetType = EscapeLiteral(NormalizePostgresType(alt.NewCol.SqlType));
+            var targetType = EscapeLiteral(PostgresMigrationDialect.NormalizeTypeName(alt.NewCol.SqlType));
             inner.AppendLine("    IF EXISTS (");
             inner.AppendLine("        SELECT 1 FROM pg_catalog.pg_attribute a");
             inner.AppendLine("        JOIN pg_catalog.pg_class t ON t.oid = a.attrelid");
@@ -689,7 +689,8 @@ internal sealed class PostgresDialectGenerator : ISqlDialectGenerator
 
         if (!string.IsNullOrWhiteSpace(col.ComputedColumnSql))
         {
-            return $"{Quote(col.ColumnName)} {col.SqlType} GENERATED ALWAYS AS ({col.ComputedColumnSql}) STORED {nullClause}";
+            var storageClause = col.IsComputedStored ? "STORED" : "VIRTUAL";
+            return $"{Quote(col.ColumnName)} {col.SqlType} GENERATED ALWAYS AS ({col.ComputedColumnSql}) {storageClause} {nullClause}";
         }
 
         var defaultClause = string.IsNullOrWhiteSpace(col.DefaultValueSql)
@@ -743,34 +744,5 @@ internal sealed class PostgresDialectGenerator : ISqlDialectGenerator
 
         return
             $"CONSTRAINT {Quote(fk.Name)} FOREIGN KEY ({depCols}) REFERENCES {Qualify(fk.PrincipalSchema, fk.PrincipalTable)} ({prinCols}){onDelete}";
-    }
-
-    private static string NormalizePostgresType(string sqlType)
-    {
-        var lower = sqlType.Trim().ToLowerInvariant();
-        if (lower.StartsWith("varchar(", StringComparison.Ordinal))
-        {
-            return "character varying" + lower["varchar".Length..];
-        }
-
-        if (lower.StartsWith("decimal(", StringComparison.Ordinal))
-        {
-            return "numeric" + lower["decimal".Length..];
-        }
-
-        return lower switch
-        {
-            "int" or "int4" => "integer",
-            "int8" => "bigint",
-            "int2" => "smallint",
-            "bool" => "boolean",
-            "float8" => "double precision",
-            "float4" => "real",
-            "timestamptz" => "timestamp with time zone",
-            "timestamp" => "timestamp without time zone",
-            "varchar" => "character varying",
-            "decimal" => "numeric",
-            _ => lower
-        };
     }
 }

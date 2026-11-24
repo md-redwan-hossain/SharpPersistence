@@ -219,4 +219,48 @@ public sealed class EntityStubTests
         Assert.Contains(checks, c => c.Severity == DoctorSeverity.Error && c.Message.Contains("itself registered as a stub"));
         Assert.Contains(checks, c => c.Severity == DoctorSeverity.Error && c.Message.Contains("UnregisteredOwner"));
     }
+
+    [Fact]
+    public void MigrationScriptStore_DiscoverScripts_RespectsEntityStubsAndConventionsOrder()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"sp_stub_scripts_{Guid.NewGuid():N}");
+        try
+        {
+            var accessDir = Path.Combine(tempRoot, "MigrationScripts", nameof(AccessControlRegistry));
+            var billingDir = Path.Combine(tempRoot, "MigrationScripts", nameof(BillingRegistry));
+            Directory.CreateDirectory(accessDir);
+            Directory.CreateDirectory(billingDir);
+
+            File.WriteAllText(Path.Combine(accessDir, "20261124000001_Initial.sql"), "BEGIN;\nCOMMIT;\n");
+            File.WriteAllText(Path.Combine(billingDir, "20261124000001_Initial.sql"), "BEGIN;\nCOMMIT;\n");
+
+            var optionsBuilder = new MigrationManagerOptionsBuilder();
+            optionsBuilder
+                .UsePostgreSql("Host=localhost;Database=test")
+                .UseRootPath(tempRoot)
+                .UseNamingConvention(SqlIdentifierCase.LowerSnakeCase)
+                .PluralizeTableNames()
+                .ConfigureEntities<ICreateTracking>(e =>
+                    e.HasForeignKey(x => x.CreatedByUserId)
+                        .References<RefUser>(u => u.Id)
+                        .OnDelete(DbReferentialAction.Restrict))
+                .ConfigureEntityStubs(stubs => stubs.Map<RefUser, User>())
+                .AddRegistry<BillingRegistry>()
+                .AddRegistry<AccessControlRegistry>();
+
+            var store = new MigrationScriptStore(optionsBuilder.Build());
+            var discovered = store.DiscoverScripts();
+
+            Assert.Equal(
+                [nameof(AccessControlRegistry), nameof(BillingRegistry)],
+                discovered.Select(d => d.RegistryName).ToArray());
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, recursive: true);
+            }
+        }
+    }
 }

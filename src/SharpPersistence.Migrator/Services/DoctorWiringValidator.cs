@@ -1,13 +1,14 @@
 using System.Reflection;
-using SharpPersistence.Enums;
 using SharpPersistence.Migrator.Abstractions;
 using SharpPersistence.Migrator.Configuration;
+using SharpPersistence.Migrator.Dialects;
 using SharpPersistence.Migrator.Models;
 
 namespace SharpPersistence.Migrator.Services;
 
 internal sealed class DoctorWiringValidator(
     MigrationManagerOptions options,
+    ISqlDialectMetadata dialect,
     MigrationConnectionOpener connectionOpener)
 {
     public List<DoctorCheckItem> Validate(
@@ -40,9 +41,7 @@ internal sealed class DoctorWiringValidator(
                 checks.Add(new DoctorCheckItem(
                     DoctorSeverity.Error,
                     $"Connection string is set, but no database driver could be loaded for '{options.Dialect}'.",
-                    Hint: options.Dialect == SqlDialect.PostgreSql
-                        ? "Install the Npgsql NuGet package or pass a DbProviderFactory / connection factory."
-                        : "Install Oracle.ManagedDataAccess.Core or pass a DbProviderFactory / connection factory."));
+                    Hint: dialect.ProviderPackageHint));
             }
         }
         else
@@ -103,7 +102,7 @@ internal sealed class DoctorWiringValidator(
         return checks;
     }
 
-    private static IEnumerable<Type> GetLoadableTypes(Assembly asm)
+    internal static IEnumerable<Type> GetLoadableTypes(Assembly asm)
     {
         try
         {

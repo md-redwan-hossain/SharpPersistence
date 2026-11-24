@@ -24,6 +24,9 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
     public SqlDialect Dialect => SqlDialect.Oracle;
     public string PingSql => "SELECT 1 FROM DUAL";
     public bool SupportsGlobalExtensionsAndEnums => false;
+    public bool SupportsComputedStorageMode => false;
+    public bool SupportsTransactionalDdl => false;
+    public string ProviderPackageHint => "Install Oracle.ManagedDataAccess.Core or pass a DbProviderFactory / connection factory.";
 
     public ISqlDialectGenerator CreateDdlGenerator() => new OracleDialectGenerator(compatibility);
 
@@ -35,8 +38,19 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
     public bool AreSqlTypesCompatible(string depSqlType, string prinSqlType) =>
         string.Equals(depSqlType, prinSqlType, StringComparison.OrdinalIgnoreCase);
 
+    public string ResolveSequenceSqlType(Type clrType) => "NUMBER";
+
     public IEnumerable<string> SplitScriptStatements(string sql) =>
         SplitStatements(sql);
+
+    public string FormatEmptyMigration(string migrationName) =>
+        $"-- Empty migration: {migrationName}{Environment.NewLine}-- Add custom SQL here{Environment.NewLine}";
+
+    public bool TryStripOuterTransaction(string sql, out string innerSql)
+    {
+        innerSql = sql;
+        return false;
+    }
 
     internal static IEnumerable<string> SplitStatements(string sql)
     {
@@ -207,10 +221,12 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
         string registryName,
         string scriptName,
         string checksum,
-        CancellationToken ct)
+        CancellationToken ct,
+        DbTransaction? transaction = null)
     {
         var table = Qualify(options.HistorySchema, options.HistoryTableName);
         await using var cmd = conn.CreateCommand();
+        cmd.Transaction = transaction;
         OracleCommandHelper.EnableBindByName(cmd);
         cmd.CommandText =
             $"MERGE INTO {table} t " +

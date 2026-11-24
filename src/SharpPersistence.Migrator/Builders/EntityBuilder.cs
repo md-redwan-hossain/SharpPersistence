@@ -112,15 +112,14 @@ public sealed class EntityBuilder<TEntity> where TEntity : class
 
         var def = Definition.AddCheckConstraint(
             constraintName,
-            (dialect, identifierCase, delimitIdentifiers, nestedSeparator) =>
+            (dialect, identifierCase, delimitIdentifiers, nestedSeparator, resolveColumnName) =>
             {
-                ISqlPredicateBuilder<TEntity> builder = new SqlExpressionBuilder<TEntity>
-                {
-                    Dialect = dialect,
-                    IdentifierCase = identifierCase,
-                    DelimitIdentifiers = delimitIdentifiers,
-                    NestedSeparator = nestedSeparator
-                };
+                ISqlPredicateBuilder<TEntity> builder = SqlExpressionBuilderFactory.Create<TEntity>(
+                    dialect,
+                    identifierCase,
+                    delimitIdentifiers,
+                    nestedSeparator,
+                    resolveColumnName);
 
                 var result = predicate(builder)
                     ?? throw new InvalidOperationException(

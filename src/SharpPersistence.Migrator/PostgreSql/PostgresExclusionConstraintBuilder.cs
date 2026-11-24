@@ -60,15 +60,14 @@ public sealed class PostgresExclusionConstraintBuilder<TEntity> where TEntity : 
             ExpressionSql: null,
             OperatorClass: null,
             Operator: rawOperator.Trim(),
-            SqlExpressionRenderer: (dialect, identifierCase, delimitIdentifiers, nestedSeparator) =>
+            SqlExpressionRenderer: (dialect, identifierCase, delimitIdentifiers, nestedSeparator, resolveColumnName) =>
             {
-                ISqlExpressionBuilder<TEntity> builder = new SqlExpressionBuilder<TEntity>
-                {
-                    Dialect = dialect,
-                    IdentifierCase = identifierCase,
-                    DelimitIdentifiers = delimitIdentifiers,
-                    NestedSeparator = nestedSeparator
-                };
+                ISqlExpressionBuilder<TEntity> builder = SqlExpressionBuilderFactory.Create<TEntity>(
+                    dialect,
+                    identifierCase,
+                    delimitIdentifiers,
+                    nestedSeparator,
+                    resolveColumnName);
 
                 var result = expression(builder)
                     ?? throw new InvalidOperationException(
@@ -177,15 +176,14 @@ public sealed class PostgresExclusionConstraintBuilder<TEntity> where TEntity : 
     {
         ArgumentNullException.ThrowIfNull(predicate);
         Definition.FilterSql = null;
-        Definition.FilterRenderer = (dialect, identifierCase, delimitIdentifiers, nestedSeparator) =>
+        Definition.FilterRenderer = (dialect, identifierCase, delimitIdentifiers, nestedSeparator, resolveColumnName) =>
         {
-            ISqlPredicateBuilder<TEntity> builder = new SqlExpressionBuilder<TEntity>
-            {
-                Dialect = dialect,
-                IdentifierCase = identifierCase,
-                DelimitIdentifiers = delimitIdentifiers,
-                NestedSeparator = nestedSeparator
-            };
+            ISqlPredicateBuilder<TEntity> builder = SqlExpressionBuilderFactory.Create<TEntity>(
+                dialect,
+                identifierCase,
+                delimitIdentifiers,
+                nestedSeparator,
+                resolveColumnName);
 
             var result = predicate(builder)
                 ?? throw new InvalidOperationException(

@@ -33,7 +33,9 @@ internal sealed class OracleDialectGenerator : ISqlDialectGenerator
             switch (op)
             {
                 case EnsureExtensionOp or DropExtensionOp or CreateEnumOp or AddEnumValueOp or DropEnumOp
-                    or AddExclusionConstraintOp or DropExclusionConstraintOp:
+                    or AddExclusionConstraintOp or DropExclusionConstraintOp
+                    or SetTableLoggedOp or SetTableTablespaceOp or AlterTableStorageParametersOp
+                    or SetIndexTablespaceOp or AlterIndexStorageParametersOp:
                     throw new NotSupportedException($"Operation '{op.GetType().Name}' is PostgreSQL-specific and not supported on Oracle.");
 
                 case EnsureSchemaOp s:
@@ -89,6 +91,15 @@ internal sealed class OracleDialectGenerator : ISqlDialectGenerator
                     break;
 
                 case RenameTableOp rt:
+                    if (!string.Equals(
+                            string.IsNullOrWhiteSpace(rt.OldSchema) ? string.Empty : rt.OldSchema.Trim(),
+                            string.IsNullOrWhiteSpace(rt.NewSchema) ? string.Empty : rt.NewSchema.Trim(),
+                            StringComparison.Ordinal))
+                    {
+                        throw new NotSupportedException(
+                            $"Oracle does not support moving table '{rt.OldTableName}' across schemas ('{rt.OldSchema}' -> '{rt.NewSchema}') via ALTER TABLE RENAME.");
+                    }
+
                     sb.AppendLine($"ALTER TABLE {Qualify(rt.OldSchema, rt.OldTableName)} RENAME TO {Quote(rt.NewTableName)};");
                     sb.AppendLine();
                     break;
@@ -136,18 +147,11 @@ internal sealed class OracleDialectGenerator : ISqlDialectGenerator
 
                 case AddPrimaryKeyOp apk:
                     var pkCols = string.Join(", ", apk.PrimaryKey.ColumnNames.Select(Quote));
-                    if (SupportsIfExists)
-                    {
-                        sb.AppendLine($"ALTER TABLE {Qualify(apk.Schema, apk.TableName)} ADD CONSTRAINT IF NOT EXISTS {Quote(apk.PrimaryKey.Name)} PRIMARY KEY ({pkCols});");
-                    }
-                    else
-                    {
-                        AppendCatalogGuardedDdl(
-                            sb,
-                            BuildConstraintExistsQuery(apk.Schema, apk.TableName, apk.PrimaryKey.Name),
-                            executeWhenExists: false,
-                            $"ALTER TABLE {Qualify(apk.Schema, apk.TableName)} ADD CONSTRAINT {Quote(apk.PrimaryKey.Name)} PRIMARY KEY ({pkCols})");
-                    }
+                    AppendCatalogGuardedDdl(
+                        sb,
+                        BuildConstraintExistsQuery(apk.Schema, apk.TableName, apk.PrimaryKey.Name),
+                        executeWhenExists: false,
+                        $"ALTER TABLE {Qualify(apk.Schema, apk.TableName)} ADD CONSTRAINT {Quote(apk.PrimaryKey.Name)} PRIMARY KEY ({pkCols})");
                     sb.AppendLine();
                     break;
 
@@ -157,18 +161,11 @@ internal sealed class OracleDialectGenerator : ISqlDialectGenerator
                     break;
 
                 case AddCheckConstraintOp ack:
-                    if (SupportsIfExists)
-                    {
-                        sb.AppendLine($"ALTER TABLE {Qualify(ack.Schema, ack.TableName)} ADD CONSTRAINT IF NOT EXISTS {Quote(ack.Constraint.Name)} CHECK ({ack.Constraint.Sql});");
-                    }
-                    else
-                    {
-                        AppendCatalogGuardedDdl(
-                            sb,
-                            BuildConstraintExistsQuery(ack.Schema, ack.TableName, ack.Constraint.Name),
-                            executeWhenExists: false,
-                            $"ALTER TABLE {Qualify(ack.Schema, ack.TableName)} ADD CONSTRAINT {Quote(ack.Constraint.Name)} CHECK ({ack.Constraint.Sql})");
-                    }
+                    AppendCatalogGuardedDdl(
+                        sb,
+                        BuildConstraintExistsQuery(ack.Schema, ack.TableName, ack.Constraint.Name),
+                        executeWhenExists: false,
+                        $"ALTER TABLE {Qualify(ack.Schema, ack.TableName)} ADD CONSTRAINT {Quote(ack.Constraint.Name)} CHECK ({ack.Constraint.Sql})");
                     sb.AppendLine();
                     break;
 
@@ -342,9 +339,44 @@ internal sealed class OracleDialectGenerator : ISqlDialectGenerator
         }
     }
 
-    private static void AppendAlterColumn(StringBuilder sb, AlterColumnOp alc)
+    private void AppendAlterColumn(StringBuilder sb, AlterColumnOp alc)
     {
-        var parts = new List<string> { Quote(alc.NewCol.ColumnName) };
+        var table = Qualify(alc.Schema, alc.TableName);
+        var col = Quote(alc.NewCol.ColumnName);
+
+        if (!string.Equals(alc.OldCol.ComputedColumnSql, alc.NewCol.ComputedColumnSql, StringComparison.Ordinal))
+        {
+            if (SupportsIfExists)
+            {
+                sb.AppendLine($"ALTER TABLE {table} DROP COLUMN IF EXISTS {col};");
+                sb.AppendLine($"ALTER TABLE {table} ADD IF NOT EXISTS ({FormatColumnDefinition(alc.NewCol)});");
+            }
+            else
+            {
+                AppendCatalogGuardedDdl(
+                    sb,
+                    BuildColumnExistsQuery(alc.Schema, alc.TableName, alc.NewCol.ColumnName),
+                    executeWhenExists: true,
+                    $"ALTER TABLE {table} DROP COLUMN {col}");
+                AppendCatalogGuardedDdl(
+                    sb,
+                    BuildColumnExistsQuery(alc.Schema, alc.TableName, alc.NewCol.ColumnName),
+                    executeWhenExists: false,
+                    $"ALTER TABLE {table} ADD ({FormatColumnDefinition(alc.NewCol)})");
+            }
+
+            return;
+        }
+
+        if (alc.OldCol.IsIdentity != alc.NewCol.IsIdentity)
+        {
+            var identityClause = alc.NewCol.IsIdentity
+                ? "GENERATED BY DEFAULT ON NULL AS IDENTITY"
+                : "DROP IDENTITY";
+            sb.AppendLine($"ALTER TABLE {table} MODIFY ({col} {identityClause});");
+        }
+
+        var parts = new List<string> { col };
 
         if (!string.Equals(alc.OldCol.SqlType, alc.NewCol.SqlType, StringComparison.OrdinalIgnoreCase))
         {
@@ -365,25 +397,18 @@ internal sealed class OracleDialectGenerator : ISqlDialectGenerator
 
         if (parts.Count > 1)
         {
-            sb.AppendLine($"ALTER TABLE {Qualify(alc.Schema, alc.TableName)} MODIFY ({string.Join(" ", parts)});");
+            sb.AppendLine($"ALTER TABLE {table} MODIFY ({string.Join(" ", parts)});");
         }
     }
 
     private void AppendAddForeignKey(StringBuilder sb, AddForeignKeyOp afk)
     {
         var clause = FormatForeignKeyClause(afk.ForeignKey);
-        if (SupportsIfExists)
-        {
-            sb.AppendLine($"ALTER TABLE {Qualify(afk.Schema, afk.TableName)} ADD IF NOT EXISTS {clause};");
-        }
-        else
-        {
-            AppendCatalogGuardedDdl(
-                sb,
-                BuildConstraintExistsQuery(afk.Schema, afk.TableName, afk.ForeignKey.Name),
-                executeWhenExists: false,
-                $"ALTER TABLE {Qualify(afk.Schema, afk.TableName)} ADD {clause}");
-        }
+        AppendCatalogGuardedDdl(
+            sb,
+            BuildConstraintExistsQuery(afk.Schema, afk.TableName, afk.ForeignKey.Name),
+            executeWhenExists: false,
+            $"ALTER TABLE {Qualify(afk.Schema, afk.TableName)} ADD {clause}");
     }
 
     private void AppendCreateIndex(StringBuilder sb, CreateIndexOp ci)
@@ -416,20 +441,13 @@ internal sealed class OracleDialectGenerator : ISqlDialectGenerator
         }
     }
 
-    private void AppendDropConstraint(StringBuilder sb, string? schema, string tableName, string constraintName)
+    private static void AppendDropConstraint(StringBuilder sb, string? schema, string tableName, string constraintName)
     {
-        if (SupportsIfExists)
-        {
-            sb.AppendLine($"ALTER TABLE {Qualify(schema, tableName)} DROP CONSTRAINT IF EXISTS {Quote(constraintName)};");
-        }
-        else
-        {
-            AppendCatalogGuardedDdl(
-                sb,
-                BuildConstraintExistsQuery(schema, tableName, constraintName),
-                executeWhenExists: true,
-                $"ALTER TABLE {Qualify(schema, tableName)} DROP CONSTRAINT {Quote(constraintName)}");
-        }
+        AppendCatalogGuardedDdl(
+            sb,
+            BuildConstraintExistsQuery(schema, tableName, constraintName),
+            executeWhenExists: true,
+            $"ALTER TABLE {Qualify(schema, tableName)} DROP CONSTRAINT {Quote(constraintName)}");
     }
 
     private static string BuildTableExistsQuery(string? schema, string tableName) =>

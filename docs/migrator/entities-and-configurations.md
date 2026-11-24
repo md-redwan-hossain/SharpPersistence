@@ -164,7 +164,8 @@ builder.Property(x => x.Code)
     .HasDefaultValue("ORD-NEW");
 
 builder.Property(x => x.FullTotal)
-    .HasComputedColumnSql(e => e.Column(x => x.Subtotal).Math().Plus(x => x.Tax), stored: true);
+    .HasComputedColumnSql(e => e.Column(x => x.Subtotal).Math().Plus(x => x.Tax))
+    .IsStored();
 
 builder.Property(x => x.RowVersion)
     .IsRowVersion(); // Uses PostgreSQL xmin when property is uint
@@ -173,6 +174,6 @@ builder.Property(x => x.RowVersion)
 | Category | Methods |
 | --- | --- |
 | **Naming & Types** | `HasColumnName`, `HasPreviousColumnName`, `HasColumnType`, `HasMaxLength`, `HasPrecision(p, s)`, `IsUnicode(bool)`, `IsRequired(bool)` |
-| **Defaults & Generation** | `HasDefaultValue(obj)`, `HasDefaultValueSql(sql)`, `HasComputedColumnSql(expr / sql, stored)`, `ValueGeneratedOnAdd(isIdentity: true)`, `ValueGeneratedOnAddOrUpdate()`, `ValueGeneratedNever()` |
+| **Defaults & Generation** | `HasDefaultValue<TValue>(value)`, `HasDefaultValueSql(sql)`, `HasComputedColumnSql(expr / sql)` + `IsStored(bool)`, `ValueGeneratedOnAdd(isIdentity: true)`, `ValueGeneratedOnAddOrUpdate()`, `ValueGeneratedNever()` |
 | **Concurrency & Metadata** | `IsConcurrencyToken()`, `IsRowVersion()`, `HasComment(text)`, `SetAnnotation<TValue>(name, value)` |
 | **Type Conversions** | `HasConversion<TProvider>()` / `HasConversion(Type)`, plus `HasConversion(ValueConverter)` in `SharpPersistence.Migrator.EfCore` |

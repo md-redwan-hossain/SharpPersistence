@@ -110,7 +110,7 @@ public sealed class CheckConstraintBuilderIntegrationTests
 
         Assert.Equal("\"TOTAL\" >= 0", byName["ck_orders_total"]);
         Assert.Equal("SHIPPING__ZIP_CODE IS NOT NULL", byName["ck_orders_shipping_zip"]);
-        Assert.Equal("\"DISCOUNT\" <= (CASE WHEN \"IS_VIP\" = TRUE THEN 50 ELSE 10 END)", byName["ck_orders_discount"]);
+        Assert.Equal("\"DISCOUNT\" <= (CASE WHEN \"IS_VIP\" = 1 THEN 50 ELSE 10 END)", byName["ck_orders_discount"]);
     }
 
     private sealed class GlobalOverrideRegistry : IEntityRegistry
@@ -176,7 +176,8 @@ public sealed class CheckConstraintBuilderIntegrationTests
                 b.ToTable("computed_orders");
                 b.Property(x => x.FullTotal)
                     .HasPrecision(18, 2)
-                    .HasComputedColumnSql(cc => cc.Column(x => x.Subtotal).Math().Plus(x => x.Tax), stored: true);
+                    .HasComputedColumnSql(cc => cc.Column(x => x.Subtotal).Math().Plus(x => x.Tax))
+                    .IsStored();
             });
         }
     }
@@ -203,5 +204,58 @@ public sealed class CheckConstraintBuilderIntegrationTests
         var oracleCol = oracleSchema.Tables.Single().Columns.Single(c => c.PropertyName == nameof(ComputedOrder.FullTotal));
         Assert.Equal("\"SUBTOTAL\" + \"TAX\"", oracleCol.ComputedColumnSql);
         Assert.True(oracleCol.IsComputedStored);
+    }
+
+    private sealed class CustomNamedOrder
+    {
+        public int Id { get; set; }
+        public decimal Subtotal { get; set; }
+        public decimal Tax { get; set; }
+        public decimal FullTotal { get; set; }
+        public bool IsDeleted { get; set; }
+    }
+
+    private sealed class CustomNamedRegistry : IEntityRegistry
+    {
+        public void Configure(IEntityRegistryBuilder registry)
+        {
+            registry.Entity<CustomNamedOrder>(b =>
+            {
+                b.ToTable("custom_orders");
+                b.Property(x => x.Subtotal).HasColumnName("net_amt");
+                b.Property(x => x.Tax).HasColumnName("vat_amt");
+                b.Property(x => x.IsDeleted).HasColumnName("deleted_flag");
+                b.Property(x => x.FullTotal)
+                    .HasComputedColumnSql(cc => cc.Column(x => x.Subtotal).Math().Plus(x => x.Tax));
+                b.HasCheckConstraint("ck_net_positive", cc => cc.Column(x => x.Subtotal).GreaterThanOrEqual(0));
+                b.HasIndex(x => x.Subtotal)
+                    .HasFilter(cc => cc.Column(x => x.IsDeleted).EqualTo(false));
+            });
+        }
+    }
+
+    [Fact]
+    public void TypedSqlBuilders_RespectCustomHasColumnName()
+    {
+        var registry = new CustomNamedRegistry();
+        var schema = SchemaScanner.ScanRegistry(
+            registry,
+            SqlDialect.PostgreSql,
+            SqlIdentifierCase.LowerSnakeCase,
+            [registry]);
+
+        var table = schema.Tables.Single();
+        var fullTotal = table.Columns.Single(c => c.PropertyName == nameof(CustomNamedOrder.FullTotal));
+        Assert.Equal("\"net_amt\" + \"vat_amt\"", fullTotal.ComputedColumnSql);
+        Assert.False(fullTotal.IsComputedStored);
+
+        var check = Assert.Single(table.CheckConstraints);
+        Assert.Equal("\"net_amt\" >= 0", check.Sql);
+
+        var index = Assert.Single(table.Indexes);
+        Assert.Equal("\"deleted_flag\" = FALSE", index.FilterSql);
+
+        var diff = StandaloneSchemaDiffer.GenerateDiff(schema, null, SqlDialect.PostgreSql, interactiveRenamePrompt: false);
+        Assert.Contains("GENERATED ALWAYS AS (\"net_amt\" + \"vat_amt\") VIRTUAL", diff.SqlScript);
     }
 }

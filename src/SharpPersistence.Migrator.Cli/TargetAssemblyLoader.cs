@@ -83,7 +83,7 @@ internal static class TargetAssemblyLoader
 
         // Tier 1: Optional IDesignTimeMigrationFactory fallback (for class libraries or custom offline config)
         var factoryType = loadedAssemblies
-            .SelectMany(GetLoadableTypes)
+            .SelectMany(DoctorWiringValidator.GetLoadableTypes)
             .FirstOrDefault(t => !t.IsAbstract && !t.IsInterface && typeof(IDesignTimeMigrationFactory).IsAssignableFrom(t));
 
         if (factoryType is not null)
@@ -333,18 +333,6 @@ internal static class TargetAssemblyLoader
         }
 
         return Path.GetFileNameWithoutExtension(csprojPath);
-    }
-
-    private static IEnumerable<Type> GetLoadableTypes(Assembly asm)
-    {
-        try
-        {
-            return asm.GetTypes();
-        }
-        catch (ReflectionTypeLoadException ex)
-        {
-            return ex.Types.Where(t => t is not null).Cast<Type>();
-        }
     }
 
     private static bool IsFrameworkOrCoreAssembly(string? name) =>

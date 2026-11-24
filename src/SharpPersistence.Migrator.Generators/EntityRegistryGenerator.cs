@@ -3,12 +3,29 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Text;
 
 namespace SharpPersistence.Migrator.Generators;
 
 [Generator]
 public sealed class EntityRegistryGenerator : IIncrementalGenerator
 {
+    private readonly record struct LocationInfo(string FilePath, TextSpan TextSpan, LinePositionSpan LineSpan)
+    {
+        public static LocationInfo? From(Location? location)
+        {
+            if (location is null || !location.IsInSource)
+            {
+                return null;
+            }
+
+            var lineSpan = location.GetLineSpan();
+            return new LocationInfo(lineSpan.Path, location.SourceSpan, lineSpan.Span);
+        }
+
+        public Location ToLocation() => Location.Create(FilePath, TextSpan, LineSpan);
+    }
+
     private sealed record RegistryCandidate(
         string FullTypeName,
         string SimpleName,
@@ -19,13 +36,13 @@ public sealed class EntityRegistryGenerator : IIncrementalGenerator
         bool IsPartial,
         bool ImplementsInterface,
         bool HasPublicConfigure,
-        Location? Location);
+        LocationInfo? Location);
 
     private sealed record ConfigCandidate(
         string ConfigFullName,
         string EntityFullName,
         bool IsValid,
-        Location? Location);
+        LocationInfo? Location);
 
     private sealed record LocalEntityEntry(string MarkerFullName, string EntityFullName);
 
@@ -155,7 +172,7 @@ public sealed class EntityRegistryGenerator : IIncrementalGenerator
                 {
                     spc.ReportDiagnostic(Diagnostic.Create(
                         GeneratorConstants.ConfigurationInvalid,
-                        cfg.Location,
+                        cfg.Location?.ToLocation(),
                         GeneratorConstants.StripGlobalPrefix(cfg.ConfigFullName),
                         GeneratorConstants.StripGlobalPrefix(cfg.EntityFullName)));
                     continue;
@@ -182,7 +199,7 @@ public sealed class EntityRegistryGenerator : IIncrementalGenerator
                     {
                         spc.ReportDiagnostic(Diagnostic.Create(
                             GeneratorConstants.DuplicateEntityConfiguration,
-                            dup.Location,
+                            dup.Location?.ToLocation(),
                             GeneratorConstants.StripGlobalPrefix(kv.Key),
                             names));
                     }
@@ -201,7 +218,7 @@ public sealed class EntityRegistryGenerator : IIncrementalGenerator
                 {
                     spc.ReportDiagnostic(Diagnostic.Create(
                         GeneratorConstants.RegistryMustBeSealedPartialImplementingInterface,
-                        reg.Location,
+                        reg.Location?.ToLocation(),
                         GeneratorConstants.StripGlobalPrefix(reg.FullTypeName)));
                     continue;
                 }
@@ -210,7 +227,7 @@ public sealed class EntityRegistryGenerator : IIncrementalGenerator
                 {
                     spc.ReportDiagnostic(Diagnostic.Create(
                         GeneratorConstants.RegistryMustDeclareConfigure,
-                        reg.Location,
+                        reg.Location?.ToLocation(),
                         GeneratorConstants.StripGlobalPrefix(reg.FullTypeName)));
                     continue;
                 }
@@ -258,7 +275,7 @@ public sealed class EntityRegistryGenerator : IIncrementalGenerator
                         {
                             spc.ReportDiagnostic(Diagnostic.Create(
                                 GeneratorConstants.DuplicateEntityAcrossRegistries,
-                                reg.Location,
+                                reg.Location?.ToLocation(),
                                 GeneratorConstants.StripGlobalPrefix(kv.Key),
                                 regNames));
                         }
@@ -272,7 +289,7 @@ public sealed class EntityRegistryGenerator : IIncrementalGenerator
                     {
                         spc.ReportDiagnostic(Diagnostic.Create(
                             GeneratorConstants.OrphanEntityConfiguration,
-                            kv.Value.Location,
+                            kv.Value.Location?.ToLocation(),
                             GeneratorConstants.StripGlobalPrefix(kv.Value.ConfigFullName),
                             GeneratorConstants.StripGlobalPrefix(kv.Key)));
                     }
@@ -375,7 +392,7 @@ public sealed class EntityRegistryGenerator : IIncrementalGenerator
             IsPartial: isPartial,
             ImplementsInterface: implementsInterface,
             HasPublicConfigure: hasPublicConfigure,
-            Location: classDecl.Identifier.GetLocation());
+            Location: LocationInfo.From(classDecl.Identifier.GetLocation()));
     }
 
     private static ConfigCandidate? AnalyzeConfiguration(GeneratorAttributeSyntaxContext ctx)
@@ -411,7 +428,7 @@ public sealed class EntityRegistryGenerator : IIncrementalGenerator
             ConfigFullName: symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             EntityFullName: entitySymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             IsValid: isValid,
-            Location: classDecl.Identifier.GetLocation());
+            Location: LocationInfo.From(classDecl.Identifier.GetLocation()));
     }
 
     private static Dictionary<string, HashSet<string>> CollectEntitiesByMarker(

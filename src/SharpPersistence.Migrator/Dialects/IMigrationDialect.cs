@@ -7,17 +7,28 @@ using SharpPersistence.Migrator.Models;
 
 namespace SharpPersistence.Migrator.Dialects;
 
-internal interface IMigrationDialect
+internal interface ISqlDialectMetadata
 {
     SqlDialect Dialect { get; }
-    string PingSql { get; }
     bool SupportsGlobalExtensionsAndEnums { get; }
+    bool SupportsComputedStorageMode { get; }
+    string ProviderPackageHint { get; }
+
+    string NormalizeSchemaName(string? schema);
+    bool AreSqlTypesCompatible(string depSqlType, string prinSqlType);
+    string ResolveSequenceSqlType(Type clrType);
+}
+
+internal interface IMigrationDialect : ISqlDialectMetadata
+{
+    string PingSql { get; }
+    bool SupportsTransactionalDdl { get; }
 
     ISqlDialectGenerator CreateDdlGenerator();
     DbProviderFactory? ResolveDefaultProviderFactory();
-    string NormalizeSchemaName(string? schema);
-    bool AreSqlTypesCompatible(string depSqlType, string prinSqlType);
     IEnumerable<string> SplitScriptStatements(string sql);
+    string FormatEmptyMigration(string migrationName);
+    bool TryStripOuterTransaction(string sql, out string innerSql);
 
     Task<IAsyncDisposable?> AcquireLockAsync(DbConnection conn, MigrationManagerOptions options, CancellationToken ct);
     Task EnsureHistoryTableAsync(DbConnection conn, MigrationManagerOptions options, CancellationToken ct);
@@ -28,7 +39,8 @@ internal interface IMigrationDialect
         string registryName,
         string scriptName,
         string checksum,
-        CancellationToken ct);
+        CancellationToken ct,
+        DbTransaction? transaction = null);
     Task<IReadOnlyList<string>> ReadEfCoreMigrationIdsAsync(DbConnection conn, CancellationToken ct);
     Task<Dictionary<(string Schema, string Table), Dictionary<string, bool>>> ReadLiveColumnsAsync(
         DbConnection conn,

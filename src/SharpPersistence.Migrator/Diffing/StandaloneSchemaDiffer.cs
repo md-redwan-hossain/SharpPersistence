@@ -32,8 +32,8 @@ internal static class StandaloneSchemaDiffer
             previousSchema = JsonSerializer.Deserialize<DatabaseSchema>(existingSnapshotJson, JsonOptions);
         }
 
-        var prompter = confirmRename ?? (interactiveRenamePrompt ? DefaultConsoleConfirm : null);
-        var operations = ComputeOperations(previousSchema, migratableCurrent, prompter);
+        var prompter = interactiveRenamePrompt ? confirmRename : null;
+        var operations = ComputeOperations(previousSchema, migratableCurrent, prompter, sqlDialect);
         if (operations.Count == 0)
         {
             return new SchemaDiffResult(false, string.Empty, string.Empty, existingSnapshotJson ?? string.Empty);
@@ -63,7 +63,10 @@ internal static class StandaloneSchemaDiffer
         return new SchemaDiffResult(true, sql, deferredSql, updatedJson);
     }
 
-    internal static int CountPendingOperations(DatabaseSchema currentSchema, string? existingSnapshotJson)
+    internal static int CountPendingOperations(
+        DatabaseSchema currentSchema,
+        string? existingSnapshotJson,
+        SqlDialect sqlDialect = SqlDialect.PostgreSql)
     {
         var migratableCurrent = FilterMigratableSchema(currentSchema);
         DatabaseSchema? previousSchema = null;
@@ -72,7 +75,7 @@ internal static class StandaloneSchemaDiffer
             previousSchema = JsonSerializer.Deserialize<DatabaseSchema>(existingSnapshotJson, JsonOptions);
         }
 
-        return ComputeOperations(previousSchema, migratableCurrent, confirmRename: null).Count;
+        return ComputeOperations(previousSchema, migratableCurrent, confirmRename: null, sqlDialect).Count;
     }
 
     private static DatabaseSchema FilterMigratableSchema(DatabaseSchema schema)
@@ -94,7 +97,8 @@ internal static class StandaloneSchemaDiffer
     private static List<SchemaOperation> ComputeOperations(
         DatabaseSchema? oldSchema,
         DatabaseSchema newSchema,
-        Func<string, bool>? confirmRename)
+        Func<string, bool>? confirmRename,
+        SqlDialect sqlDialect)
     {
         var ops = new List<SchemaOperation>();
 
@@ -349,6 +353,7 @@ internal static class StandaloneSchemaDiffer
         }
 
         var ensuredSchemas = new HashSet<string>(StringComparer.Ordinal);
+        var pendingForeignKeys = new List<AddForeignKeyOp>();
         foreach (var newTable in unmatchedNew)
         {
             if (!string.IsNullOrWhiteSpace(newTable.Schema) && ensuredSchemas.Add(newTable.Schema))
@@ -377,7 +382,7 @@ internal static class StandaloneSchemaDiffer
 
             foreach (var fk in newTable.ForeignKeys)
             {
-                ops.Add(new AddForeignKeyOp(newTable.Schema, newTable.TableName, fk));
+                pendingForeignKeys.Add(new AddForeignKeyOp(newTable.Schema, newTable.TableName, fk));
             }
 
             foreach (var ck in newTable.CheckConstraints)
@@ -396,9 +401,10 @@ internal static class StandaloneSchemaDiffer
 
         foreach (var (oldTable, newTable) in matchedPairs)
         {
-            DiffTable(oldTable, newTable, ops, confirmRename, renamedTableMap);
+            DiffTable(oldTable, newTable, ops, pendingForeignKeys, confirmRename, renamedTableMap, sqlDialect);
         }
 
+        ops.AddRange(pendingForeignKeys);
         ops.AddRange(droppedSeqs);
         ops.AddRange(droppedEnums);
 
@@ -409,8 +415,10 @@ internal static class StandaloneSchemaDiffer
         TableSchema oldTable,
         TableSchema newTable,
         List<SchemaOperation> ops,
+        List<AddForeignKeyOp> pendingForeignKeys,
         Func<string, bool>? confirmRename,
-        IReadOnlyDictionary<string, string> renamedTableMap)
+        IReadOnlyDictionary<string, string> renamedTableMap,
+        SqlDialect sqlDialect)
     {
         var dropPk = false;
         var addPk = false;
@@ -547,7 +555,7 @@ internal static class StandaloneSchemaDiffer
         }
 
         var addedIndexes = DiffIndexesDropAndRename(oldTable, newTable, ops);
-        DiffColumns(oldTable, newTable, ops, confirmRename);
+        DiffColumns(oldTable, newTable, ops, confirmRename, sqlDialect);
 
         if (addPk && newTable.PrimaryKey is not null)
         {
@@ -561,7 +569,7 @@ internal static class StandaloneSchemaDiffer
 
         foreach (var addedFk in newFks)
         {
-            ops.Add(new AddForeignKeyOp(newTable.Schema, newTable.TableName, addedFk));
+            pendingForeignKeys.Add(new AddForeignKeyOp(newTable.Schema, newTable.TableName, addedFk));
         }
 
         foreach (var addedCk in newCks)
@@ -622,7 +630,8 @@ internal static class StandaloneSchemaDiffer
         TableSchema oldTable,
         TableSchema newTable,
         List<SchemaOperation> ops,
-        Func<string, bool>? confirmRename)
+        Func<string, bool>? confirmRename,
+        SqlDialect sqlDialect)
     {
         var unmatchedOld = oldTable.Columns.Where(c => !c.IsSystemColumn).ToList();
         var unmatchedNew = newTable.Columns.Where(c => !c.IsSystemColumn).ToList();
@@ -692,14 +701,18 @@ internal static class StandaloneSchemaDiffer
             }
         }
 
+        var supportsComputedStorageMode = MigrationDialectRegistry.Get(sqlDialect).SupportsComputedStorageMode;
         foreach (var (o, n) in matchedPairs)
         {
+            var computedStorageChanged = supportsComputedStorageMode
+                                         && !string.IsNullOrWhiteSpace(n.ComputedColumnSql)
+                                         && o.IsComputedStored != n.IsComputedStored;
             var changed = !string.Equals(o.SqlType, n.SqlType, StringComparison.OrdinalIgnoreCase)
                           || o.IsNullable != n.IsNullable
                           || o.IsIdentity != n.IsIdentity
                           || !string.Equals(o.DefaultValueSql, n.DefaultValueSql, StringComparison.Ordinal)
                           || !string.Equals(o.ComputedColumnSql, n.ComputedColumnSql, StringComparison.Ordinal)
-                          || o.IsComputedStored != n.IsComputedStored;
+                          || computedStorageChanged;
 
             if (changed)
             {
@@ -896,13 +909,5 @@ internal static class StandaloneSchemaDiffer
                && a.OnDelete == b.OnDelete
                && a.DependentProperties.SequenceEqual(b.DependentProperties, StringComparer.Ordinal)
                && a.PrincipalColumns.SequenceEqual(b.PrincipalColumns, StringComparer.Ordinal);
-    }
-
-    private static bool DefaultConsoleConfirm(string prompt)
-    {
-        Console.ForegroundColor = ConsoleColor.Yellow;
-        Console.Write($"[Rename Prompt] {prompt} [y/N]: ");
-        Console.ResetColor();
-        return string.Equals(Console.ReadLine()?.Trim(), "y", StringComparison.OrdinalIgnoreCase);
     }
 }

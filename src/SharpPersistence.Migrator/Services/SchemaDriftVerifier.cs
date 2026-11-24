@@ -18,31 +18,12 @@ internal sealed class SchemaDriftVerifier
 
     public async Task<IReadOnlyList<SchemaDriftItem>> VerifyAsync(DbConnection conn, CancellationToken ct)
     {
-        var sortedRegistries = RegistryDependencyResolver.SortTopologically(
-            _options.Registries,
-            _options.Dialect,
-            _options.IdentifierCase,
-            _options.PropertyConventions,
-            _options.PluralizeTableNames,
-            _options.EntityConventions,
-            _options.TableNameConvention,
-            _options.EntityStubs);
+        var sortedRegistries = RegistryDependencyResolver.SortTopologically(_options);
 
         var expectedTables = new List<(string RegistryName, TableSchema Table)>();
         foreach (var registry in sortedRegistries)
         {
-            var schema = SchemaScanner.ScanRegistry(
-                registry,
-                _options.Dialect,
-                _options.IdentifierCase,
-                sortedRegistries,
-                _options.PropertyConventions,
-                _options.Enums,
-                _options.SqlExpressionOptions,
-                _options.PluralizeTableNames,
-                _options.EntityConventions,
-                _options.TableNameConvention,
-                _options.EntityStubs);
+            var schema = SchemaScanner.ScanRegistry(registry, _options, sortedRegistries);
 
             var registryName = registry.GetType().Name;
             foreach (var table in schema.Tables)

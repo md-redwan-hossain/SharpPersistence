@@ -7,7 +7,7 @@ namespace SharpPersistence.Migrator.Services;
 
 internal sealed class DoctorCrossRegistryValidator(
     MigrationManagerOptions options,
-    IMigrationDialect dialect)
+    ISqlDialectMetadata dialect)
 {
     public void Validate(
         Dictionary<Type, (string RegistryName, TableDefinition Table)> allTables,
@@ -171,15 +171,7 @@ internal sealed class DoctorCrossRegistryValidator(
         {
             try
             {
-                _ = RegistryDependencyResolver.SortTopologically(
-                    options.Registries,
-                    options.Dialect,
-                    options.IdentifierCase,
-                    options.PropertyConventions,
-                    options.PluralizeTableNames,
-                    options.EntityConventions,
-                    options.TableNameConvention,
-                    options.EntityStubs);
+                _ = RegistryDependencyResolver.SortTopologically(options);
             }
             catch (Exception ex)
             {

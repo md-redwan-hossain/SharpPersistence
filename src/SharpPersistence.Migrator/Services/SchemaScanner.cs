@@ -4,6 +4,7 @@ using SharpPersistence.Enums;
 using SharpPersistence.Migrator.Abstractions;
 using SharpPersistence.Migrator.Builders;
 using SharpPersistence.Migrator.Configuration;
+using SharpPersistence.Migrator.Dialects;
 using SharpPersistence.Migrator.Models;
 
 namespace SharpPersistence.Migrator.Services;
@@ -52,6 +53,23 @@ internal static class SchemaScanner
             tableNameConvention);
         return SchemaFinalizer.FinalizeSchema(buildersByType, includedEntityTypes: null, sequences, pgEnums, entityStubs);
     }
+
+    public static DatabaseSchema ScanRegistry(
+        IEntityRegistry registry,
+        MigrationManagerOptions options,
+        IReadOnlyList<IEntityRegistry>? allRegistries = null) =>
+        ScanRegistry(
+            registry,
+            options.Dialect,
+            options.IdentifierCase,
+            allRegistries ?? options.Registries,
+            options.PropertyConventions,
+            options.Enums,
+            options.SqlExpressionOptions,
+            options.PluralizeTableNames,
+            options.EntityConventions,
+            options.TableNameConvention,
+            options.EntityStubs);
 
     public static DatabaseSchema ScanRegistry(
         IEntityRegistry registry,
@@ -219,18 +237,14 @@ internal static class SchemaScanner
     private static List<SequenceSchema> BuildSequenceSchemas(EntityRegistryBuilder evaluated, SqlDialect dialect)
     {
         var defaultSchema = string.IsNullOrWhiteSpace(evaluated.DefaultSchema) ? null : evaluated.DefaultSchema;
+        var dialectMeta = MigrationDialectRegistry.Get(dialect);
         var list = new List<SequenceSchema>(evaluated.Sequences.Count);
 
         foreach (var seq in evaluated.Sequences)
         {
             var t = Nullable.GetUnderlyingType(seq.ClrType) ?? seq.ClrType;
             var clrName = t == typeof(short) ? "short" : t == typeof(int) ? "int" : "long";
-            var sqlType = dialect switch
-            {
-                SqlDialect.PostgreSql => t == typeof(short) ? "smallint" : t == typeof(int) ? "integer" : "bigint",
-                SqlDialect.Oracle => "NUMBER",
-                _ => throw new NotSupportedException($"RDBMS '{dialect}' is not supported yet.")
-            };
+            var sqlType = dialectMeta.ResolveSequenceSqlType(seq.ClrType);
 
             list.Add(new SequenceSchema
             {
@@ -259,6 +273,7 @@ internal static class SchemaScanner
             return;
         }
 
+        using var _ = tableBuilder.BeginConventionScope();
         foreach (var rule in conventions)
         {
             if (rule.TargetType.IsAssignableFrom(entityType))
@@ -313,7 +328,7 @@ internal static class SchemaScanner
             i.GetGenericArguments()[0] == entityType) ?? throw new InvalidOperationException(
             $"Configuration type '{configType.Name}' does not implement IEntityConfiguration<{entityType.Name}>.");
 
-        var configInstance = Activator.CreateInstance(configType);
+        var configInstance = Activator.CreateInstance(configType, nonPublic: true);
         var entityBuilderInstance = CreateEntityBuilder(entityType, tableBuilder);
 
         var configureMethod = iface.GetMethod(nameof(IEntityConfiguration<>.Configure));

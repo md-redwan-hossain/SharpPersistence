@@ -27,7 +27,7 @@ internal sealed class MigrationDoctor
     {
         _options = options;
         _scriptStore = scriptStore;
-        _wiringValidator = new DoctorWiringValidator(options, connectionOpener);
+        _wiringValidator = new DoctorWiringValidator(options, dialect, connectionOpener);
         _entityValidator = new DoctorEntityValidator(options, dialect);
         _crossRegistryValidator = new DoctorCrossRegistryValidator(options, dialect);
         _databaseValidator = new DoctorDatabaseValidator(
@@ -235,20 +235,9 @@ internal sealed class MigrationDoctor
                 ? await File.ReadAllTextAsync(snapshotPath, ct)
                 : null;
 
-            var currentSchema = SchemaScanner.ScanRegistry(
-                registry,
-                _options.Dialect,
-                _options.IdentifierCase,
-                _options.Registries,
-                _options.PropertyConventions,
-                _options.Enums,
-                _options.SqlExpressionOptions,
-                _options.PluralizeTableNames,
-                _options.EntityConventions,
-                _options.TableNameConvention,
-                _options.EntityStubs);
+            var currentSchema = SchemaScanner.ScanRegistry(registry, _options);
 
-            totalPendingChanges += StandaloneSchemaDiffer.CountPendingOperations(currentSchema, previousJson);
+            totalPendingChanges += StandaloneSchemaDiffer.CountPendingOperations(currentSchema, previousJson, _options.Dialect);
         }
 
         if (totalPendingChanges == 0)
@@ -270,7 +259,7 @@ internal sealed class MigrationDoctor
         }
     }
 
-    private static Exception UnwrapException(Exception ex) =>
+    internal static Exception UnwrapException(Exception ex) =>
         ex is TargetInvocationException tie && tie.InnerException is not null
             ? tie.InnerException
             : ex;

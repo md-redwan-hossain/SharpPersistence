@@ -56,11 +56,13 @@ public sealed class StandaloneSchemaDifferTests
         var profile = schema.Tables.Single(t => t.TableName == "profiles");
         Assert.Single(profile.Indexes, ix => ix.IsUnique && ix.ColumnNames.SequenceEqual(["account_id"]));
 
-        var diff = StandaloneSchemaDiffer.GenerateDiff(schema, null, SqlDialect.PostgreSql, interactiveRenamePrompt: false);
+        var diff = StandaloneSchemaDiffer.GenerateDiff(schema, null, SqlDialect.PostgreSql,
+            interactiveRenamePrompt: false);
         Assert.True(diff.HasChanges);
         Assert.Contains("CREATE UNIQUE INDEX IF NOT EXISTS", diff.SqlScript);
 
-        var secondDiff = StandaloneSchemaDiffer.GenerateDiff(schema, diff.UpdatedSnapshotJson, SqlDialect.PostgreSql, interactiveRenamePrompt: false);
+        var secondDiff = StandaloneSchemaDiffer.GenerateDiff(schema, diff.UpdatedSnapshotJson, SqlDialect.PostgreSql,
+            interactiveRenamePrompt: false);
         Assert.False(secondDiff.HasChanges);
     }
 
@@ -145,7 +147,8 @@ public sealed class StandaloneSchemaDifferTests
         var table = Assert.Single(schema.Tables);
         Assert.True(table.ExcludeFromMigrations);
 
-        var diff = StandaloneSchemaDiffer.GenerateDiff(schema, null, SqlDialect.PostgreSql, interactiveRenamePrompt: false);
+        var diff = StandaloneSchemaDiffer.GenerateDiff(schema, null, SqlDialect.PostgreSql,
+            interactiveRenamePrompt: false);
         Assert.False(diff.HasChanges);
         Assert.Equal(string.Empty, diff.SqlScript);
     }
@@ -189,5 +192,95 @@ public sealed class StandaloneSchemaDifferTests
 
         var col = table.Columns.Single(c => c.PropertyName == nameof(AnnotatedEntity.Secret));
         Assert.Equal(true, col.Annotations["Sensitive:Mask"]);
+    }
+
+    private sealed class IncAddress
+    {
+        public Guid Id { get; set; }
+        public Guid UserId { get; set; }
+    }
+
+    private sealed class IncUser
+    {
+        public Guid Id { get; set; }
+    }
+
+    private sealed class IncV1Registry : IEntityRegistry
+    {
+        public void Configure(IEntityRegistryBuilder registry)
+        {
+            registry.Entity<Account>(b => b.ToTable("accounts"));
+        }
+    }
+
+    private sealed class IncV2Registry : IEntityRegistry
+    {
+        public void Configure(IEntityRegistryBuilder registry)
+        {
+            registry.Entity<Account>(b => b.ToTable("accounts"));
+            // "addresses" sorts before "users", yet references "users"
+            registry.Entity<IncAddress>(b =>
+            {
+                b.ToTable("addresses");
+                b.HasForeignKey(x => x.UserId).References<IncUser>(u => u.Id);
+            });
+            registry.Entity<IncUser>(b => b.ToTable("users"));
+        }
+    }
+
+    [Fact]
+    public void IncrementalDiff_CreatesAllNewTablesBeforeAddingForeignKeys()
+    {
+        var v1 = new IncV1Registry();
+        var v1Schema = SchemaScanner.ScanRegistry(v1, SqlDialect.PostgreSql, SqlIdentifierCase.LowerSnakeCase, [v1]);
+        var v1Diff =
+            StandaloneSchemaDiffer.GenerateDiff(v1Schema, null, SqlDialect.PostgreSql, interactiveRenamePrompt: false);
+
+        var v2 = new IncV2Registry();
+        var v2Schema = SchemaScanner.ScanRegistry(v2, SqlDialect.PostgreSql, SqlIdentifierCase.LowerSnakeCase, [v2]);
+        var v2Diff = StandaloneSchemaDiffer.GenerateDiff(v2Schema, v1Diff.UpdatedSnapshotJson, SqlDialect.PostgreSql,
+            interactiveRenamePrompt: false);
+
+        var createUsersIdx = v2Diff.SqlScript.IndexOf("CREATE TABLE IF NOT EXISTS \"users\"", StringComparison.Ordinal);
+        var addFkIdx = v2Diff.SqlScript.IndexOf("fk_addresses_users_user_id", StringComparison.Ordinal);
+
+        Assert.True(createUsersIdx >= 0);
+        Assert.True(addFkIdx > createUsersIdx);
+    }
+
+    private sealed class DualIndexEntity
+    {
+        public Guid Id { get; set; }
+        public string Email { get; set; } = string.Empty;
+        public bool IsDeleted { get; set; }
+    }
+
+    private sealed class DualIndexRegistry : IEntityRegistry
+    {
+        public void Configure(IEntityRegistryBuilder registry)
+        {
+            registry.Entity<DualIndexEntity>(b =>
+            {
+                b.ToTable("dual_index_entities");
+                b.HasIndex(x => x.Email);
+                b.HasIndex(x => x.Email)
+                    .IsUnique()
+                    .HasDatabaseName("uq_dual_active_email")
+                    .HasFilter(cc => cc.Column(x => x.IsDeleted).EqualTo(false));
+            });
+        }
+    }
+
+    [Fact]
+    public void AddIndex_PreservesMultipleEntityIndexesOnSameProperty()
+    {
+        var registry = new DualIndexRegistry();
+        var schema = SchemaScanner.ScanRegistry(registry, SqlDialect.PostgreSql, SqlIdentifierCase.LowerSnakeCase,
+            [registry]);
+        var table = Assert.Single(schema.Tables);
+
+        Assert.Equal(2, table.Indexes.Count);
+        Assert.Contains(table.Indexes, ix => !ix.IsUnique && ix.Name == "ix_dual_index_entities_email");
+        Assert.Contains(table.Indexes, ix => ix.IsUnique && ix.Name == "uq_dual_active_email");
     }
 }
