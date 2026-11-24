@@ -7,6 +7,8 @@ using SharpPersistence.Migrator.Models;
 
 namespace SharpPersistence.Migrator.Dialects;
 
+internal readonly record struct LiveColumnInfo(bool IsNullable, string SqlType);
+
 internal interface ISqlDialectMetadata
 {
     SqlDialect Dialect { get; }
@@ -42,7 +44,7 @@ internal interface IMigrationDialect : ISqlDialectMetadata
         CancellationToken ct,
         DbTransaction? transaction = null);
     Task<IReadOnlyList<string>> ReadEfCoreMigrationIdsAsync(DbConnection conn, CancellationToken ct);
-    Task<Dictionary<(string Schema, string Table), Dictionary<string, bool>>> ReadLiveColumnsAsync(
+    Task<Dictionary<(string Schema, string Table), Dictionary<string, LiveColumnInfo>>> ReadLiveColumnsAsync(
         DbConnection conn,
         IReadOnlyList<(string RegistryName, TableSchema Table)> expectedTables,
         CancellationToken ct);
@@ -92,20 +94,21 @@ internal static class MigrationDialectRegistry
     }
 
     internal static void AddLiveColumn(
-        Dictionary<(string Schema, string Table), Dictionary<string, bool>> result,
+        Dictionary<(string Schema, string Table), Dictionary<string, LiveColumnInfo>> result,
         string schema,
         string table,
         string column,
-        bool isNullable)
+        bool isNullable,
+        string sqlType)
     {
         var key = (schema, table);
         if (!result.TryGetValue(key, out var cols))
         {
-            cols = new Dictionary<string, bool>(StringComparer.Ordinal);
+            cols = new Dictionary<string, LiveColumnInfo>(StringComparer.Ordinal);
             result[key] = cols;
         }
 
-        cols[column] = isNullable;
+        cols[column] = new LiveColumnInfo(isNullable, sqlType);
     }
 
     internal sealed class AsyncDisposableLock(Func<Task> release) : IAsyncDisposable

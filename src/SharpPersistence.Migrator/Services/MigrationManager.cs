@@ -14,7 +14,6 @@ internal sealed class MigrationManager : IMigrationManager
     private readonly IMigrationDialect _dialect;
     private readonly MigrationConnectionOpener _connectionOpener;
     private readonly MigrationScriptStore _scriptStore;
-    private readonly MigrationLockService _lockService;
     private readonly MigrationHistoryStore _historyStore;
     private readonly SchemaDriftVerifier _driftVerifier;
 
@@ -24,7 +23,6 @@ internal sealed class MigrationManager : IMigrationManager
         _dialect = MigrationDialectRegistry.Get(options);
         _connectionOpener = new MigrationConnectionOpener(options, serviceProvider, _dialect);
         _scriptStore = new MigrationScriptStore(options);
-        _lockService = new MigrationLockService(options);
         _historyStore = new MigrationHistoryStore(options);
         _driftVerifier = new SchemaDriftVerifier(options);
     }
@@ -211,18 +209,39 @@ internal sealed class MigrationManager : IMigrationManager
 
         try
         {
-            migrationLock = await _lockService.AcquireAsync(conn, ct);
+            migrationLock = await _dialect.AcquireLockAsync(conn, _options, ct);
             await _historyStore.EnsureHistoryTableAsync(conn, ct);
 
             var applied = await _historyStore.ReadAppliedAsync(conn, ct);
-            var appliedSet = applied.Select(a => (a.RegistryName, a.ScriptName)).ToHashSet();
+            var appliedMap = applied.ToDictionary(a => (a.RegistryName, a.ScriptName));
 
             var scripts = _scriptStore.DiscoverScripts();
+            var checksumMismatches = new List<string>();
+            foreach (var (registryName, scriptName, fullPath) in scripts)
+            {
+                if (appliedMap.TryGetValue((registryName, scriptName), out var record))
+                {
+                    var existingSql = await File.ReadAllTextAsync(fullPath, ct);
+                    var currentChecksum = MigrationScriptStore.ComputeSha256(existingSql);
+                    if (!string.Equals(record.ChecksumSha256, currentChecksum, StringComparison.OrdinalIgnoreCase))
+                    {
+                        checksumMismatches.Add($"{registryName}/{scriptName}");
+                    }
+                }
+            }
+
+            if (checksumMismatches.Count > 0)
+            {
+                throw new InvalidOperationException(
+                    $"Refusing to apply migrations because {checksumMismatches.Count} already-applied migration script(s) were modified on disk: " +
+                    $"{string.Join(", ", checksumMismatches)}. Create a new migration script instead of editing applied ones.");
+            }
+
             var executed = new List<string>();
 
             foreach (var (registryName, scriptName, fullPath) in scripts)
             {
-                if (appliedSet.Contains((registryName, scriptName)))
+                if (appliedMap.ContainsKey((registryName, scriptName)))
                 {
                     continue;
                 }

@@ -1,6 +1,6 @@
 namespace SharpPersistence.Migrator.Enums;
 
-public enum ValueGenerationMode : byte
+internal enum ValueGenerationMode : byte
 {
     Default,
     Never,

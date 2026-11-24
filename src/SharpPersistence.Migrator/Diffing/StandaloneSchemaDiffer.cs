@@ -820,7 +820,7 @@ internal static class StandaloneSchemaDiffer
         if (!string.Equals(a.Method, b.Method, StringComparison.OrdinalIgnoreCase)
             || !string.Equals(a.FilterSql, b.FilterSql, StringComparison.Ordinal)
             || !string.Equals(a.Tablespace, b.Tablespace, StringComparison.Ordinal)
-            || !NullableSequenceEqual(a.IncludedPropertyNames, b.IncludedPropertyNames)
+            || !NullableSequenceEqual(a.IncludedColumnNames, b.IncludedColumnNames)
             || !NullableDictionaryEqual(a.StorageParameters, b.StorageParameters)
             || a.Elements.Count != b.Elements.Count)
         {
@@ -831,8 +831,7 @@ internal static class StandaloneSchemaDiffer
         {
             var ea = a.Elements[i];
             var eb = b.Elements[i];
-            if (!string.Equals(ea.PropertyName, eb.PropertyName, StringComparison.Ordinal)
-                || !string.Equals(ea.ColumnName, eb.ColumnName, StringComparison.Ordinal)
+            if (!string.Equals(ea.ColumnName, eb.ColumnName, StringComparison.Ordinal)
                 || !string.Equals(ea.ExpressionSql, eb.ExpressionSql, StringComparison.Ordinal)
                 || !string.Equals(ea.OperatorClass, eb.OperatorClass, StringComparison.Ordinal)
                 || !string.Equals(ea.Operator, eb.Operator, StringComparison.Ordinal))
@@ -849,10 +848,10 @@ internal static class StandaloneSchemaDiffer
         return a.IsUnique == b.IsUnique
                && string.Equals(a.FilterSql, b.FilterSql, StringComparison.Ordinal)
                && string.Equals(a.Method, b.Method, StringComparison.OrdinalIgnoreCase)
-               && a.PropertyNames.SequenceEqual(b.PropertyNames, StringComparer.Ordinal)
-               && NullableSequenceEqual(a.IncludedPropertyNames, b.IncludedPropertyNames)
+               && a.ColumnNames.SequenceEqual(b.ColumnNames, StringComparer.Ordinal)
+               && NullableSequenceEqual(a.IncludedColumnNames, b.IncludedColumnNames)
                && NullableBoolSequenceEqual(a.IsDescending, b.IsDescending)
-               && NullableDictionaryEqual(a.OperatorsByProperty, b.OperatorsByProperty);
+               && NullableDictionaryEqual(a.OperatorsByColumn, b.OperatorsByColumn);
     }
 
     private static bool NullableDictionaryEqual(
@@ -894,20 +893,32 @@ internal static class StandaloneSchemaDiffer
         ForeignKeySchema b,
         IReadOnlyDictionary<string, string> renamedTableMap)
     {
-        var aPrincipal = string.IsNullOrWhiteSpace(a.PrincipalSchema)
+        var aPrincipal = NormalizeQualifiedPrincipal(a.PrincipalSchema, a.PrincipalTable);
+        var bPrincipal = NormalizeQualifiedPrincipal(b.PrincipalSchema, b.PrincipalTable);
+        var aRaw = string.IsNullOrWhiteSpace(a.PrincipalSchema)
             ? a.PrincipalTable
             : $"{a.PrincipalSchema}.{a.PrincipalTable}";
-        var bPrincipal = string.IsNullOrWhiteSpace(b.PrincipalSchema)
+        var bRaw = string.IsNullOrWhiteSpace(b.PrincipalSchema)
             ? b.PrincipalTable
             : $"{b.PrincipalSchema}.{b.PrincipalTable}";
 
         var principalMatches = string.Equals(aPrincipal, bPrincipal, StringComparison.Ordinal)
-                               || (renamedTableMap.TryGetValue(aPrincipal, out var mapped) &&
-                                   string.Equals(mapped, bPrincipal, StringComparison.Ordinal));
+                               || (renamedTableMap.TryGetValue(aRaw, out var mapped) &&
+                                   string.Equals(mapped, bRaw, StringComparison.Ordinal));
 
         return principalMatches
                && a.OnDelete == b.OnDelete
-               && a.DependentProperties.SequenceEqual(b.DependentProperties, StringComparer.Ordinal)
+               && a.DependentColumns.SequenceEqual(b.DependentColumns, StringComparer.Ordinal)
                && a.PrincipalColumns.SequenceEqual(b.PrincipalColumns, StringComparer.Ordinal);
+    }
+
+    private static string NormalizeQualifiedPrincipal(string? schema, string table)
+    {
+        if (string.IsNullOrWhiteSpace(schema) || string.Equals(schema.Trim(), "public", StringComparison.Ordinal))
+        {
+            return table;
+        }
+
+        return $"{schema.Trim()}.{table}";
     }
 }

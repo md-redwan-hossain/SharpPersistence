@@ -16,16 +16,14 @@
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <NoWarn>CS1591</NoWarn>
         <DocumentationFile Condition="'$(Configuration)'=='Release'">bin\$(Configuration)\$(TargetFramework)\SharpPersistence.Migrator.EfCore.xml</DocumentationFile>
-        <Description>EF Core runtime model bridge, ValueConverter extensions, and 1-to-1 EF Core migration-to-SQL translator for SharpPersistence.Migrator.</Description>
+        <Description>EF Core runtime model bridge and ValueConverter extensions for SharpPersistence.Migrator.</Description>
     </PropertyGroup>
 
     <ItemGroup>
-        <InternalsVisibleTo Include="SharpPersistence.Migrator.Cli" />
         <InternalsVisibleTo Include="SharpPersistence.Migrator.Tests" />
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
         <PackageReference Include="Microsoft.EntityFrameworkCore" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
     </ItemGroup>

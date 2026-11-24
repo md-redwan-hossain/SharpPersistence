@@ -39,6 +39,13 @@ public abstract class ColumnBuilderBase<TBuilder>
         return Self;
     }
 
+    public TBuilder HasPrecision(int precision)
+    {
+        Definition.Precision = precision;
+        Definition.Scale = null;
+        return Self;
+    }
+
     public TBuilder HasPrecision(int precision, int scale)
     {
         Definition.Precision = precision;

@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/Samples/">
+    <Project Path="Samples/WebApiExample/WebApiExample.csproj" />
+  </Folder>
   <Folder Name="/Tests/">
     <Project Path="Tests/SharpPersistence.Migrator.Tests/SharpPersistence.Migrator.Tests.csproj" />
     <Project Path="Tests/SharpPersistence.Tests/SharpPersistence.Tests.csproj" />

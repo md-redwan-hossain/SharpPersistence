@@ -21,7 +21,7 @@ Most commands load your `IServiceProvider` (from `Program.cs`) or `IDesignTimeMi
 
 ### `doctor`
 
-Validates DI wiring, entity registries, configs, foreign key type compatibility, cross-registry table/index/constraint collisions, and migration script coverage **offline by default**. Pass `--check-db` to also verify live DB connectivity, `__db_migration_logs`, and live schema sync (read-only).
+Validates DI wiring, entity registries, configs, foreign key type compatibility, cross-registry table/index/constraint collisions, entity stub mappings, and migration script coverage **offline by default**. Pass `--check-db` to also verify live DB connectivity, `__db_migration_logs`, and live table/column/nullability/SQL-type drift (read-only).
 
 ```powershell
 # Offline check (CI-safe)
@@ -75,7 +75,7 @@ Options: `-n|--name <NAME>` (required), `-r|--registry <REGISTRY>`, `--ci|--non-
 
 ### `migrate`
 
-Applies all pending SQL migration scripts inside a distributed lock (`pg_advisory_lock` / `DBMS_LOCK`).
+Applies all pending SQL migration scripts inside a distributed lock (`pg_advisory_lock` / `DBMS_LOCK`). Verifies SHA-256 checksums of already-applied scripts first and fails fast if an applied script was edited on disk.
 
 ```powershell
 db-migrator migrate --startup-project WebApi/WebApi.csproj

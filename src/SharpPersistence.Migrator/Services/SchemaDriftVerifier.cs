@@ -64,7 +64,7 @@ internal sealed class SchemaDriftVerifier
 
             foreach (var col in expectedCols.Values)
             {
-                if (!liveCols.TryGetValue(col.ColumnName, out var liveNullable))
+                if (!liveCols.TryGetValue(col.ColumnName, out var liveCol))
                 {
                     drift.Add(new SchemaDriftItem(
                         registryName,
@@ -75,16 +75,26 @@ internal sealed class SchemaDriftVerifier
                     continue;
                 }
 
-                if (liveNullable != col.IsNullable)
+                if (liveCol.IsNullable != col.IsNullable)
                 {
                     var expectedNullText = col.IsNullable ? "NULL" : "NOT NULL";
-                    var liveNullText = liveNullable ? "NULL" : "NOT NULL";
+                    var liveNullText = liveCol.IsNullable ? "NULL" : "NOT NULL";
                     drift.Add(new SchemaDriftItem(
                         registryName,
                         table.QualifiedName,
                         col.ColumnName,
                         "NullabilityMismatch",
                         $"Expected {expectedNullText}, found {liveNullText} in database."));
+                }
+
+                if (!_dialect.AreSqlTypesCompatible(col.SqlType, liveCol.SqlType))
+                {
+                    drift.Add(new SchemaDriftItem(
+                        registryName,
+                        table.QualifiedName,
+                        col.ColumnName,
+                        "TypeMismatch",
+                        $"Expected SQL type '{col.SqlType}', found '{liveCol.SqlType}' in database."));
                 }
             }
 

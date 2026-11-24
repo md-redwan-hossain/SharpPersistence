@@ -173,7 +173,7 @@ builder.Property(x => x.RowVersion)
 
 | Category | Methods |
 | --- | --- |
-| **Naming & Types** | `HasColumnName`, `HasPreviousColumnName`, `HasColumnType`, `HasMaxLength`, `HasPrecision(p, s)`, `IsUnicode(bool)`, `IsRequired(bool)` |
+| **Naming & Types** | `HasColumnName`, `HasPreviousColumnName`, `HasColumnType`, `HasMaxLength`, `HasPrecision(p)` / `HasPrecision(p, s)`, `IsUnicode(bool)`, `IsRequired(bool)` |
 | **Defaults & Generation** | `HasDefaultValue<TValue>(value)`, `HasDefaultValueSql(sql)`, `HasComputedColumnSql(expr / sql)` + `IsStored(bool)`, `ValueGeneratedOnAdd(isIdentity: true)`, `ValueGeneratedOnAddOrUpdate()`, `ValueGeneratedNever()` |
 | **Concurrency & Metadata** | `IsConcurrencyToken()`, `IsRowVersion()`, `HasComment(text)`, `SetAnnotation<TValue>(name, value)` |
 | **Type Conversions** | `HasConversion<TProvider>()` / `HasConversion(Type)`, plus `HasConversion(ValueConverter)` in `SharpPersistence.Migrator.EfCore` |

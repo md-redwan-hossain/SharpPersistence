@@ -36,7 +36,28 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
         string.IsNullOrWhiteSpace(schema) ? string.Empty : schema.Trim();
 
     public bool AreSqlTypesCompatible(string depSqlType, string prinSqlType) =>
-        string.Equals(depSqlType, prinSqlType, StringComparison.OrdinalIgnoreCase);
+        string.Equals(depSqlType, prinSqlType, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(NormalizeTypeName(depSqlType), NormalizeTypeName(prinSqlType), StringComparison.OrdinalIgnoreCase);
+
+    internal static string NormalizeTypeName(string sqlType)
+    {
+        var normalized = sqlType.Trim().ToUpperInvariant()
+            .Replace(", ", ",", StringComparison.Ordinal)
+            .Replace(" CHAR)", ")", StringComparison.Ordinal)
+            .Replace(" BYTE)", ")", StringComparison.Ordinal);
+
+        if (normalized.EndsWith(",0)", StringComparison.Ordinal) &&
+            normalized.StartsWith("NUMBER(", StringComparison.Ordinal))
+        {
+            normalized = normalized[..^3] + ")";
+        }
+
+        return normalized switch
+        {
+            "INT" or "INTEGER" => "NUMBER(38)",
+            _ => normalized
+        };
+    }
 
     public string ResolveSequenceSqlType(Type clrType) => "NUMBER";
 
@@ -277,12 +298,12 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
         return ids;
     }
 
-    public async Task<Dictionary<(string Schema, string Table), Dictionary<string, bool>>> ReadLiveColumnsAsync(
+    public async Task<Dictionary<(string Schema, string Table), Dictionary<string, LiveColumnInfo>>> ReadLiveColumnsAsync(
         DbConnection conn,
         IReadOnlyList<(string RegistryName, TableSchema Table)> expectedTables,
         CancellationToken ct)
     {
-        var result = new Dictionary<(string Schema, string Table), Dictionary<string, bool>>();
+        var result = new Dictionary<(string Schema, string Table), Dictionary<string, LiveColumnInfo>>();
         var hasUnqualified = expectedTables.Any(t => string.IsNullOrWhiteSpace(t.Table.Schema));
         var explicitSchemas = expectedTables
             .Select(t => t.Table.Schema)
@@ -293,7 +314,7 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
         if (hasUnqualified)
         {
             await using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT TABLE_NAME, COLUMN_NAME, NULLABLE FROM USER_TAB_COLUMNS";
+            cmd.CommandText = "SELECT TABLE_NAME, COLUMN_NAME, NULLABLE, DATA_TYPE, CHAR_LENGTH, DATA_PRECISION, DATA_SCALE FROM USER_TAB_COLUMNS";
             await using var reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
             {
@@ -302,7 +323,8 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
                     string.Empty,
                     reader.GetString(0),
                     reader.GetString(1),
-                    string.Equals(reader.GetString(2), "Y", StringComparison.OrdinalIgnoreCase));
+                    string.Equals(reader.GetString(2), "Y", StringComparison.OrdinalIgnoreCase),
+                    FormatOracleLiveType(reader, 3));
             }
         }
 
@@ -310,7 +332,7 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
         {
             await using var cmd = conn.CreateCommand();
             OracleCommandHelper.EnableBindByName(cmd);
-            cmd.CommandText = "SELECT OWNER, TABLE_NAME, COLUMN_NAME, NULLABLE FROM ALL_TAB_COLUMNS WHERE OWNER = :owner";
+            cmd.CommandText = "SELECT OWNER, TABLE_NAME, COLUMN_NAME, NULLABLE, DATA_TYPE, CHAR_LENGTH, DATA_PRECISION, DATA_SCALE FROM ALL_TAB_COLUMNS WHERE OWNER = :owner";
             var p = cmd.CreateParameter();
             p.ParameterName = "owner";
             p.Value = owner;
@@ -324,11 +346,34 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
                     reader.GetString(0),
                     reader.GetString(1),
                     reader.GetString(2),
-                    string.Equals(reader.GetString(3), "Y", StringComparison.OrdinalIgnoreCase));
+                    string.Equals(reader.GetString(3), "Y", StringComparison.OrdinalIgnoreCase),
+                    FormatOracleLiveType(reader, 4));
             }
         }
 
         return result;
+    }
+
+    private static string FormatOracleLiveType(DbDataReader reader, int dataTypeOrdinal)
+    {
+        var dataType = reader.GetString(dataTypeOrdinal);
+        var charLen = reader.IsDBNull(dataTypeOrdinal + 1) ? (int?)null : Convert.ToInt32(reader.GetValue(dataTypeOrdinal + 1));
+        var precision = reader.IsDBNull(dataTypeOrdinal + 2) ? (int?)null : Convert.ToInt32(reader.GetValue(dataTypeOrdinal + 2));
+        var scale = reader.IsDBNull(dataTypeOrdinal + 3) ? (int?)null : Convert.ToInt32(reader.GetValue(dataTypeOrdinal + 3));
+
+        if (dataType is "VARCHAR2" or "NVARCHAR2" or "CHAR" or "NCHAR" && charLen is > 0)
+        {
+            return $"{dataType}({charLen.Value})";
+        }
+
+        if (string.Equals(dataType, "NUMBER", StringComparison.OrdinalIgnoreCase) && precision.HasValue)
+        {
+            return scale is > 0
+                ? $"NUMBER({precision.Value},{scale.Value})"
+                : $"NUMBER({precision.Value})";
+        }
+
+        return dataType;
     }
 
     private static int ComputeLockId(MigrationManagerOptions options)
@@ -363,6 +408,18 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
         catch
         {
             // Lock is automatically released when the Oracle session closes.
+        }
+    }
+}
+
+internal static class OracleCommandHelper
+{
+    public static void EnableBindByName(DbCommand cmd)
+    {
+        var prop = cmd.GetType().GetProperty("BindByName", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+        if (prop is not null && prop.CanWrite && prop.PropertyType == typeof(bool))
+        {
+            prop.SetValue(cmd, true);
         }
     }
 }

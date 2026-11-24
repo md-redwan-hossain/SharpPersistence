@@ -123,7 +123,14 @@ public static class EfCoreModelBridge
 
                     if (col.Precision.HasValue)
                     {
-                        prop.HasPrecision(col.Precision.Value, col.Scale ?? 0);
+                        if (col.Scale.HasValue)
+                        {
+                            prop.HasPrecision(col.Precision.Value, col.Scale.Value);
+                        }
+                        else
+                        {
+                            prop.HasPrecision(col.Precision.Value);
+                        }
                     }
 
                     if (!string.IsNullOrWhiteSpace(col.DefaultValueSql))

@@ -78,7 +78,8 @@ internal sealed class MigrationScriptStore
 
     public static string ComputeSha256(string content)
     {
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(content));
+        var normalized = content.Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\r", "\n", StringComparison.Ordinal);
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(normalized));
         return Convert.ToHexStringLower(bytes);
     }
 

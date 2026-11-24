@@ -198,17 +198,22 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
         return ids;
     }
 
-    public async Task<Dictionary<(string Schema, string Table), Dictionary<string, bool>>> ReadLiveColumnsAsync(
+    public async Task<Dictionary<(string Schema, string Table), Dictionary<string, LiveColumnInfo>>> ReadLiveColumnsAsync(
         DbConnection conn,
         IReadOnlyList<(string RegistryName, TableSchema Table)> expectedTables,
         CancellationToken ct)
     {
-        var result = new Dictionary<(string Schema, string Table), Dictionary<string, bool>>();
+        var result = new Dictionary<(string Schema, string Table), Dictionary<string, LiveColumnInfo>>();
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            SELECT table_schema, table_name, column_name, is_nullable
-            FROM information_schema.columns
-            WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+            SELECT n.nspname, c.relname, a.attname, NOT a.attnotnull, pg_catalog.format_type(a.atttypid, a.atttypmod)
+            FROM pg_catalog.pg_attribute a
+            JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
+            JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+            WHERE a.attnum > 0
+              AND NOT a.attisdropped
+              AND c.relkind IN ('r', 'p')
+              AND n.nspname NOT IN ('pg_catalog', 'information_schema')
             """;
 
         await using var reader = await cmd.ExecuteReaderAsync(ct);
@@ -219,7 +224,8 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
                 reader.GetString(0),
                 reader.GetString(1),
                 reader.GetString(2),
-                string.Equals(reader.GetString(3), "YES", StringComparison.OrdinalIgnoreCase));
+                reader.GetBoolean(3),
+                reader.GetString(4));
         }
 
         return result;
@@ -253,7 +259,7 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
     internal static string NormalizeTypeName(string sqlType)
     {
         var trimmed = sqlType.Trim();
-        var lower = trimmed.ToLowerInvariant();
+        var lower = trimmed.ToLowerInvariant().Replace(", ", ",", StringComparison.Ordinal);
         if (lower.StartsWith("varchar(", StringComparison.Ordinal))
         {
             return "character varying" + lower["varchar".Length..];

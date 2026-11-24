@@ -1,0 +1,51 @@
+@baseUrl = http://localhost:5000
+
+### 1. List categories
+GET {{baseUrl}}/api/categories
+
+### 2. Create category
+POST {{baseUrl}}/api/categories
+Content-Type: application/json
+
+{
+  "name": "Office",
+  "description": "Desk and workspace gear"
+}
+
+### 3. Delete category
+DELETE {{baseUrl}}/api/categories/3
+
+### 4. List products (optional ?categoryId=1&search=key)
+GET {{baseUrl}}/api/products
+
+### 5. Get product by ID
+GET {{baseUrl}}/api/products/1
+
+### 6. Create product
+POST {{baseUrl}}/api/products
+Content-Type: application/json
+
+{
+  "categoryId": 1,
+  "name": "USB-C Hub",
+  "sku": "ELEC-HUB-002",
+  "price": 39.99,
+  "stockQuantity": 15,
+  "isActive": true
+}
+
+### 7. Update product
+PUT {{baseUrl}}/api/products/1
+Content-Type: application/json
+
+{
+  "categoryId": 1,
+  "name": "Mechanical Keyboard Pro",
+  "sku": "ELEC-KB-001",
+  "price": 149.99,
+  "stockQuantity": 20,
+  "isActive": true
+}
+
+### 8. Delete product
+DELETE {{baseUrl}}/api/products/2

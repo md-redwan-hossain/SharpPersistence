@@ -31,6 +31,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\src\SharpPersistence.Abstractions\SharpPersistence.Abstractions.csproj" />
+        <ProjectReference Include="..\..\src\SharpPersistence.Migrator.Cli\SharpPersistence.Migrator.Cli.csproj" />
         <ProjectReference Include="..\..\src\SharpPersistence.Migrator.EfCore\SharpPersistence.Migrator.EfCore.csproj" />
         <ProjectReference Include="..\..\src\SharpPersistence.Migrator.Generators\SharpPersistence.Migrator.Generators.csproj" />
         <ProjectReference Include="..\..\src\SharpPersistence.Migrator\SharpPersistence.Migrator.csproj" />

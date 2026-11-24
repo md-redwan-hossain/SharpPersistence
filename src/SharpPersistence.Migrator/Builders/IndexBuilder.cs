@@ -3,40 +3,36 @@ using SharpPersistence.Migrator.Services;
 
 namespace SharpPersistence.Migrator.Builders;
 
-public abstract class IndexBuilderBase<TEntity, TBuilder>
-    where TEntity : class
-    where TBuilder : IndexBuilderBase<TEntity, TBuilder>
+public sealed class IndexBuilder<TEntity, TKey> where TEntity : class
 {
     internal IndexDefinition Definition { get; }
 
-    internal IndexBuilderBase(IndexDefinition definition)
+    internal IndexBuilder(IndexDefinition definition)
     {
         Definition = definition;
     }
 
-    private TBuilder Self => (TBuilder)this;
-
-    public TBuilder HasDatabaseName(string indexName)
+    public IndexBuilder<TEntity, TKey> HasDatabaseName(string indexName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
         Definition.IndexName = indexName.Trim();
-        return Self;
+        return this;
     }
 
-    public TBuilder IsUnique(bool unique = true)
+    public IndexBuilder<TEntity, TKey> IsUnique(bool unique = true)
     {
         Definition.IsUnique = unique;
-        return Self;
+        return this;
     }
 
-    public TBuilder HasFilter(string? filterSql)
+    public IndexBuilder<TEntity, TKey> HasFilter(string? filterSql)
     {
         Definition.FilterSql = string.IsNullOrWhiteSpace(filterSql) ? null : filterSql.Trim();
         Definition.FilterRenderer = null;
-        return Self;
+        return this;
     }
 
-    public TBuilder HasFilter(
+    public IndexBuilder<TEntity, TKey> HasFilter(
         Func<ISqlPredicateBuilder<TEntity>, SqlPredicate> predicate)
     {
         ArgumentNullException.ThrowIfNull(predicate);
@@ -55,40 +51,24 @@ public abstract class IndexBuilderBase<TEntity, TBuilder>
                     $"Index filter on entity '{typeof(TEntity).Name}' returned null.");
             return result.ToString();
         };
-        return Self;
+        return this;
     }
 
-    public TBuilder IncludeProperties(Expression<Func<TEntity, object?>> includeExpression)
+    public IndexBuilder<TEntity, TKey> IncludeProperties(Expression<Func<TEntity, object?>> includeExpression)
     {
         Definition.IncludedPropertyNames = [.. ExpressionHelper.ExtractPropertyNames(includeExpression)];
-        return Self;
+        return this;
     }
 
-    public TBuilder IsDescending(params bool[] descending)
+    public IndexBuilder<TEntity, TKey> IsDescending(params bool[] descending)
     {
         Definition.IsDescending = descending.Length == 0 ? [true] : [.. descending];
-        return Self;
+        return this;
     }
 
-    public TBuilder HasMethod(string? method)
+    public IndexBuilder<TEntity, TKey> HasMethod(string? method)
     {
         Definition.Method = method;
-        return Self;
-    }
-}
-
-public sealed class IndexBuilder<TEntity> : IndexBuilderBase<TEntity, IndexBuilder<TEntity>>
-    where TEntity : class
-{
-    internal IndexBuilder(IndexDefinition definition) : base(definition)
-    {
-    }
-}
-
-public sealed class IndexBuilder<TEntity, TKey> : IndexBuilderBase<TEntity, IndexBuilder<TEntity, TKey>>
-    where TEntity : class
-{
-    internal IndexBuilder(IndexDefinition definition) : base(definition)
-    {
+        return this;
     }
 }

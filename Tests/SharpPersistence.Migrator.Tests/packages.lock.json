@@ -718,6 +718,11 @@
         "resolved": "1.4.2",
         "contentHash": "yjj+3zgz8zgXpiiC3ZdF/iyTBbz2fFvMxZFEBPUcwZjIvXOf37Ylm+K58hqMfIBt5JgU/Z2uoUS67JmTLe973A=="
       },
+      "Spectre.Console": {
+        "type": "Transitive",
+        "resolved": "0.50.0",
+        "contentHash": "gkwYncFqMjlPF6Yz8KeVsKWpdfv15sr6uKm+vXVa/8Q4tvx52LPzMQOO5m+bXwI3AGGFeY3cok3ZJbguYizswg=="
+      },
       "SSH.NET": {
         "type": "Transitive",
         "resolved": "2026.0.0",
@@ -843,10 +848,18 @@
           "SharpPersistence": "[2.1.0, )"
         }
       },
-      "sharppersistence.migrator.efcore": {
+      "sharppersistence.migrator.cli": {
         "type": "Project",
         "dependencies": {
           "Microsoft.CodeAnalysis.CSharp": "[5.6.0, )",
+          "Microsoft.EntityFrameworkCore.Relational": "[10.0.15, )",
+          "SharpPersistence.Migrator": "[1.0.0, )",
+          "Spectre.Console.Cli": "[0.50.0, )"
+        }
+      },
+      "sharppersistence.migrator.efcore": {
+        "type": "Project",
+        "dependencies": {
           "Microsoft.EntityFrameworkCore": "[10.0.15, )",
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.15, )",
           "SharpPersistence.Migrator": "[1.0.0, )"
@@ -949,6 +962,15 @@
         "requested": "[10.0.0, )",
         "resolved": "10.0.15",
         "contentHash": "KczR2nV7ooeimtZxAawPht/FJUHnX+uoWy7y4pba+iaRQBwUM2NwtiqZg+/FpZDHUf2RkkzveGkhMTWDNzmDUA=="
+      },
+      "Spectre.Console.Cli": {
+        "type": "CentralTransitive",
+        "requested": "[0.50.0, )",
+        "resolved": "0.50.0",
+        "contentHash": "PrctsupqHEbyoP/iRL30awUWB0Z91i21myKl70qcPwoH6marEPkPyaPgzc37xFm9QSx+/jVBQGUH7tsn0mWGNQ==",
+        "dependencies": {
+          "Spectre.Console": "0.50.0"
+        }
       }
     },
     "net11.0": {
@@ -1611,6 +1633,11 @@
         "resolved": "1.4.2",
         "contentHash": "yjj+3zgz8zgXpiiC3ZdF/iyTBbz2fFvMxZFEBPUcwZjIvXOf37Ylm+K58hqMfIBt5JgU/Z2uoUS67JmTLe973A=="
       },
+      "Spectre.Console": {
+        "type": "Transitive",
+        "resolved": "0.50.0",
+        "contentHash": "gkwYncFqMjlPF6Yz8KeVsKWpdfv15sr6uKm+vXVa/8Q4tvx52LPzMQOO5m+bXwI3AGGFeY3cok3ZJbguYizswg=="
+      },
       "SSH.NET": {
         "type": "Transitive",
         "resolved": "2026.0.0",
@@ -1733,10 +1760,18 @@
           "SharpPersistence": "[2.1.0, )"
         }
       },
-      "sharppersistence.migrator.efcore": {
+      "sharppersistence.migrator.cli": {
         "type": "Project",
         "dependencies": {
           "Microsoft.CodeAnalysis.CSharp": "[5.6.0, )",
+          "Microsoft.EntityFrameworkCore.Relational": "[11.0.0, )",
+          "SharpPersistence.Migrator": "[1.0.0, )",
+          "Spectre.Console.Cli": "[0.50.0, )"
+        }
+      },
+      "sharppersistence.migrator.efcore": {
+        "type": "Project",
+        "dependencies": {
           "Microsoft.EntityFrameworkCore": "[11.0.0, )",
           "Microsoft.EntityFrameworkCore.Relational": "[11.0.0, )",
           "SharpPersistence.Migrator": "[1.0.0, )"
@@ -1831,6 +1866,15 @@
           "Microsoft.EntityFrameworkCore": "[11.0.0, 12.0.0-a)",
           "Microsoft.Extensions.Caching.Memory": "11.0.0",
           "Microsoft.Extensions.Logging": "11.0.0"
+        }
+      },
+      "Spectre.Console.Cli": {
+        "type": "CentralTransitive",
+        "requested": "[0.50.0, )",
+        "resolved": "0.50.0",
+        "contentHash": "PrctsupqHEbyoP/iRL30awUWB0Z91i21myKl70qcPwoH6marEPkPyaPgzc37xFm9QSx+/jVBQGUH7tsn0mWGNQ==",
+        "dependencies": {
+          "Spectre.Console": "0.50.0"
         }
       }
     }
