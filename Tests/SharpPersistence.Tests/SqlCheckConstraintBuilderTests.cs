@@ -57,11 +57,11 @@ public class SqlCheckConstraintBuilderTests
     private static SqlCheckConstraintBuilder CreateBuilder(
         SqlDialect dialect = SqlDialect.PostgreSql,
         bool delimitIdentifiers = true) => new()
-    {
-        Dialect = dialect,
-        IdentifierCase = SqlIdentifierCase.LowerSnakeCase,
-        DelimitIdentifiers = delimitIdentifiers
-    };
+        {
+            Dialect = dialect,
+            IdentifierCase = SqlIdentifierCase.LowerSnakeCase,
+            DelimitIdentifiers = delimitIdentifiers
+        };
 
     [Theory]
     [InlineData(true, """CASE WHEN "is_override_allowed" = 0 THEN "is_overridable" = 0 ELSE 1 END""")]

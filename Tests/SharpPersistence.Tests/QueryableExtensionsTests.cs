@@ -60,7 +60,7 @@ public class QueryableExtensionsTests : IAsyncLifetime
     {
         var data = await _dbContext.TestEntities.QueryableOffsetPaginate(1, 5)
             .ToListAsync(TestContext.Current.CancellationToken);
-        
+
         data.ShouldNotBeEmpty();
     }
 }

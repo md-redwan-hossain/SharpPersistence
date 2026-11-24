@@ -124,7 +124,7 @@ public class SqlCheckConstraintGeneratorTest
     [Fact]
     public void Math_Equal()
     {
-        var cc = new SqlCheckConstraintGenerator(Rdbms.PostgreSql, 
+        var cc = new SqlCheckConstraintGenerator(Rdbms.PostgreSql,
             SqlNamingConvention.LowerSnakeCase, delimitString: false);
 
         const string sql = "balance + remaining - tax = 50";

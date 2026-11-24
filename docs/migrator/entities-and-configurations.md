@@ -85,7 +85,7 @@ public sealed partial class BillingRegistry : IEntityRegistry
 | Code | Severity | Meaning |
 | --- | --- | --- |
 | `SPM001` | Error | `[EntityRegistry]` class (and enclosing types) must be `sealed`, `partial`, and implement `IEntityRegistry` |
-| `SPM002` | Error | `[EntityConfiguration<T>]` class must be `sealed`, have an accessible parameterless constructor, and implement `IEntityConfiguration<T>` |
+| `SPM002` | Error | `[EntityConfiguration<T>]` class must be `sealed`, have a public parameterless constructor, and implement `IEntityConfiguration<T>` |
 | `SPM003` | Error | Multiple `[EntityConfiguration<T>]` classes target the same `TEntity` |
 | `SPM004` | Error | `[EntityRegistry]` class must declare `public void Configure(IEntityRegistryBuilder registry)` |
 | `SPM005` | Error | Same entity is matched by multiple `[EntityRegistry]` classes in the same project |

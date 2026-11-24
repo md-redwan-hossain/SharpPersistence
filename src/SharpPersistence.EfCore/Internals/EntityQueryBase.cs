@@ -91,7 +91,7 @@ internal abstract class EntityQueryBase<T> : IEntityQuery<T>
     {
         return Query.AnyAsync(cancellationToken);
     }
-    
+
     public Task<bool> ExistsAsync(Expression<Func<T, bool>> condition, CancellationToken cancellationToken = default)
     {
         return Query.AnyAsync(condition, cancellationToken);

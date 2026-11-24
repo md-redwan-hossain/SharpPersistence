@@ -75,8 +75,20 @@ internal static class MigrationDialectRegistry
             type = asm?.GetType(typeName);
         }
 
-        var prop = type?.GetProperty("Instance", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
-        return prop?.GetValue(null) as DbProviderFactory;
+        if (type is null)
+        {
+            return null;
+        }
+
+        const System.Reflection.BindingFlags flags =
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static;
+
+        if (type.GetField("Instance", flags)?.GetValue(null) is DbProviderFactory fieldFactory)
+        {
+            return fieldFactory;
+        }
+
+        return type.GetProperty("Instance", flags)?.GetValue(null) as DbProviderFactory;
     }
 
     internal static void AddLiveColumn(

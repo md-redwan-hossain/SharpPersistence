@@ -11,8 +11,7 @@ namespace SharpPersistence.Migrator.Dialects;
 
 internal sealed class PostgresMigrationDialect : IMigrationDialect
 {
-    private static readonly Lazy<DbProviderFactory?> CachedFactory = new(() =>
-        MigrationDialectRegistry.ResolveProviderFactory("Npgsql.NpgsqlFactory", "Npgsql"));
+    private static DbProviderFactory? _cachedFactory;
 
     public SqlDialect Dialect => SqlDialect.PostgreSql;
     public string PingSql => "SELECT 1";
@@ -23,7 +22,8 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
 
     public ISqlDialectGenerator CreateDdlGenerator() => new PostgresDialectGenerator();
 
-    public DbProviderFactory? ResolveDefaultProviderFactory() => CachedFactory.Value;
+    public DbProviderFactory? ResolveDefaultProviderFactory() =>
+        _cachedFactory ??= MigrationDialectRegistry.ResolveProviderFactory("Npgsql.NpgsqlFactory", "Npgsql");
 
     public string NormalizeSchemaName(string? schema) =>
         string.IsNullOrWhiteSpace(schema) ? "public" : schema.Trim();

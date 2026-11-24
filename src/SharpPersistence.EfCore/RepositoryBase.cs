@@ -14,7 +14,7 @@ public abstract class RepositoryBase<TEntity, TDbContext> : RepositoryCore<TEnti
     protected RepositoryBase(TDbContext context) : base(context)
     {
     }
-    
+
     public async Task<TEntity?> GetOneAsync(Expression<Func<TEntity, bool>> condition,
         CancellationToken cancellationToken = default)
     {
@@ -551,7 +551,7 @@ public abstract class RepositoryBase<TEntity, TDbContext> : RepositoryCore<TEnti
     {
         return EntityDbSet.LongCountAsync(cancellationToken);
     }
-    
+
     private static (int page, int limit) AvoidNegativeOrZeroPagination(int page, int limit)
     {
         var pagination = (page, limit);

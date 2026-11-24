@@ -40,6 +40,7 @@ export default defineConfig({
         text: 'Database Migrator',
         items: [
           { text: 'Setup, DI & Runtime', link: '/migrator/setup-and-di' },
+          { text: 'Global Conventions & Stubs', link: '/migrator/conventions-and-stubs' },
           { text: 'Entities and Configurations', link: '/migrator/entities-and-configurations' },
           { text: 'Relationships & Indexes', link: '/migrator/relationships-and-indexes' },
           { text: 'Constraints & Sequences', link: '/migrator/constraints-and-sequences' },

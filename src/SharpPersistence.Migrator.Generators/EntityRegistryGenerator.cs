@@ -419,7 +419,7 @@ public sealed class EntityRegistryGenerator : IIncrementalGenerator
 
         var hasAccessibleCtor = symbol.InstanceConstructors.Any(c =>
             c.Parameters.Length == 0 &&
-            c.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal);
+            c.DeclaredAccessibility == Accessibility.Public);
 
         var isValid = symbol.IsSealed && !symbol.IsAbstract && symbol.TypeParameters.Length == 0 &&
                       implementsExpected && hasAccessibleCtor;

@@ -43,7 +43,7 @@ internal static class GeneratorConstants
     public static readonly DiagnosticDescriptor ConfigurationInvalid = new(
         id: "SPM002",
         title: "Invalid [EntityConfiguration<TEntity>] class declaration",
-        messageFormat: "Type '{0}' decorated with [EntityConfiguration<{1}>] must be sealed, have an accessible parameterless constructor, and implement IEntityConfiguration<{1}>",
+        messageFormat: "Type '{0}' decorated with [EntityConfiguration<{1}>] must be sealed, have a public parameterless constructor, and implement IEntityConfiguration<{1}>",
         category: DiagnosticCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);

@@ -16,10 +16,7 @@ namespace SharpPersistence.Migrator.Dialects;
 internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility = OracleDbCompatibility.OracleDb19)
     : IMigrationDialect
 {
-    private static readonly Lazy<DbProviderFactory?> CachedFactory = new(() =>
-        MigrationDialectRegistry.ResolveProviderFactory(
-            "Oracle.ManagedDataAccess.Client.OracleClientFactory",
-            "Oracle.ManagedDataAccess"));
+    private static DbProviderFactory? _cachedFactory;
 
     public SqlDialect Dialect => SqlDialect.Oracle;
     public string PingSql => "SELECT 1 FROM DUAL";
@@ -30,7 +27,10 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
 
     public ISqlDialectGenerator CreateDdlGenerator() => new OracleDialectGenerator(compatibility);
 
-    public DbProviderFactory? ResolveDefaultProviderFactory() => CachedFactory.Value;
+    public DbProviderFactory? ResolveDefaultProviderFactory() =>
+        _cachedFactory ??= MigrationDialectRegistry.ResolveProviderFactory(
+            "Oracle.ManagedDataAccess.Client.OracleClientFactory",
+            "Oracle.ManagedDataAccess");
 
     public string NormalizeSchemaName(string? schema) =>
         string.IsNullOrWhiteSpace(schema) ? string.Empty : schema.Trim();

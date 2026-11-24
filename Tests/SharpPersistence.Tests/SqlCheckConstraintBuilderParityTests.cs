@@ -283,7 +283,7 @@ public class SqlCheckConstraintBuilderParityTests
     public void And_Or_Should_Generate_Correct_Sql(SqlDialect dialect, SqlIdentifierCase naming)
     {
         var cc = new SqlCheckConstraintBuilder
-            { Dialect = dialect, IdentifierCase = naming, DelimitIdentifiers = true };
+        { Dialect = dialect, IdentifierCase = naming, DelimitIdentifiers = true };
         var a = cc.RawPredicate("A");
         var b = cc.RawPredicate("B");
         var c = cc.RawPredicate("C");
@@ -304,7 +304,7 @@ public class SqlCheckConstraintBuilderParityTests
     public void In_NotIn_Should_Handle_Collections(SqlDialect dialect)
     {
         var cc = new SqlCheckConstraintBuilder
-            { Dialect = dialect, IdentifierCase = SqlIdentifierCase.PascalCase, DelimitIdentifiers = true };
+        { Dialect = dialect, IdentifierCase = SqlIdentifierCase.PascalCase, DelimitIdentifiers = true };
         ((string)cc.RawColumn<int>("Col").In(1, 2, 3)).ShouldContain("IN");
         ((string)cc.RawColumn<string>("Col").In("a", "b")).ShouldContain("IN");
         ((string)cc.RawColumn<DayOfWeek>("Col").In(DayOfWeek.Monday, DayOfWeek.Tuesday)).ShouldContain("IN");
@@ -316,7 +316,9 @@ public class SqlCheckConstraintBuilderParityTests
     {
         var cc = new SqlCheckConstraintBuilder
         {
-            Dialect = SqlDialect.SqlServer, IdentifierCase = SqlIdentifierCase.PascalCase, DelimitIdentifiers = true
+            Dialect = SqlDialect.SqlServer,
+            IdentifierCase = SqlIdentifierCase.PascalCase,
+            DelimitIdentifiers = true
         };
         ((string)cc.RawColumn<bool>("Col").EqualTo(true)).ShouldContain("= 1");
         ((string)cc.RawColumn<bool>("Col").NotEqualTo(false)).ShouldContain("<> 0");
@@ -335,7 +337,9 @@ public class SqlCheckConstraintBuilderParityTests
     {
         var cc = new SqlCheckConstraintBuilder
         {
-            Dialect = SqlDialect.MySql, IdentifierCase = SqlIdentifierCase.UpperSnakeCase, DelimitIdentifiers = true
+            Dialect = SqlDialect.MySql,
+            IdentifierCase = SqlIdentifierCase.UpperSnakeCase,
+            DelimitIdentifiers = true
         };
         var e = cc.For<ParityEntity>();
 
@@ -363,7 +367,8 @@ public class SqlCheckConstraintBuilderParityTests
     {
         var cc = new SqlCheckConstraintBuilder
         {
-            Dialect = SqlDialect.PostgreSql, IdentifierCase = SqlIdentifierCase.LowerSnakeCase,
+            Dialect = SqlDialect.PostgreSql,
+            IdentifierCase = SqlIdentifierCase.LowerSnakeCase,
             DelimitIdentifiers = true
         };
         ((string)cc.RawColumn<string>("Col").Between("a", "b")).ShouldContain("BETWEEN");
@@ -379,7 +384,9 @@ public class SqlCheckConstraintBuilderParityTests
     {
         var cc = new SqlCheckConstraintBuilder
         {
-            Dialect = SqlDialect.SqlServer, IdentifierCase = SqlIdentifierCase.PascalCase, DelimitIdentifiers = true
+            Dialect = SqlDialect.SqlServer,
+            IdentifierCase = SqlIdentifierCase.PascalCase,
+            DelimitIdentifiers = true
         };
         ((string)cc.RawColumn<string?>("Col").IsNull()).ShouldContain("IS NULL");
         ((string)cc.RawColumn<string?>("Col").IsNotNull()).ShouldContain("IS NOT NULL");
@@ -390,7 +397,9 @@ public class SqlCheckConstraintBuilderParityTests
     {
         var cc = new SqlCheckConstraintBuilder
         {
-            Dialect = SqlDialect.SqlServer, IdentifierCase = SqlIdentifierCase.PascalCase, DelimitIdentifiers = true
+            Dialect = SqlDialect.SqlServer,
+            IdentifierCase = SqlIdentifierCase.PascalCase,
+            DelimitIdentifiers = true
         };
 
         Should.Throw<ArgumentException>(() => cc.RawColumn<int>("Col").In(Array.Empty<int>()));
@@ -406,18 +415,22 @@ public class SqlCheckConstraintBuilderParityTests
     {
         var ccPg = new SqlCheckConstraintBuilder
         {
-            Dialect = SqlDialect.PostgreSql, IdentifierCase = SqlIdentifierCase.PascalCase, DelimitIdentifiers = true
+            Dialect = SqlDialect.PostgreSql,
+            IdentifierCase = SqlIdentifierCase.PascalCase,
+            DelimitIdentifiers = true
         };
         var ccMy = new SqlCheckConstraintBuilder
-            { Dialect = SqlDialect.MySql, IdentifierCase = SqlIdentifierCase.PascalCase, DelimitIdentifiers = true };
+        { Dialect = SqlDialect.MySql, IdentifierCase = SqlIdentifierCase.PascalCase, DelimitIdentifiers = true };
         var ccSql = new SqlCheckConstraintBuilder
         {
-            Dialect = SqlDialect.SqlServer, IdentifierCase = SqlIdentifierCase.PascalCase, DelimitIdentifiers = true
+            Dialect = SqlDialect.SqlServer,
+            IdentifierCase = SqlIdentifierCase.PascalCase,
+            DelimitIdentifiers = true
         };
         var ccOra = new SqlCheckConstraintBuilder
-            { Dialect = SqlDialect.Oracle, IdentifierCase = SqlIdentifierCase.PascalCase, DelimitIdentifiers = true };
+        { Dialect = SqlDialect.Oracle, IdentifierCase = SqlIdentifierCase.PascalCase, DelimitIdentifiers = true };
         var ccLite = new SqlCheckConstraintBuilder
-            { Dialect = SqlDialect.Sqlite, IdentifierCase = SqlIdentifierCase.PascalCase, DelimitIdentifiers = true };
+        { Dialect = SqlDialect.Sqlite, IdentifierCase = SqlIdentifierCase.PascalCase, DelimitIdentifiers = true };
 
         ((string)ccPg.RawColumn<string?>("Col").IsNull()).ShouldContain("""
                                                                         "Col"
@@ -437,15 +450,21 @@ public class SqlCheckConstraintBuilderParityTests
     {
         var ccLower = new SqlCheckConstraintBuilder
         {
-            Dialect = SqlDialect.SqlServer, IdentifierCase = SqlIdentifierCase.LowerSnakeCase, DelimitIdentifiers = true
+            Dialect = SqlDialect.SqlServer,
+            IdentifierCase = SqlIdentifierCase.LowerSnakeCase,
+            DelimitIdentifiers = true
         };
         var ccUpper = new SqlCheckConstraintBuilder
         {
-            Dialect = SqlDialect.SqlServer, IdentifierCase = SqlIdentifierCase.UpperSnakeCase, DelimitIdentifiers = true
+            Dialect = SqlDialect.SqlServer,
+            IdentifierCase = SqlIdentifierCase.UpperSnakeCase,
+            DelimitIdentifiers = true
         };
         var ccPascal = new SqlCheckConstraintBuilder
         {
-            Dialect = SqlDialect.SqlServer, IdentifierCase = SqlIdentifierCase.PascalCase, DelimitIdentifiers = true
+            Dialect = SqlDialect.SqlServer,
+            IdentifierCase = SqlIdentifierCase.PascalCase,
+            DelimitIdentifiers = true
         };
 
         ((string)ccUpper.For<ParityEntity>().Column(x => x.TestColumn).In(1)).ShouldContain("TEST_COLUMN");
@@ -458,7 +477,9 @@ public class SqlCheckConstraintBuilderParityTests
     {
         var cc = new SqlCheckConstraintBuilder
         {
-            Dialect = SqlDialect.SqlServer, IdentifierCase = SqlIdentifierCase.PascalCase, DelimitIdentifiers = true
+            Dialect = SqlDialect.SqlServer,
+            IdentifierCase = SqlIdentifierCase.PascalCase,
+            DelimitIdentifiers = true
         };
         ((string)cc.RawColumn<string>("Col").EqualTo("O'Reilly")).ShouldContain("'O''Reilly'");
     }
@@ -468,7 +489,9 @@ public class SqlCheckConstraintBuilderParityTests
     {
         var cc = new SqlCheckConstraintBuilder
         {
-            Dialect = SqlDialect.SqlServer, IdentifierCase = SqlIdentifierCase.PascalCase, DelimitIdentifiers = true
+            Dialect = SqlDialect.SqlServer,
+            IdentifierCase = SqlIdentifierCase.PascalCase,
+            DelimitIdentifiers = true
         };
         ((string)cc.RawColumn<string>("Col").Length().EqualTo(5)).ShouldContain("LEN(");
         ((string)cc.RawColumn<string>("Col").Length().NotEqualTo(5)).ShouldContain("LEN(");
@@ -478,7 +501,7 @@ public class SqlCheckConstraintBuilderParityTests
     public void LengthOperatorHandler_Oracle_Should_Use_Length()
     {
         var cc = new SqlCheckConstraintBuilder
-            { Dialect = SqlDialect.Oracle, IdentifierCase = SqlIdentifierCase.PascalCase, DelimitIdentifiers = true };
+        { Dialect = SqlDialect.Oracle, IdentifierCase = SqlIdentifierCase.PascalCase, DelimitIdentifiers = true };
         var e = cc.For<ParityEntity>();
         ((string)e.Column(x => x.Name).Length().EqualTo(5)).ShouldContain("LENGTH(");
         ((string)e.Column(x => x.Name).Length().NotEqualTo(5)).ShouldContain("LENGTH(");
@@ -489,7 +512,9 @@ public class SqlCheckConstraintBuilderParityTests
     {
         var cc = new SqlCheckConstraintBuilder
         {
-            Dialect = SqlDialect.Oracle, IdentifierCase = SqlIdentifierCase.UpperSnakeCase, DelimitIdentifiers = true
+            Dialect = SqlDialect.Oracle,
+            IdentifierCase = SqlIdentifierCase.UpperSnakeCase,
+            DelimitIdentifiers = true
         };
         cc.For<ParityEntity>().Column(x => x.IsActive).EqualTo(1).ShouldRender("""
                                                                                "IS_ACTIVE" = 1
@@ -501,7 +526,9 @@ public class SqlCheckConstraintBuilderParityTests
     {
         var cc = new SqlCheckConstraintBuilder
         {
-            Dialect = SqlDialect.Oracle, IdentifierCase = SqlIdentifierCase.UpperSnakeCase, DelimitIdentifiers = true
+            Dialect = SqlDialect.Oracle,
+            IdentifierCase = SqlIdentifierCase.UpperSnakeCase,
+            DelimitIdentifiers = true
         };
         cc.RawColumn<string>("SELL_PRICE").Length().GreaterThan(100).ShouldRender("""
             LENGTH("SELL_PRICE") > 100

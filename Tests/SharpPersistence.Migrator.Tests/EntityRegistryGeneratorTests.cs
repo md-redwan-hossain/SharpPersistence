@@ -59,12 +59,13 @@ public sealed class EntityRegistryGeneratorTests
             Dictionary<string, string>? buildProps = null)
     {
         var parseOptions = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Preview);
+        var implicitUsingsTree = CSharpSyntaxTree.ParseText("global using System;", parseOptions);
         var tree = CSharpSyntaxTree.ParseText(source, parseOptions);
         var refs = extraRefs is null ? BaseReferences : BaseReferences.Concat(extraRefs);
 
         var compilation = CSharpCompilation.Create(
             assemblyName,
-            [tree],
+            [implicitUsingsTree, tree],
             refs,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 

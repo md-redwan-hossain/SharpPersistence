@@ -76,7 +76,7 @@ opt.ConfigureProperties<string>(c => c.HasMaxLength(200))
 
 ## Global Entity Conventions & Cross-Module Stubs
 
-Apply shared foreign keys, keys, schemas, or table-naming rules across any entity implementing an interface or base class without reflection in your application code:
+Apply shared foreign keys, primary keys, lookup indexes, or table-naming rules across interfaces and base classes without reflection—and map `Ref*` stubs in your startup project so modules stay isolated:
 
 ```csharp
 opt.UseTableNameConvention((entityType, defaultName) =>
@@ -87,13 +87,12 @@ opt.ConfigureEntities<ICreateTracking>(e =>
         .References<RefUser>(u => u.Id)
         .OnDelete(DbReferentialAction.Restrict));
 
-// In your startup project, map each Ref* stub to its owning entity once
 opt.ConfigureEntityStubs(stubs => stubs
     .Map<RefUser, User>()
     .Map<RefCompany, Company>());
 ```
 
-`ConfigureEntities<T>` runs before per-entity `IEntityConfiguration<T>` classes, so any entity can override a conventional FK or index without creating duplicates. `ConfigureEntityStubs` lets module registries reference local `Ref*` stubs while generated foreign keys and topological sorting target the owning tables.
+See [Global Conventions & Cross-Module Stubs](/migrator/conventions-and-stubs) for full examples covering audit/bookkeeping contracts, lookup table policies, per-entity overrides, and modular-monolith wiring.
 
 ## Custom Connection Factory
 

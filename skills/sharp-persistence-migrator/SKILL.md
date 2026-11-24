@@ -73,8 +73,8 @@ public sealed class BookingConfiguration : IEntityConfiguration<Booking>
         builder.HasKey(x => x.Id).HasName("pk_bookings");
         builder.Property(x => x.Code).HasMaxLength(32).IsRequired();
         builder.Property(x => x.Total)
-            .HasComputedColumnSql(e => e.Column(x => x.Amount).Math().Plus(x => x.Tax))
-            .IsStored();
+            .HasPrecision(18, 2)
+            .HasComputedColumnSql(e => e.Column(x => x.Amount).Math().Plus(x => x.Tax), stored: true);
         builder.Ignore(x => x.ComputedLabel);
 
         builder.HasForeignKey(x => x.CustomerId)
@@ -116,6 +116,12 @@ public sealed partial class SalesRegistry : IEntityRegistry
 - Always keep `[EntityRegistry]` classes `sealed partial`, implementing `IEntityRegistry` and `public void Configure(IEntityRegistryBuilder registry)`.
 - Always use `HasForeignKey(...).References<TPrincipal>(...)` and `IsOneToOne()` (do not use `HasOne` or `IsUnique()` on FKs).
 - Use `HasDatabaseName(...)` on `IndexBuilder` and `HasName(...)` on `KeyBuilder`.
+
+## Global Conventions & Cross-Module Stubs
+
+- Use `ConfigureEntities<T>` (works with interfaces and base classes) instead of reflection loops for shared FKs, keys, identity columns, and lookup indexes. It runs before `IEntityConfiguration<T>`, so per-entity configs can override a conventional FK or unnamed index without duplicates.
+- Use `UseTableNameConvention((entityType, defaultName) => ...)` for custom table prefixes (e.g., `lk_` for lookup entities).
+- In modular monoliths, point module/shared FKs to local `Ref*` stubs (`References<RefUser>(u => u.Id)`) and wire `ConfigureEntityStubs(stubs => stubs.Map<RefUser, User>())` once in the startup project so registries sort accurately and FKs target the owning table without leaking domain entities across modules.
 
 ## Compile-Time Discovery Attributes & Diagnostics
 
