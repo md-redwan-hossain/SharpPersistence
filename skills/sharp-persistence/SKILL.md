@@ -17,7 +17,7 @@ Never use the obsolete `SqlCheckConstraintGenerator`, `Rdbms`, or `SqlNamingConv
 var cc = new SqlCheckConstraintBuilder
 {
     Dialect = SqlDialect.PostgreSql,            // PostgreSql | MySql | SqlServer | Oracle | Sqlite
-    IdentifierCase = SqlIdentifierCase.LowerSnakeCase, // PascalCase | LowerSnakeCase | UpperSnakeCase
+    IdentifierCase = SqlIdentifierCase.LowerSnakeCase, // LowerSnakeCase | UpperSnakeCase | PascalCase | CamelCase | LowerCase | UpperCase
     DelimitIdentifiers = true,                  // required
     NestedSeparator = "_"                       // optional, default "_"
 };

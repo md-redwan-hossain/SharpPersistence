@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using System.Reflection;
 using SharpPersistence.Enums;
 using SharpPersistence.Migrator.Configuration;
 using SharpPersistence.Migrator.Enums;
@@ -51,9 +52,12 @@ internal sealed class TableDefinition
     public SqlDialect Dialect { get; }
     public SqlIdentifierCase IdentifierCase { get; }
     public SqlExpressionBuilderOptions SqlExpressionOptions { get; }
+    public IReadOnlyList<PropertyConventionRule>? PropertyConventions { get; }
+    public NullabilityInfoContext NullabilityContext { get; }
     public IReadOnlyList<string> PkProperties { get; private set; } = [];
     public string? PkName { get; private set; }
     public Dictionary<string, ColumnDefinition> ColumnsByProp { get; } = new(StringComparer.Ordinal);
+    public List<OwnedNavigationDefinition> OwnedNavigations { get; } = [];
     public List<IndexDefinition> Indexes { get; } = [];
     public Dictionary<string, CheckConstraintDefinition> CheckConstraints { get; } = new(StringComparer.Ordinal);
     public Dictionary<string, ExclusionConstraintDefinition> ExclusionConstraints { get; } = new(StringComparer.Ordinal);
@@ -77,7 +81,9 @@ internal sealed class TableDefinition
         string? schema,
         SqlDialect dialect,
         SqlIdentifierCase identifierCase,
-        SqlExpressionBuilderOptions? sqlExpressionOptions = null)
+        SqlExpressionBuilderOptions? sqlExpressionOptions = null,
+        IReadOnlyList<PropertyConventionRule>? propertyConventions = null,
+        NullabilityInfoContext? nullabilityContext = null)
     {
         EntityType = entityType;
         TableName = tableName;
@@ -85,6 +91,8 @@ internal sealed class TableDefinition
         Dialect = dialect;
         IdentifierCase = identifierCase;
         SqlExpressionOptions = sqlExpressionOptions ?? new SqlExpressionBuilderOptions();
+        PropertyConventions = propertyConventions;
+        NullabilityContext = nullabilityContext ?? new NullabilityInfoContext();
     }
 
     public void SetPrimaryKey(IReadOnlyList<string> propNames, string? constraintName = null)
@@ -113,6 +121,99 @@ internal sealed class TableDefinition
     {
         IgnoredProperties.Add(propName);
         ColumnsByProp.Remove(propName);
+    }
+
+    public OwnedNavigationDefinition GetOrAddOwnedNavigation(
+        Type parentType,
+        string navigationPropertyName,
+        Type ownedClrType,
+        OwnedNavigationDefinition? parentNavigation)
+    {
+        var targetList = parentNavigation is null ? OwnedNavigations : parentNavigation.NestedNavigations;
+        var existing = targetList.FirstOrDefault(n =>
+            string.Equals(n.NavigationName, navigationPropertyName, StringComparison.Ordinal));
+        if (existing is not null)
+        {
+            return existing;
+        }
+
+        var navProperty = parentType.GetProperty(navigationPropertyName, BindingFlags.Public | BindingFlags.Instance)
+            ?? throw new InvalidOperationException(
+                $"Owned navigation property '{navigationPropertyName}' was not found on '{parentType.Name}'.");
+
+        var navNullability = NullabilityContext.Create(navProperty);
+        var isOptional = (parentNavigation?.IsOptional ?? false)
+                         || navNullability.ReadState == NullabilityState.Nullable;
+
+        var pathPrefix = parentNavigation is null
+            ? navigationPropertyName
+            : $"{parentNavigation.PropertyPathPrefix}.{navigationPropertyName}";
+        var formattedNav = NamingFormatter.Format(navigationPropertyName, IdentifierCase);
+        var separator = SqlExpressionOptions.NestedColumnSeparator;
+        var colPrefix = parentNavigation is null
+            ? formattedNav
+            : $"{parentNavigation.ColumnNamePrefix}{separator}{formattedNav}";
+
+        var navDef = new OwnedNavigationDefinition(
+            navigationPropertyName,
+            ownedClrType,
+            pathPrefix,
+            colPrefix,
+            isOptional);
+        targetList.Add(navDef);
+
+        foreach (var prop in ownedClrType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            if (!prop.CanRead || !prop.CanWrite || !SchemaScanner.IsScalarType(prop.PropertyType))
+            {
+                continue;
+            }
+
+            var propNullability = NullabilityContext.Create(prop);
+            var propIsNullable = isOptional
+                                 || propNullability.ReadState == NullabilityState.Nullable
+                                 || Nullable.GetUnderlyingType(prop.PropertyType) is not null;
+
+            var col = GetOrAddOwnedColumn(navDef, prop.Name, prop.PropertyType);
+            col.IsNullable = propIsNullable;
+
+            SchemaScanner.ApplyGlobalPropertyConventions(col, prop.PropertyType, PropertyConventions);
+            if (isOptional)
+            {
+                col.IsNullable = true;
+            }
+        }
+
+        return navDef;
+    }
+
+    public ColumnDefinition GetOrAddOwnedColumn(
+        OwnedNavigationDefinition navigation,
+        string ownedPropName,
+        Type clrType)
+    {
+        var dottedPath = $"{navigation.PropertyPathPrefix}.{ownedPropName}";
+        if (!ColumnsByProp.TryGetValue(dottedPath, out var col))
+        {
+            var formattedProp = NamingFormatter.Format(ownedPropName, IdentifierCase);
+            var separator = SqlExpressionOptions.NestedColumnSeparator;
+            var defaultColName = $"{navigation.ColumnNamePrefix}{separator}{formattedProp}";
+            col = new ColumnDefinition(dottedPath, clrType, defaultColName)
+            {
+                OwnedNavigationPath = navigation.PropertyPathPrefix,
+                RequiresNullableColumn = navigation.IsOptional,
+                IsNullable = navigation.IsOptional
+            };
+            ColumnsByProp[dottedPath] = col;
+        }
+
+        return col;
+    }
+
+    public void IgnoreOwnedProperty(OwnedNavigationDefinition navigation, string ownedPropName)
+    {
+        navigation.IgnoredProperties.Add(ownedPropName);
+        ColumnsByProp.Remove($"{navigation.PropertyPathPrefix}.{ownedPropName}");
     }
 
     public string? ResolveMappedColumnName(string propertyName) =>
@@ -321,6 +422,8 @@ internal sealed class ColumnDefinition
     public bool IsSystemColumn { get; set; }
     public Type? ProviderClrType { get; set; }
     public object? ValueConverter { get; set; }
+    public string? OwnedNavigationPath { get; set; }
+    public bool RequiresNullableColumn { get; set; }
     public Dictionary<string, object?> Annotations { get; } = new(StringComparer.Ordinal);
 
     public void SetAnnotation(string name, object? value)
@@ -393,4 +496,20 @@ internal sealed class SequenceDefinition
         Schema = schema;
         SchemaExplicitlySet = schemaExplicitlySet;
     }
+}
+
+internal sealed class OwnedNavigationDefinition(
+    string navigationName,
+    Type ownedClrType,
+    string propertyPathPrefix,
+    string columnNamePrefix,
+    bool isOptional)
+{
+    public string NavigationName { get; } = navigationName;
+    public Type OwnedClrType { get; } = ownedClrType;
+    public string PropertyPathPrefix { get; } = propertyPathPrefix;
+    public string ColumnNamePrefix { get; } = columnNamePrefix;
+    public bool IsOptional { get; } = isOptional;
+    public HashSet<string> IgnoredProperties { get; } = new(StringComparer.Ordinal);
+    public List<OwnedNavigationDefinition> NestedNavigations { get; } = [];
 }

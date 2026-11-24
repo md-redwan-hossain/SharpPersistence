@@ -30,8 +30,8 @@ builder.Services.AddDbMigrator(opt =>
         .HasPostgresExtension("btree_gist")
         .HasPostgresEnum<BookingStatus>("booking_status");
 
-    // Or Oracle (defaults: UpperSnakeCase, OracleDb19)
-    // opt.UseOracle(connectionString).UseSqlCompatibility(OracleDbCompatibility.OracleDb23);
+    // Or Oracle (defaults: UpperSnakeCase, Oracle19)
+    // opt.UseOracle(connectionString).UseSqlCompatibility(OracleDbCompatibility.Oracle23);
 
     opt.UseMigrationsDirectory("MigrationScripts")
         .UseSnapshotDirectory("EntityChangelogs")
@@ -46,7 +46,7 @@ builder.Services.AddDbMigrator(opt =>
                 .References<RefUser>(u => u.Id)
                 .OnDelete(DbReferentialAction.Restrict))
         .ConfigureEntityStubs(stubs => stubs.Map<RefUser, User>())
-        .ConfigureSqlExpressionBuilder(cc => cc
+        .ConfigureSqlExpressionBuilder(expr => expr
             .UseDelimitedIdentifiers(true)
             .UseNestedColumnSeparator("_"))
         .AddGeneratedEntityRegistries();
@@ -74,7 +74,7 @@ public sealed class BookingConfiguration : IEntityConfiguration<Booking>
         builder.Property(x => x.Code).HasMaxLength(32).IsRequired();
         builder.Property(x => x.Total)
             .HasPrecision(18, 2)
-            .HasComputedColumnSql(e => e.Column(x => x.Amount).Math().Plus(x => x.Tax), stored: true);
+            .HasComputedColumnSql(expr => expr.Column(x => x.Amount).Math().Plus(x => x.Tax), stored: true);
         builder.Ignore(x => x.ComputedLabel);
 
         builder.HasForeignKey(x => x.CustomerId)
@@ -89,7 +89,7 @@ public sealed class BookingConfiguration : IEntityConfiguration<Booking>
 
         builder.HasIndex(x => x.CustomerId)
             .HasDatabaseName("ix_bookings_customer_id")
-            .HasFilter(cc => cc.Column(x => x.IsCancelled).EqualTo(false))
+            .HasFilter(expr => expr.Column(x => x.IsCancelled).EqualTo(false))
             .IncludeProperties(x => x.Amount);
 
         builder.HasCheckConstraint("ck_bookings_amount",
@@ -115,6 +115,7 @@ public sealed partial class SalesRegistry : IEntityRegistry
 
 - Always keep `[EntityRegistry]` classes `sealed partial`, implementing `IEntityRegistry` and `public void Configure(IEntityRegistryBuilder registry)`.
 - Always use `HasForeignKey(...).References<TPrincipal>(...)` and `IsOneToOne()` (do not use `HasOne` or `IsUnique()` on FKs).
+- Use `OwnsOne(x => x.Nav, a => ...)` for inline table-split owned value objects (supports `Property`, `Ignore`, `HasIndex`, and nested `OwnsOne`; nullable navigations automatically make all owned columns nullable and reject `.IsRequired()`).
 - Use `HasDatabaseName(...)` on `IndexBuilder` and `HasName(...)` on `KeyBuilder`.
 
 ## Global Conventions & Cross-Module Stubs
@@ -136,8 +137,9 @@ public sealed partial class SalesRegistry : IEntityRegistry
 
 ## `db-migrator` CLI Commands
 
-- `db-migrator doctor [--registry <Name>] [--check-db]` — validates DI wiring, entity configs, FK types, cross-registry collisions, and migration script coverage (read-only).
-- `db-migrator generate --name <Name> [--registry <Name>] [--dry-run] [--ci] [--allow-empty]` — generates idempotent SQL scripts.
+- `db-migrator doctor [--registry <Name>] [--check-db] [--runlist]` — validates DI wiring, entity configs, FK types, cross-registry collisions, runlist/override integrity, SQL DDL dependencies, and migration script coverage (read-only).
+- `db-migrator generate --name <Name> [--registry <Name>] [--dry-run] [--ci] [--allow-empty]` — generates idempotent SQL scripts stamped with `-- migration-script-id: <uuidv7>` and appends them to `db-migration-runlist.json`.
+- `db-migrator runlist show [--recent <N>]` & `db-migrator runlist sync [--prune] [--dry-run]` — inspects the effective execution order (including `db-migration-runlist.overrides.json`) or stamps headers / repairs `db-migration-runlist.json`.
 - `db-migrator migrate [--dry-run] [--sync-ef-history]` — applies pending scripts under distributed lock.
 - `db-migrator status` / `db-migrator pending` — inspects migration history and pending scripts.
 - `db-migrator translate-ef-configs <CONFIGS_DIR> [-o <DIR>] [--dry-run] [--no-attribute]` — converts `IEntityTypeConfiguration<T>` to `IEntityConfiguration<T>`.

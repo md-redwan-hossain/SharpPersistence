@@ -84,8 +84,20 @@ internal static class SchemaFinalizer
             QueryFilter = tb.QueryFilter,
             NamedQueryFilters = new Dictionary<string, System.Linq.Expressions.LambdaExpression?>(tb.NamedQueryFilters, StringComparer.Ordinal),
             Annotations = new Dictionary<string, object?>(tb.Annotations, StringComparer.Ordinal),
-            IgnoredProperties = [.. tb.IgnoredProperties]
+            IgnoredProperties = [.. tb.IgnoredProperties],
+            OwnedNavigations = tb.OwnedNavigations.Count > 0 ? MapOwnedNavigations(tb.OwnedNavigations) : null
         };
+
+    private static List<OwnedNavigationSchema> MapOwnedNavigations(List<OwnedNavigationDefinition> definitions) =>
+        definitions.Select(d => new OwnedNavigationSchema
+        {
+            NavigationName = d.NavigationName,
+            OwnedClrType = d.OwnedClrType,
+            PropertyPathPrefix = d.PropertyPathPrefix,
+            IsOptional = d.IsOptional,
+            IgnoredProperties = [.. d.IgnoredProperties],
+            NestedNavigations = d.NestedNavigations.Count > 0 ? MapOwnedNavigations(d.NestedNavigations) : []
+        }).ToList();
 
     private static void BuildColumns(
         TableSchema table,
@@ -94,6 +106,13 @@ internal static class SchemaFinalizer
     {
         foreach (var cb in tb.ColumnsByProp.Values.OrderBy(x => x.ColumnName, StringComparer.Ordinal))
         {
+            if (cb.RequiresNullableColumn && !cb.IsNullable)
+            {
+                throw new InvalidOperationException(
+                    $"Column '{cb.PropertyName}' on entity '{tb.EntityType.Name}' belongs to nullable owned navigation '{cb.OwnedNavigationPath}' and must be nullable. " +
+                    "Remove .IsRequired() or make the owned navigation property non-nullable.");
+            }
+
             var isPgXmin = tb.IsPostgresXmin(cb);
 
             table.Columns.Add(new ColumnSchema
@@ -126,6 +145,7 @@ internal static class SchemaFinalizer
                 IsSystemColumn = isPgXmin || cb.IsSystemColumn,
                 ProviderClrType = cb.ProviderClrType,
                 ValueConverter = cb.ValueConverter,
+                IsOwnedColumn = cb.OwnedNavigationPath is not null,
                 Annotations = new Dictionary<string, object?>(cb.Annotations, StringComparer.Ordinal)
             });
         }

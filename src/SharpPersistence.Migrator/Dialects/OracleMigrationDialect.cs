@@ -13,7 +13,7 @@ using static SharpPersistence.Migrator.Dialects.SqlFormatHelper;
 
 namespace SharpPersistence.Migrator.Dialects;
 
-internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility = OracleDbCompatibility.OracleDb19)
+internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility = OracleDbCompatibility.Oracle19)
     : IMigrationDialect
 {
     private static DbProviderFactory? _cachedFactory;

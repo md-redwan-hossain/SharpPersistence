@@ -136,4 +136,21 @@ public sealed class EntityBuilder<TEntity> where TEntity : class
         var depProps = ExpressionHelper.ExtractPropertyNames(dependentProperties);
         return new ForeignKeyReferenceBuilder<TEntity>(Definition, depProps);
     }
+
+    public EntityBuilder<TEntity> OwnsOne<TOwned>(
+        Expression<Func<TEntity, TOwned?>> navigationExpression,
+        Action<OwnedEntityBuilder<TEntity, TOwned>>? configure = null)
+        where TOwned : class
+    {
+        ArgumentNullException.ThrowIfNull(navigationExpression);
+        var navPropName = ExpressionHelper.ExtractSinglePropertyName(navigationExpression);
+        var navDef = Definition.GetOrAddOwnedNavigation(
+            parentType: typeof(TEntity),
+            navigationPropertyName: navPropName,
+            ownedClrType: typeof(TOwned),
+            parentNavigation: null);
+
+        configure?.Invoke(new OwnedEntityBuilder<TEntity, TOwned>(Definition, navDef));
+        return this;
+    }
 }

@@ -12,12 +12,12 @@ internal sealed class OracleDialectGenerator : ISqlDialectGenerator
 {
     private readonly OracleDbCompatibility _compatibility;
 
-    public OracleDialectGenerator(OracleDbCompatibility compatibility = OracleDbCompatibility.OracleDb19)
+    public OracleDialectGenerator(OracleDbCompatibility compatibility = OracleDbCompatibility.Oracle19)
     {
         _compatibility = compatibility;
     }
 
-    private bool SupportsIfExists => _compatibility >= OracleDbCompatibility.OracleDb23;
+    private bool SupportsIfExists => _compatibility >= OracleDbCompatibility.Oracle23;
 
     public string GenerateSql(IReadOnlyList<SchemaOperation> ops)
     {

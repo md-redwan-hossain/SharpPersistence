@@ -91,6 +91,28 @@ internal sealed class DoctorSettings : SharedSettings
     [CommandOption("--check-db")]
     [Description("Also verify live database connectivity, migration history, and schema sync.")]
     public bool CheckDb { get; init; }
+
+    [CommandOption("--runlist")]
+    [Description("Run a focused check on db-migration-runlist.json, overrides, script IDs, and SQL DDL dependencies.")]
+    public bool RunlistOnly { get; init; }
+}
+
+internal sealed class RunlistShowSettings : SharedSettings
+{
+    [CommandOption("--recent <COUNT>")]
+    [Description("Show only the N most recent entries of the effective runlist.")]
+    public int? Recent { get; init; }
+}
+
+internal sealed class RunlistSyncSettings : SharedSettings
+{
+    [CommandOption("--prune")]
+    [Description("Remove orphaned script IDs from db-migration-runlist.json whose .sql files were deleted.")]
+    public bool Prune { get; init; }
+
+    [CommandOption("--dry-run")]
+    [Description("Preview header stamps and runlist updates without writing files.")]
+    public bool DryRun { get; init; }
 }
 
 internal sealed class TranslateEfConfigsSettings : CommandSettings
@@ -408,6 +430,45 @@ internal sealed class DoctorCommand : AsyncCommand<DoctorSettings>
 
         try
         {
+            if (settings.RunlistOnly)
+            {
+                var concreteManager = (SharpPersistence.Migrator.Services.MigrationManager)loaded.Manager;
+                IReadOnlyList<AppliedMigrationRecord>? applied = null;
+                if (settings.CheckDb)
+                {
+                    applied = await concreteManager.GetAppliedMigrationsAsync();
+                }
+
+                var runlistChecks = concreteManager
+                    .CreateRunlistManager()
+                    .Validate(applied);
+
+                var mode = settings.CheckDb ? "Live DB" : "Offline";
+                AnsiConsole.MarkupLine("[bold]db-migrator doctor --runlist[/]");
+                AnsiConsole.MarkupLine($"[grey]Project: {Markup.Escape(loaded.HostName)}  {DotIcon}  Mode: {mode}[/]");
+                AnsiConsole.WriteLine();
+                AnsiConsole.MarkupLine("[bold]Migration Runlist:[/]");
+                if (runlistChecks.Count == 0)
+                {
+                    AnsiConsole.MarkupLine($"  [green]{PassIcon}[/] No migration scripts found yet.");
+                }
+                else
+                {
+                    RenderItems(runlistChecks);
+                }
+
+                var passed = runlistChecks.Count == 0 ? 1 : runlistChecks.Count(c => c.Severity == DoctorSeverity.Pass);
+                var warnings = runlistChecks.Count(c => c.Severity == DoctorSeverity.Warning);
+                var errors = runlistChecks.Count(c => c.Severity == DoctorSeverity.Error);
+                var exit = errors > 0 ? 1 : 0;
+
+                AnsiConsole.WriteLine();
+                AnsiConsole.Write(new Rule().RuleStyle("grey"));
+                AnsiConsole.MarkupLine(
+                    $"Summary: [green]{passed} passed[/], [yellow]{warnings} {(warnings == 1 ? "warning" : "warnings")}[/], [red]{errors} {(errors == 1 ? "error" : "errors")}[/]  (exit code {exit})");
+                return exit;
+            }
+
             var report = await loaded.Manager.DiagnoseAsync(
                 settings.RegistryFilter,
                 checkDatabase: settings.CheckDb,
@@ -524,6 +585,78 @@ internal sealed class DoctorCommand : AsyncCommand<DoctorSettings>
         if (!string.IsNullOrWhiteSpace(item.Hint))
         {
             AnsiConsole.MarkupLine($"{indent}    [grey]{ArrowIcon} {Markup.Escape(item.Hint)}[/]");
+        }
+    }
+}
+
+internal sealed class RunlistShowCommand : AsyncCommand<RunlistShowSettings>
+{
+    public override async Task<int> ExecuteAsync(CommandContext context, RunlistShowSettings settings)
+    {
+        var (owner, manager, _) = TargetAssemblyLoader.CreateManager(settings);
+        try
+        {
+            var runlist = ((SharpPersistence.Migrator.Services.MigrationManager)manager).CreateRunlistManager();
+            var entries = runlist.ResolveEffectiveOrder();
+            if (entries.Count == 0)
+            {
+                AnsiConsole.MarkupLine("[grey]No migration scripts found.[/]");
+                return 0;
+            }
+
+            var display = settings.Recent is > 0 && settings.Recent.Value < entries.Count
+                ? entries.Skip(entries.Count - settings.Recent.Value).ToList()
+                : [.. entries];
+
+            var startIndex = entries.Count - display.Count + 1;
+
+            var table = new Table()
+                .AddColumn("#")
+                .AddColumn("Migration Script ID")
+                .AddColumn("Registry")
+                .AddColumn("Script")
+                .AddColumn("Override");
+
+            for (var i = 0; i < display.Count; i++)
+            {
+                var e = display[i];
+                table.AddRow(
+                    (startIndex + i).ToString(),
+                    $"[grey]{e.Id:D}[/]",
+                    Markup.Escape(e.RegistryName),
+                    Markup.Escape(e.ScriptName),
+                    e.IsOverridden ? "[yellow]yes[/]" : "[grey]-[/]");
+            }
+
+            AnsiConsole.Write(table);
+            return 0;
+        }
+        finally
+        {
+            await TargetAssemblyLoader.DisposeAsync(owner);
+        }
+    }
+}
+
+internal sealed class RunlistSyncCommand : AsyncCommand<RunlistSyncSettings>
+{
+    public override async Task<int> ExecuteAsync(CommandContext context, RunlistSyncSettings settings)
+    {
+        var (owner, manager, _) = TargetAssemblyLoader.CreateManager(settings);
+        try
+        {
+            var runlist = ((SharpPersistence.Migrator.Services.MigrationManager)manager).CreateRunlistManager();
+            var result = await runlist.SyncAsync(settings.Prune, settings.DryRun);
+
+            var prefix = settings.DryRun ? "[yellow]DRY RUN:[/] " : string.Empty;
+            AnsiConsole.MarkupLine(
+                $"{prefix}Synced [cyan]{Markup.Escape(result.RunlistPath)}[/] " +
+                $"(stamped: {result.StampedCount}, added: {result.AddedCount}, pruned: {result.PrunedCount}).");
+            return 0;
+        }
+        finally
+        {
+            await TargetAssemblyLoader.DisposeAsync(owner);
         }
     }
 }

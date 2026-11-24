@@ -35,7 +35,7 @@ using SharpPersistence.Migrator.Generated;
 builder.Services.AddDbMigrator(opt =>
 {
     opt.UseOracle(builder.Configuration.GetConnectionString("Oracle")!)
-        .UseSqlCompatibility(OracleDbCompatibility.OracleDb23);
+        .UseSqlCompatibility(OracleDbCompatibility.Oracle23);
 
     opt.UseNamingConvention(SqlIdentifierCase.UpperSnakeCase)
         .PluralizeTableNames()

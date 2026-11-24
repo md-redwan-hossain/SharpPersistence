@@ -53,5 +53,18 @@ internal sealed class TableSchema
     public List<ForeignKeySchema> ForeignKeys { get; set; } = [];
 
     [JsonIgnore]
+    public List<OwnedNavigationSchema>? OwnedNavigations { get; set; }
+
+    [JsonIgnore]
     public string QualifiedName => string.IsNullOrWhiteSpace(Schema) ? TableName : $"{Schema}.{TableName}";
+}
+
+internal sealed class OwnedNavigationSchema
+{
+    public string NavigationName { get; set; } = string.Empty;
+    public Type OwnedClrType { get; set; } = typeof(object);
+    public string PropertyPathPrefix { get; set; } = string.Empty;
+    public bool IsOptional { get; set; }
+    public List<string> IgnoredProperties { get; set; } = [];
+    public List<OwnedNavigationSchema> NestedNavigations { get; set; } = [];
 }

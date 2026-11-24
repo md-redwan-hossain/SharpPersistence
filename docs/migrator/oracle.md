@@ -11,14 +11,14 @@ using SharpPersistence.Migrator.Enums;
 builder.Services.AddDbMigrator(opt =>
 {
     opt.UseOracle(connectionString)
-        .UseSqlCompatibility(OracleDbCompatibility.OracleDb23); // or OracleDb19 (default)
+        .UseSqlCompatibility(OracleDbCompatibility.Oracle23); // or Oracle19 (default)
 
     opt.AddGeneratedEntityRegistries();
 });
 ```
 
-* **`OracleDbCompatibility.OracleDb19`** *(default)* — Wraps DDL in `BEGIN EXECUTE IMMEDIATE '...'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -955 ... END; /` PL/SQL blocks for safe re-runs.
-* **`OracleDbCompatibility.OracleDb23`** — Uses native `IF NOT EXISTS` / `IF EXISTS` syntax supported in Oracle 23ai.
+* **`OracleDbCompatibility.Oracle19`** *(default)* — Wraps DDL in `BEGIN EXECUTE IMMEDIATE '...'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -955 ... END; /` PL/SQL blocks for safe re-runs.
+* **`OracleDbCompatibility.Oracle23`** — Uses native `IF NOT EXISTS` / `IF EXISTS` syntax supported in Oracle 23ai.
 
 ## Identifier Casing & 30/128-Byte Truncation
 
@@ -38,4 +38,4 @@ builder.Property(x => x.IsoCode).HasMaxLength(50).IsUnicode(false);
 
 * **Distributed Lock:** `MigrateAsync` acquires an Oracle `DBMS_LOCK` (`lockmode => 6`, `release_on_commit => FALSE`) so concurrent instances wait safely.
 * **Statement Splitting:** `OracleMigrationDialect` splits SQL statements and PL/SQL `/` blocks automatically during `MigrateAsync`—including `BEGIN ... END; /` blocks.
-* **Unsupported PostgreSQL Features:** Features without an Oracle equivalent (like `HasExclusionConstraint`) fail fast with a clear error during `db-migrator doctor` and `diff`.
+* **Unsupported PostgreSQL Features:** Features without an Oracle equivalent (like `HasExclusionConstraint`) fail fast with a clear error during `db-migrator doctor` and `generate`.

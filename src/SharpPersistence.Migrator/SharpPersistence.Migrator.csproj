@@ -55,6 +55,10 @@
               Pack="true"
               PackagePath="buildTransitive\SharpPersistence.Migrator.props"
               Visible="false" />
+        <None Include="buildTransitive\SharpPersistence.Migrator.targets"
+              Pack="true"
+              PackagePath="buildTransitive\SharpPersistence.Migrator.targets"
+              Visible="false" />
     </ItemGroup>
 
 </Project>

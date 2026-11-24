@@ -31,6 +31,17 @@ app.Configure(config =>
     config.AddCommand<SyncEfCoreHistoryCommand>("sync-ef-history")
         .WithDescription("Mark _translated scripts already present in __EFMigrationsHistory as applied.");
 
+    config.AddBranch("runlist", runlist =>
+    {
+        runlist.SetDescription("Inspect or sync db-migration-runlist.json and -- migration-script-id headers.");
+        runlist.AddCommand<RunlistShowCommand>("show")
+            .WithDescription("Print the effective migration execution order (after applying overrides).")
+            .WithExample("runlist", "show", "--startup-project", "WebApi/WebApi.csproj");
+        runlist.AddCommand<RunlistSyncCommand>("sync")
+            .WithDescription("Stamp missing -- migration-script-id headers and generate/update db-migration-runlist.json.")
+            .WithExample("runlist", "sync", "--startup-project", "WebApi/WebApi.csproj");
+    });
+
     config.AddCommand<DoctorCommand>("doctor")
         .WithDescription("Validate DI wiring, entity registries, configurations, migration script coverage, and optionally live database connectivity.")
         .WithExample("doctor", "--startup-project", "WebApi/WebApi.csproj")

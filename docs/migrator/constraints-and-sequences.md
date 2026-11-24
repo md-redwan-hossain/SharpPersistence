@@ -32,7 +32,7 @@ builder.HasCheckConstraint("ck_orders_country",
 You can also set defaults globally in `AddDbMigrator`:
 
 ```csharp
-opt.ConfigureSqlExpressionBuilder(cc => cc
+opt.ConfigureSqlExpressionBuilder(expr => expr
     .UseDelimitedIdentifiers(true)
     .UseNestedColumnSeparator("_"));
 ```

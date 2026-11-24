@@ -22,7 +22,7 @@ internal static class StandaloneSchemaDiffer
         string? existingSnapshotJson,
         SqlDialect sqlDialect = SqlDialect.PostgreSql,
         bool interactiveRenamePrompt = true,
-        OracleDbCompatibility oracleCompatibility = OracleDbCompatibility.OracleDb19,
+        OracleDbCompatibility oracleCompatibility = OracleDbCompatibility.Oracle19,
         Func<string, bool>? confirmRename = null)
     {
         var migratableCurrent = FilterMigratableSchema(currentSchema);

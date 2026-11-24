@@ -187,7 +187,9 @@ internal static class SchemaScanner
             defaultSchema,
             dialect,
             identifierCase,
-            sqlExpressionOptions);
+            sqlExpressionOptions,
+            propertyConventions,
+            nullabilityContext);
 
         foreach (var prop in entityType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
         {
@@ -283,7 +285,7 @@ internal static class SchemaScanner
         }
     }
 
-    private static void ApplyGlobalPropertyConventions(
+    internal static void ApplyGlobalPropertyConventions(
         ColumnDefinition col,
         Type clrType,
         IReadOnlyList<PropertyConventionRule>? conventions)
@@ -338,7 +340,7 @@ internal static class SchemaScanner
         }
     }
 
-    private static bool IsScalarType(Type type)
+    internal static bool IsScalarType(Type type)
     {
         var unwrapped = Nullable.GetUnderlyingType(type) ?? type;
         return unwrapped.IsPrimitive

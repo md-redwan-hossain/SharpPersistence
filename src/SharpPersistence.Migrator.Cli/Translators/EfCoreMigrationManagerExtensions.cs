@@ -37,21 +37,29 @@ internal static class EfCoreMigrationManagerExtensions
         }
 
         var items = new List<GeneratedMigrationItem>(translated.Count);
+        var scriptIds = new List<Guid>(translated.Count);
         foreach (var item in translated)
         {
+            var (stampedSql, scriptId, _) = MigrationScriptHeader.StampHeader(item.SqlScript);
             var scriptPath = Path.Combine(legacyDir, $"{item.MigrationId}.sql");
             if (!dryRun)
             {
-                await File.WriteAllTextAsync(scriptPath, item.SqlScript, ct);
+                await File.WriteAllTextAsync(scriptPath, stampedSql, ct);
             }
 
+            scriptIds.Add(scriptId);
             items.Add(new GeneratedMigrationItem(
                 "_translated",
                 scriptPath,
                 null,
-                item.SqlScript,
+                stampedSql,
                 string.Empty,
                 false));
+        }
+
+        if (!dryRun && scriptIds.Count > 0)
+        {
+            await concrete.CreateRunlistManager().AppendNewScriptsAsync(scriptIds, ct);
         }
 
         return items;

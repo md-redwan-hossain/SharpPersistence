@@ -130,6 +130,9 @@ internal sealed class MigrationDoctor
             await RunMigrationCoverageChecksAsync(targetRegistries, migrationCoverageChecks, ct);
         }
 
+        var runlistChecks = new MigrationRunlistManager(_options, _scriptStore).Validate();
+        migrationCoverageChecks.AddRange(runlistChecks);
+
         var databaseChecks = checkDatabase
             ? await _databaseValidator.ValidateAsync(registryFilter, hasSchemaErrors, ct)
             : [];

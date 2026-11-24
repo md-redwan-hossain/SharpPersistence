@@ -36,7 +36,7 @@ builder.HasForeignKey(x => x.PrimaryAddressId)
     .IsCircular();
 ```
 
-`db-migrator diff` separates circular foreign keys into `MigrationScripts/_deferred/` so both tables are created before the circular `ALTER TABLE ... ADD CONSTRAINT` runs.
+`db-migrator generate` separates circular foreign keys into `MigrationScripts/_deferred/` so both tables are created before the circular `ALTER TABLE ... ADD CONSTRAINT` runs.
 
 ### Referential Actions (`DbReferentialAction`)
 
@@ -56,7 +56,7 @@ builder.HasIndex(x => x.CustomerId)
 builder.HasIndex(x => x.Email)
     .IsUnique()
     .HasDatabaseName("uq_users_active_email")
-    .HasFilter(cc => cc.Column(x => x.IsDeleted).EqualTo(false));
+    .HasFilter(expr => expr.Column(x => x.IsDeleted).EqualTo(false));
 
 // Composite covering index with sort direction
 builder.HasIndex(x => new { x.TenantId, x.CreatedAt })
@@ -72,7 +72,7 @@ builder.HasIndex(x => new { x.TenantId, x.CreatedAt })
 | `HasDatabaseName(name)` | Explicit index name (auto-truncated to dialect max identifier length) |
 | `IsUnique(bool = true)` | Creates `UNIQUE INDEX` |
 | `HasFilter(sql)` | Raw partial index `WHERE` predicate |
-| `HasFilter(cc => ...)` | Type-safe partial index `WHERE` predicate using `SqlCheckConstraintBuilder<T>` |
+| `HasFilter(expr => ...)` | Type-safe partial index `WHERE` predicate using `ISqlPredicateBuilder<TEntity>` |
 | `IncludeProperties(x => ...)` | Covering index `INCLUDE (...)` columns |
 | `IsDescending(params bool[])` | Per-column `ASC` / `DESC` sort order |
 | `HasMethod(...)` | PostgreSQL index method (`BTree`, `Gin`, `Gist`, `Hash`, etc.) |

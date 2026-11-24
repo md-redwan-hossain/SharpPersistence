@@ -48,6 +48,10 @@
     </ItemGroup>
 
     <ItemGroup>
+        <None Include="buildTransitive\SharpPersistence.targets" Pack="True" PackagePath="buildTransitive\SharpPersistence.targets" />
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="..\SharpPersistence.Abstractions\SharpPersistence.Abstractions.csproj" />
     </ItemGroup>
 

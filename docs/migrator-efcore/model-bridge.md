@@ -29,6 +29,7 @@ public sealed class AppDbContext(
 ### What `ApplySchemaToEfCore` Transfers
 
 * Table names, schemas, comments, ignored properties, and sequences
+* Inline owned value objects (`OwnsOne`, including nested `OwnsOne` and owned indexes)
 * Global and named query filters (`HasQueryFilter(...)`)
 * Primary keys, column names, types, nullability, max length, precision/scale, defaults, identity, computed columns, concurrency tokens (`IsRowVersion`), and `ValueConverter`s
 * Foreign keys (with `OnDelete` behavior), indexes (unique, filtered, included columns), and check constraints

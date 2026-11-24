@@ -1,0 +1,33 @@
+<Project>
+  <PropertyGroup>
+    <SharpPersistenceAutoCopySqlFiles Condition="'$(SharpPersistenceAutoCopySqlFiles)' == ''">true</SharpPersistenceAutoCopySqlFiles>
+    <SharpPersistenceSqlOutputFolder Condition="'$(SharpPersistenceSqlOutputFolder)' == ''">sharp_persistence_sql_files</SharpPersistenceSqlOutputFolder>
+  </PropertyGroup>
+
+  <Target Name="_SharpPersistenceIncludeSqlFiles"
+          BeforeTargets="AssignTargetPaths"
+          Condition="'$(SharpPersistenceAutoCopySqlFiles)' == 'true'">
+    <ItemGroup>
+      <_SharpPersistenceSqlRunlistFiles Include="$(MSBuildProjectDirectory)\**\db-migration-runlist.json"
+                                        Exclude="$(MSBuildProjectDirectory)\bin\**;$(MSBuildProjectDirectory)\obj\**;$(MSBuildProjectDirectory)\out\**;$(MSBuildProjectDirectory)\publish\**" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'@(_SharpPersistenceSqlRunlistFiles)' != ''">
+      <_SharpPersistenceSqlMigrationExcludes Include="$([MSBuild]::MakeRelative($(MSBuildProjectDirectory), $([System.IO.Path]::GetDirectoryName('%(_SharpPersistenceSqlRunlistFiles.FullPath)'))))\**\*.sql" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <_SharpPersistenceSqlFiles Include="**\*.sql"
+                                 Exclude="$(DefaultItemExcludes);$(DefaultExcludesInProjectFolder);out\**;publish\**;bin\**;obj\**;MigrationScripts\**;@(_SharpPersistenceSqlMigrationExcludes);@(EmbeddedResource);$(SharpPersistenceSqlExclude)" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'@(_SharpPersistenceSqlFiles)' != ''">
+      <Content Remove="@(_SharpPersistenceSqlFiles)" />
+      <None Remove="@(_SharpPersistenceSqlFiles)" />
+      <None Include="@(_SharpPersistenceSqlFiles)"
+            CopyToOutputDirectory="PreserveNewest"
+            CopyToPublishDirectory="PreserveNewest"
+            TargetPath="$(SharpPersistenceSqlOutputFolder)\$(AssemblyName)\%(_SharpPersistenceSqlFiles.RecursiveDir)%(_SharpPersistenceSqlFiles.Filename)%(_SharpPersistenceSqlFiles.Extension)" />
+    </ItemGroup>
+  </Target>
+</Project>

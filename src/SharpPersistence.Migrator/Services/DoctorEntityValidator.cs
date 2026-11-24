@@ -62,6 +62,15 @@ internal sealed class DoctorEntityValidator(
         var resolvedSqlTypes = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var cb in tb.ColumnsByProp.Values)
         {
+            if (cb.RequiresNullableColumn && !cb.IsNullable)
+            {
+                items.Add(new DoctorCheckItem(
+                    DoctorSeverity.Error,
+                    $"Column '{cb.PropertyName}' belongs to nullable owned navigation '{cb.OwnedNavigationPath}' and must be nullable.",
+                    Hint: "Remove .IsRequired() on this owned property or make the navigation property non-nullable.",
+                    EntityName: entityName));
+            }
+
             try
             {
                 resolvedSqlTypes[cb.PropertyName] = tb.ResolveColumnSqlType(cb, enumLookup);

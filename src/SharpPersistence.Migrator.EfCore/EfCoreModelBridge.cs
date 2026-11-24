@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SharpPersistence.Migrator.Enums;
 using SharpPersistence.Migrator.Models;
@@ -90,107 +91,39 @@ public static class EfCoreModelBridge
                     entity.HasKey([.. table.PrimaryKey.PropertyNames])
                           .HasName(table.PrimaryKey.Name);
                 }
-                else if (table.ExcludeFromMigrations)
-                {
-                    entity.HasNoKey();
-                }
 
                 foreach (var col in table.Columns)
                 {
-                    var prop = entity.Property(col.PropertyName)
-                        .HasColumnName(col.ColumnName)
-                        .HasColumnType(col.SqlType)
-                        .IsRequired(!col.IsNullable);
-
-                    if (col.ValueConverter is ValueConverter valueConverter)
+                    if (col.IsOwnedColumn)
                     {
-                        prop.HasConversion(valueConverter);
-                    }
-                    else if (col.ProviderClrType is not null)
-                    {
-                        prop.HasConversion(col.ProviderClrType);
+                        continue;
                     }
 
-                    if (col.MaxLength.HasValue)
-                    {
-                        prop.HasMaxLength(col.MaxLength.Value);
-                    }
+                    ApplyColumnFacets(entity.Property(col.PropertyName), col);
+                }
 
-                    if (col.IsUnicode.HasValue)
+                if (table.OwnedNavigations is { Count: > 0 })
+                {
+                    foreach (var owned in table.OwnedNavigations)
                     {
-                        prop.IsUnicode(col.IsUnicode.Value);
-                    }
+                        entity.OwnsOne(owned.OwnedClrType, owned.NavigationName, ob =>
+                            ApplyOwnedNavigation(ob, owned, table));
 
-                    if (col.Precision.HasValue)
-                    {
-                        if (col.Scale.HasValue)
+                        if (!owned.IsOptional)
                         {
-                            prop.HasPrecision(col.Precision.Value, col.Scale.Value);
+                            entity.Navigation(owned.NavigationName).IsRequired();
                         }
-                        else
-                        {
-                            prop.HasPrecision(col.Precision.Value);
-                        }
-                    }
-
-                    if (!string.IsNullOrWhiteSpace(col.DefaultValueSql))
-                    {
-                        prop.HasDefaultValueSql(col.DefaultValueSql);
-                    }
-
-                    if (!string.IsNullOrWhiteSpace(col.ComputedColumnSql))
-                    {
-                        prop.HasComputedColumnSql(col.ComputedColumnSql, col.IsComputedStored);
-                    }
-
-                    if (!string.IsNullOrWhiteSpace(col.Comment))
-                    {
-                        prop.HasComment(col.Comment);
-                    }
-
-                    if (col.IsRowVersion)
-                    {
-                        prop.IsRowVersion();
-                    }
-                    else if (col.IsConcurrencyToken)
-                    {
-                        prop.IsConcurrencyToken();
-                    }
-
-                    if (col.ValueGenerated == ValueGenerationMode.Never)
-                    {
-                        prop.ValueGeneratedNever();
-                    }
-                    else if (col.ValueGenerated == ValueGenerationMode.OnAddOrUpdate)
-                    {
-                        prop.ValueGeneratedOnAddOrUpdate();
-                    }
-                    else if (col.IsIdentity || col.ValueGenerated == ValueGenerationMode.OnAdd)
-                    {
-                        prop.ValueGeneratedOnAdd();
-                    }
-
-                    foreach (var (name, value) in col.Annotations)
-                    {
-                        prop.Metadata.SetAnnotation(name, value);
                     }
                 }
 
                 foreach (var ix in table.Indexes)
                 {
-                    var ixBuilder = entity.HasIndex([.. ix.PropertyNames])
-                        .HasDatabaseName(ix.Name)
-                        .IsUnique(ix.IsUnique);
-
-                    if (!string.IsNullOrWhiteSpace(ix.FilterSql))
+                    if (ix.PropertyNames.Any(p => p.Contains('.', StringComparison.Ordinal)))
                     {
-                        ixBuilder.HasFilter(ix.FilterSql);
+                        continue;
                     }
 
-                    if (ix.IsDescending is { Count: > 0 })
-                    {
-                        ixBuilder.IsDescending([.. ix.IsDescending]);
-                    }
+                    ApplyIndexFacets(entity.HasIndex([.. ix.PropertyNames]), ix);
                 }
 
                 foreach (var fk in table.ForeignKeys)
@@ -235,6 +168,155 @@ public static class EfCoreModelBridge
                     }
                 }
             });
+        }
+    }
+
+    private static void ApplyOwnedNavigation(
+        OwnedNavigationBuilder ownedBuilder,
+        OwnedNavigationSchema owned,
+        TableSchema table)
+    {
+        foreach (var ignoredProp in owned.IgnoredProperties)
+        {
+            ownedBuilder.Ignore(ignoredProp);
+        }
+
+        var prefix = $"{owned.PropertyPathPrefix}.";
+        foreach (var col in table.Columns)
+        {
+            if (!col.IsOwnedColumn || !col.PropertyName.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var localPropName = col.PropertyName[prefix.Length..];
+            if (localPropName.Contains('.', StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            ApplyColumnFacets(ownedBuilder.Property(localPropName), col);
+        }
+
+        foreach (var ix in table.Indexes)
+        {
+            if (ix.PropertyNames.Count == 0 ||
+                !ix.PropertyNames.All(p =>
+                    p.StartsWith(prefix, StringComparison.Ordinal) &&
+                    !p[prefix.Length..].Contains('.', StringComparison.Ordinal)))
+            {
+                continue;
+            }
+
+            var localProps = ix.PropertyNames.Select(p => p[prefix.Length..]).ToArray();
+            ApplyIndexFacets(ownedBuilder.HasIndex(localProps), ix);
+        }
+
+        foreach (var nested in owned.NestedNavigations)
+        {
+            ownedBuilder.OwnsOne(nested.OwnedClrType, nested.NavigationName, nb =>
+                ApplyOwnedNavigation(nb, nested, table));
+
+            if (!nested.IsOptional)
+            {
+                ownedBuilder.Navigation(nested.NavigationName).IsRequired();
+            }
+        }
+    }
+
+    private static void ApplyColumnFacets(PropertyBuilder prop, ColumnSchema col)
+    {
+        prop.HasColumnName(col.ColumnName)
+            .HasColumnType(col.SqlType)
+            .IsRequired(!col.IsNullable);
+
+        if (col.ValueConverter is ValueConverter valueConverter)
+        {
+            prop.HasConversion(valueConverter);
+        }
+        else if (col.ProviderClrType is not null)
+        {
+            prop.HasConversion(col.ProviderClrType);
+        }
+
+        if (col.MaxLength.HasValue)
+        {
+            prop.HasMaxLength(col.MaxLength.Value);
+        }
+
+        if (col.IsUnicode.HasValue)
+        {
+            prop.IsUnicode(col.IsUnicode.Value);
+        }
+
+        if (col.Precision.HasValue)
+        {
+            if (col.Scale.HasValue)
+            {
+                prop.HasPrecision(col.Precision.Value, col.Scale.Value);
+            }
+            else
+            {
+                prop.HasPrecision(col.Precision.Value);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(col.DefaultValueSql))
+        {
+            prop.HasDefaultValueSql(col.DefaultValueSql);
+        }
+
+        if (!string.IsNullOrWhiteSpace(col.ComputedColumnSql))
+        {
+            prop.HasComputedColumnSql(col.ComputedColumnSql, col.IsComputedStored);
+        }
+
+        if (!string.IsNullOrWhiteSpace(col.Comment))
+        {
+            prop.HasComment(col.Comment);
+        }
+
+        if (col.IsRowVersion)
+        {
+            prop.IsRowVersion();
+        }
+        else if (col.IsConcurrencyToken)
+        {
+            prop.IsConcurrencyToken();
+        }
+
+        if (col.ValueGenerated == ValueGenerationMode.Never)
+        {
+            prop.ValueGeneratedNever();
+        }
+        else if (col.ValueGenerated == ValueGenerationMode.OnAddOrUpdate)
+        {
+            prop.ValueGeneratedOnAddOrUpdate();
+        }
+        else if (col.IsIdentity || col.ValueGenerated == ValueGenerationMode.OnAdd)
+        {
+            prop.ValueGeneratedOnAdd();
+        }
+
+        foreach (var (name, value) in col.Annotations)
+        {
+            prop.Metadata.SetAnnotation(name, value);
+        }
+    }
+
+    private static void ApplyIndexFacets(IndexBuilder ixBuilder, IndexSchema ix)
+    {
+        ixBuilder.HasDatabaseName(ix.Name)
+            .IsUnique(ix.IsUnique);
+
+        if (!string.IsNullOrWhiteSpace(ix.FilterSql))
+        {
+            ixBuilder.HasFilter(ix.FilterSql);
+        }
+
+        if (ix.IsDescending is { Count: > 0 })
+        {
+            ixBuilder.IsDescending([.. ix.IsDescending]);
         }
     }
 

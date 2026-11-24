@@ -20,30 +20,10 @@ internal sealed class MigrationScriptStore
 
     public List<(string RegistryName, string ScriptName, string FullPath)> DiscoverScripts()
     {
-        var sortedRegistries = RegistryDependencyResolver.SortTopologically(_options);
-
-        var folders = new List<string> { "_global", "_translated" };
-        folders.AddRange(sortedRegistries.Select(r => r.GetType().Name));
-        folders.Add("_deferred");
-
-        var results = new List<(string, string, string)>();
-        var migrationsRoot = ResolveMigrationsDirectory();
-        foreach (var folder in folders)
-        {
-            var dir = Path.Combine(migrationsRoot, folder);
-            if (!Directory.Exists(dir))
-            {
-                continue;
-            }
-
-            var files = Directory.GetFiles(dir, "*.sql").OrderBy(Path.GetFileName, StringComparer.Ordinal);
-            foreach (var file in files)
-            {
-                results.Add((folder, Path.GetFileName(file), file));
-            }
-        }
-
-        return results;
+        var runlist = new MigrationRunlistManager(_options, this);
+        return runlist.ResolveEffectiveOrder()
+            .Select(e => (e.RegistryName, e.ScriptName, e.FullPath))
+            .ToList();
     }
 
     public async Task<IReadOnlyList<MigrationStatusItem>> BuildStatusItemsAsync(
@@ -78,18 +58,32 @@ internal sealed class MigrationScriptStore
 
     public static string ComputeSha256(string content)
     {
-        var normalized = content.Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\r", "\n", StringComparison.Ordinal);
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(normalized));
+        var body = MigrationScriptHeader.StripHeader(content);
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(body));
         return Convert.ToHexStringLower(bytes);
     }
 
     private string ResolvePath(string path)
     {
-        if (Path.IsPathRooted(path) || string.IsNullOrWhiteSpace(_options.RootPath))
+        if (Path.IsPathRooted(path))
         {
             return path;
         }
 
-        return Path.Combine(_options.RootPath, path);
+        if (!string.IsNullOrWhiteSpace(_options.RootPath))
+        {
+            return Path.Combine(_options.RootPath, path);
+        }
+
+        if (!Directory.Exists(path))
+        {
+            var baseDirPath = Path.Combine(AppContext.BaseDirectory, path);
+            if (Directory.Exists(baseDirPath))
+            {
+                return baseDirPath;
+            }
+        }
+
+        return path;
     }
 }

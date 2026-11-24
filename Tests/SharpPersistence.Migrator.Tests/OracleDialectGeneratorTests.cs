@@ -12,7 +12,7 @@ public sealed class OracleDialectGeneratorTests
     [Fact]
     public void GenerateSql_Oracle19_UsesUserTablesAndAllSequencesCatalogGuards()
     {
-        var generator = new OracleDialectGenerator(OracleDbCompatibility.OracleDb19);
+        var generator = new OracleDialectGenerator(OracleDbCompatibility.Oracle19);
         var ops = new SchemaOperation[]
         {
             new CreateSequenceOp(new SequenceSchema { Name = "SEQ_ORDERS", Schema = "APP", StartValue = 100, IncrementBy = 1 }),
@@ -40,7 +40,7 @@ public sealed class OracleDialectGeneratorTests
     [Fact]
     public void GenerateSql_Oracle23_DropColumnAndConstraint_DoNotEmitAlterTableIfExists()
     {
-        var generator = new OracleDialectGenerator(OracleDbCompatibility.OracleDb23);
+        var generator = new OracleDialectGenerator(OracleDbCompatibility.Oracle23);
         var sql = generator.GenerateSql([
             new DropColumnOp("APP", "ORDERS", "OLD_COL"),
             new DropForeignKeyOp("APP", "ORDERS", "FK_OLD")
@@ -55,7 +55,7 @@ public sealed class OracleDialectGeneratorTests
     [Fact]
     public void GenerateSql_AlterColumn_OnlyEmitsNullabilityWhenChanged()
     {
-        var generator = new OracleDialectGenerator(OracleDbCompatibility.OracleDb19);
+        var generator = new OracleDialectGenerator(OracleDbCompatibility.Oracle19);
         var oldCol = new ColumnSchema { ColumnName = "NAME", SqlType = "VARCHAR2(50)", IsNullable = false };
         var newCol = new ColumnSchema { ColumnName = "NAME", SqlType = "VARCHAR2(100)", IsNullable = false };
 

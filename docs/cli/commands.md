@@ -27,6 +27,9 @@ Validates DI wiring, entity registries, configs, foreign key type compatibility,
 # Offline check (CI-safe)
 db-migrator doctor --startup-project WebApi/WebApi.csproj
 
+# Focused runlist, header ID, and SQL DDL dependency check
+db-migrator doctor --runlist --startup-project WebApi/WebApi.csproj
+
 # Single registry + live DB check
 db-migrator doctor --registry SalesRegistry --check-db --startup-project WebApi/WebApi.csproj
 ```
@@ -81,6 +84,30 @@ Applies all pending SQL migration scripts inside a distributed lock (`pg_advisor
 db-migrator migrate --startup-project WebApi/WebApi.csproj
 db-migrator migrate --dry-run
 db-migrator migrate --sync-ef-history
+```
+
+### `runlist show` & `runlist sync`
+
+Every generated `.sql` script is stamped with `-- migration-script-id: <uuidv7>` and tracked in `MigrationScripts/db-migration-runlist.json` so multi-registry migrations replay in deterministic order. To manually reorder a subset of scripts (such as `--allow-empty` data migrations), add an optional `MigrationScripts/db-migration-runlist.overrides.json` containing arrays of 2 or more script IDs (supports `//` comments and trailing commas):
+
+```jsonc
+[
+  [
+    "0195c810-...", // AddNote
+    "0195c812-...", // Custom backfill
+    "0195c811-..."  // DropOldCol
+  ]
+]
+```
+
+```powershell
+# Print effective execution order (including override flags; optionally pass --recent <N>)
+db-migrator runlist show --startup-project WebApi/WebApi.csproj
+db-migrator runlist show --recent 10 --startup-project WebApi/WebApi.csproj
+
+# Stamp missing -- migration-script-id headers and generate/update db-migration-runlist.json
+db-migrator runlist sync --startup-project WebApi/WebApi.csproj
+db-migrator runlist sync --prune --dry-run
 ```
 
 ### `status` & `pending`

@@ -58,7 +58,7 @@ builder.HasExclusionConstraint("excl_bookings_room_slot")
     .WithElement(x => x.RoomId, PostgresExclusionOperator.Equals)
     .WithRange(x => x.StartsAt, x => x.EndsAt, PostgresRangeBounds.InclusiveLowerExclusiveUpper)
     .IncludeProperties(x => x.CustomerId)
-    .HasFilter(cc => cc.Column(x => x.IsCancelled).EqualTo(false))
+    .HasFilter(expr => expr.Column(x => x.IsCancelled).EqualTo(false))
     .HasStorageParameter(PostgresIndexStorageParameter.FillFactor, 90)
     .UseTablespace("fast_ssd");
 ```
@@ -67,7 +67,7 @@ You can also use `WithExpression` with `ISqlExpressionBuilder<TEntity>` for cust
 
 ```csharp
 builder.HasExclusionConstraint("excl_bookings_lower_code")
-    .WithExpression(e => e.Column(x => x.Code).Lower(), PostgresExclusionOperator.Equals)
+    .WithExpression(expr => expr.Column(x => x.Code).Lower(), PostgresExclusionOperator.Equals)
     .WithRange(x => x.StartsAt, x => x.EndsAt, PostgresExclusionOperator.Overlaps);
 ```
 

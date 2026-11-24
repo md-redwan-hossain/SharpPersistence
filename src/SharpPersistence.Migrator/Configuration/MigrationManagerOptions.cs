@@ -17,7 +17,7 @@ internal sealed class MigrationManagerOptions
     public SqlIdentifierCase IdentifierCase { get; internal set; }
     public bool PluralizeTableNames { get; internal set; }
     public Func<Type, string, string>? TableNameConvention { get; internal set; }
-    public OracleDbCompatibility OracleCompatibility { get; internal set; } = OracleDbCompatibility.OracleDb19;
+    public OracleDbCompatibility OracleCompatibility { get; internal set; } = OracleDbCompatibility.Oracle19;
     public string? ConnectionString { get; internal set; }
     public DbProviderFactory? ProviderFactory { get; internal set; }
     public Func<IServiceProvider, DbConnection>? ConnectionFactory { get; internal set; }

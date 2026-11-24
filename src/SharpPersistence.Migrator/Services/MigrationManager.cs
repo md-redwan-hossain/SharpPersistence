@@ -44,6 +44,7 @@ internal sealed class MigrationManager : IMigrationManager
 
         if (!dryRun)
         {
+            CreateRunlistManager().EnsureReadyForAppend();
             Directory.CreateDirectory(stateDir);
             Directory.CreateDirectory(sqlRootDir);
         }
@@ -62,13 +63,16 @@ internal sealed class MigrationManager : IMigrationManager
 
         var timestamp = DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
         var generated = new List<GeneratedMigrationItem>();
+        var generatedScriptIds = new List<Guid>();
+        var deferredScriptIds = new List<Guid>();
 
         if (_dialect.SupportsGlobalExtensionsAndEnums && string.IsNullOrWhiteSpace(registryFilter))
         {
             var globalItem = await GenerateGlobalObjectsAsync(migrationName, timestamp, stateDir, sqlRootDir, dryRun, ct);
             if (globalItem is not null)
             {
-                generated.Add(globalItem);
+                generated.Add(globalItem.Item);
+                generatedScriptIds.Add(globalItem.ScriptId);
             }
         }
 
@@ -99,7 +103,7 @@ internal sealed class MigrationManager : IMigrationManager
 
                 var emptyDir = Path.Combine(sqlRootDir, registryName);
                 var emptySqlPath = Path.Combine(emptyDir, $"{timestamp}_{migrationName}.sql");
-                var emptySql = _dialect.FormatEmptyMigration(migrationName);
+                var (emptySql, emptyId, _) = MigrationScriptHeader.StampHeader(_dialect.FormatEmptyMigration(migrationName));
 
                 if (!dryRun)
                 {
@@ -108,31 +112,40 @@ internal sealed class MigrationManager : IMigrationManager
                 }
 
                 generated.Add(new GeneratedMigrationItem(registryName, emptySqlPath, null, emptySql, string.Empty, true));
+                generatedScriptIds.Add(emptyId);
                 continue;
             }
 
             string? mainPath = null;
             string? deferredPath = null;
+            var mainSql = result.SqlScript;
+            var deferredSql = result.DeferredSqlScript;
 
-            if (!string.IsNullOrWhiteSpace(result.SqlScript))
+            if (!string.IsNullOrWhiteSpace(mainSql))
             {
+                (mainSql, var mainId, _) = MigrationScriptHeader.StampHeader(mainSql);
                 var registrySqlDir = Path.Combine(sqlRootDir, registryName);
                 mainPath = Path.Combine(registrySqlDir, $"{timestamp}_{migrationName}.sql");
                 if (!dryRun)
                 {
                     Directory.CreateDirectory(registrySqlDir);
-                    await File.WriteAllTextAsync(mainPath, result.SqlScript, ct);
+                    await File.WriteAllTextAsync(mainPath, mainSql, ct);
                 }
+
+                generatedScriptIds.Add(mainId);
             }
 
-            if (!string.IsNullOrWhiteSpace(result.DeferredSqlScript))
+            if (!string.IsNullOrWhiteSpace(deferredSql))
             {
+                (deferredSql, var deferredId, _) = MigrationScriptHeader.StampHeader(deferredSql);
                 deferredPath = Path.Combine(deferredDir, $"{timestamp}_{registryName}_{migrationName}.sql");
                 if (!dryRun)
                 {
                     Directory.CreateDirectory(deferredDir);
-                    await File.WriteAllTextAsync(deferredPath, result.DeferredSqlScript, ct);
+                    await File.WriteAllTextAsync(deferredPath, deferredSql, ct);
                 }
+
+                deferredScriptIds.Add(deferredId);
             }
 
             if (!dryRun)
@@ -144,9 +157,18 @@ internal sealed class MigrationManager : IMigrationManager
                 registryName,
                 mainPath,
                 deferredPath,
-                result.SqlScript,
-                result.DeferredSqlScript,
+                mainSql,
+                deferredSql,
                 false));
+        }
+
+        if (!dryRun && (generatedScriptIds.Count > 0 || deferredScriptIds.Count > 0))
+        {
+            var runlist = new MigrationRunlistManager(_options, _scriptStore);
+            var allNewIds = new List<Guid>(generatedScriptIds.Count + deferredScriptIds.Count);
+            allNewIds.AddRange(generatedScriptIds);
+            allNewIds.AddRange(deferredScriptIds);
+            await runlist.AppendNewScriptsAsync(allNewIds, ct);
         }
 
         return generated;
@@ -396,10 +418,12 @@ internal sealed class MigrationManager : IMigrationManager
 
     internal string ResolveMigrationsDirectory() => _scriptStore.ResolveMigrationsDirectory();
 
+    internal MigrationRunlistManager CreateRunlistManager() => new(_options, _scriptStore);
+
     internal static IEnumerable<string> SplitOracleStatements(string sql) =>
         OracleMigrationDialect.SplitStatements(sql);
 
-    private async Task<GeneratedMigrationItem?> GenerateGlobalObjectsAsync(
+    private async Task<(GeneratedMigrationItem Item, Guid ScriptId)?> GenerateGlobalObjectsAsync(
         string migrationName,
         string timestamp,
         string stateDir,
@@ -437,14 +461,17 @@ internal sealed class MigrationManager : IMigrationManager
         }
 
         string? globalSqlPath = null;
-        if (!string.IsNullOrWhiteSpace(globalDiff.SqlScript))
+        var globalSql = globalDiff.SqlScript;
+        var globalId = Guid.Empty;
+        if (!string.IsNullOrWhiteSpace(globalSql))
         {
+            (globalSql, globalId, _) = MigrationScriptHeader.StampHeader(globalSql);
             var globalDir = Path.Combine(sqlRootDir, "_global");
             globalSqlPath = Path.Combine(globalDir, $"{timestamp}_{migrationName}.sql");
             if (!dryRun)
             {
                 Directory.CreateDirectory(globalDir);
-                await File.WriteAllTextAsync(globalSqlPath, globalDiff.SqlScript, ct);
+                await File.WriteAllTextAsync(globalSqlPath, globalSql, ct);
             }
         }
 
@@ -453,12 +480,12 @@ internal sealed class MigrationManager : IMigrationManager
             await File.WriteAllTextAsync(globalSnapshotPath, globalDiff.UpdatedSnapshotJson, ct);
         }
 
-        return new GeneratedMigrationItem(
+        return (new GeneratedMigrationItem(
             "_global",
             globalSqlPath,
             null,
-            globalDiff.SqlScript,
+            globalSql,
             string.Empty,
-            false);
+            false), globalId);
     }
 }

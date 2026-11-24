@@ -100,37 +100,52 @@ internal sealed class DoctorDatabaseValidator(
         }
 
         var applied = await historyStore.ReadAppliedAsync(conn, ct);
-        var statuses = await scriptStore.BuildStatusItemsAsync(applied, ct);
-        if (!string.IsNullOrWhiteSpace(registryFilter))
+        try
         {
-            statuses = statuses
-                .Where(s => string.Equals(s.RegistryName, registryFilter, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-        }
+            var statuses = await scriptStore.BuildStatusItemsAsync(applied, ct);
+            if (!string.IsNullOrWhiteSpace(registryFilter))
+            {
+                statuses = statuses
+                    .Where(s => string.Equals(s.RegistryName, registryFilter, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
 
-        var appliedCount = statuses.Count(s => s.IsApplied);
-        var pendingCount = statuses.Count(s => !s.IsApplied);
-        var mismatchCount = statuses.Count(s => s.HasChecksumMismatch);
+            var appliedCount = statuses.Count(s => s.IsApplied);
+            var pendingCount = statuses.Count(s => !s.IsApplied);
+            var mismatchCount = statuses.Count(s => s.HasChecksumMismatch);
 
-        if (mismatchCount > 0)
-        {
-            checks.Add(new DoctorCheckItem(
-                DoctorSeverity.Error,
-                $"Migration history table '{options.HistoryTableName}' found {mismatchCount} modified script(s) after being applied.",
-                Hint: "Run `db-migrator status` to inspect checksum mismatches."));
+            if (mismatchCount > 0)
+            {
+                checks.Add(new DoctorCheckItem(
+                    DoctorSeverity.Error,
+                    $"Migration history table '{options.HistoryTableName}' found {mismatchCount} modified script(s) after being applied.",
+                    Hint: "Run `db-migrator status` to inspect checksum mismatches."));
+            }
+            else if (pendingCount > 0)
+            {
+                checks.Add(new DoctorCheckItem(
+                    DoctorSeverity.Warning,
+                    $"Migration history table '{options.HistoryTableName}' verified ({appliedCount} applied, {pendingCount} pending)",
+                    Hint: "Run `db-migrator migrate` to apply pending scripts."));
+            }
+            else
+            {
+                checks.Add(new DoctorCheckItem(
+                    DoctorSeverity.Pass,
+                    $"Migration history table '{options.HistoryTableName}' verified ({appliedCount} applied, 0 pending)"));
+            }
+
+            var orderWarnings = new MigrationRunlistManager(options, scriptStore)
+                .Validate(applied)
+                .Where(c => c.Severity == DoctorSeverity.Warning);
+            checks.AddRange(orderWarnings);
         }
-        else if (pendingCount > 0)
+        catch (Exception ex)
         {
             checks.Add(new DoctorCheckItem(
                 DoctorSeverity.Warning,
-                $"Migration history table '{options.HistoryTableName}' verified ({appliedCount} applied, {pendingCount} pending)",
-                Hint: "Run `db-migrator migrate` to apply pending scripts."));
-        }
-        else
-        {
-            checks.Add(new DoctorCheckItem(
-                DoctorSeverity.Pass,
-                $"Migration history table '{options.HistoryTableName}' verified ({appliedCount} applied, 0 pending)"));
+                $"Could not verify pending scripts against '{options.HistoryTableName}': {ex.Message}",
+                Hint: "Fix the runlist errors above or run `db-migrator runlist sync`."));
         }
     }
 

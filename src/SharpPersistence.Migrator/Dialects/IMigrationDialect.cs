@@ -59,7 +59,7 @@ internal static class MigrationDialectRegistry
 
     public static IMigrationDialect Get(
         SqlDialect dialect,
-        OracleDbCompatibility oracleCompatibility = OracleDbCompatibility.OracleDb19) =>
+        OracleDbCompatibility oracleCompatibility = OracleDbCompatibility.Oracle19) =>
         dialect switch
         {
             SqlDialect.PostgreSql => PostgresInstance,

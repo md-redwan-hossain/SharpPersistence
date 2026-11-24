@@ -153,6 +153,34 @@ builder.HasKey(x => new { x.OrderId, x.LineNumber })
 | `Ignore(x => x.Prop)` | Excludes property from schema & SQL |
 | `HasQueryFilter(x => ...)` / `HasQueryFilter(key, x => ...)` | Query filters for `ApplySchemaToEfCore` |
 | `HasKey(x => x.Id)` / `HasKey(...).HasName("pk_...")` | Single or composite PK and explicit constraint name |
+| `OwnsOne(x => x.Nav, owned => ...)` | Inline table-split owned value objects (supports nested `OwnsOne`, `Property`, `Ignore`, `HasIndex`) |
+
+## Owned Value Objects (`OwnsOne`)
+
+Map value objects inline onto the owner's table using `OwnsOne` (columns default to `{Nav}_{Prop}` formatted with your naming convention):
+
+```csharp
+builder.OwnsOne(x => x.BillingAddress, a =>
+{
+    a.Property(x => x.City).HasMaxLength(100);
+    a.Property(x => x.ZipCode).HasMaxLength(20);
+    a.HasIndex(x => x.ZipCode);
+    a.Ignore(x => x.DisplayLine);
+});
+
+// Nullable navigation (Address? ShippingAddress): all owned columns default to NULL
+builder.OwnsOne(x => x.ShippingAddress, a =>
+{
+    a.Property(x => x.City).HasColumnName("ship_city").HasMaxLength(100);
+    a.OwnsOne(x => x.Coordinates, g =>
+    {
+        g.Property(x => x.Latitude).HasPrecision(9, 6);
+        g.Property(x => x.Longitude).HasPrecision(9, 6);
+    });
+});
+```
+
+When the navigation property is nullable (`Address?`), all mapped owned columns automatically default to `NULL` in SQL (even if the value object's C# properties are non-nullable). Explicitly calling `.IsRequired()` inside a nullable owned navigation is rejected by both `SchemaFinalizer` and `db-migrator doctor`.
 
 ## Column Configuration (`Property(x => x.Prop)`)
 
@@ -164,8 +192,7 @@ builder.Property(x => x.Code)
     .HasDefaultValue("ORD-NEW");
 
 builder.Property(x => x.FullTotal)
-    .HasComputedColumnSql(e => e.Column(x => x.Subtotal).Math().Plus(x => x.Tax))
-    .IsStored();
+    .HasComputedColumnSql(expr => expr.Column(x => x.Subtotal).Math().Plus(x => x.Tax), stored: true);
 
 builder.Property(x => x.RowVersion)
     .IsRowVersion(); // Uses PostgreSQL xmin when property is uint
@@ -174,6 +201,6 @@ builder.Property(x => x.RowVersion)
 | Category | Methods |
 | --- | --- |
 | **Naming & Types** | `HasColumnName`, `HasPreviousColumnName`, `HasColumnType`, `HasMaxLength`, `HasPrecision(p)` / `HasPrecision(p, s)`, `IsUnicode(bool)`, `IsRequired(bool)` |
-| **Defaults & Generation** | `HasDefaultValue<TValue>(value)`, `HasDefaultValueSql(sql)`, `HasComputedColumnSql(expr / sql)` + `IsStored(bool)`, `ValueGeneratedOnAdd(isIdentity: true)`, `ValueGeneratedOnAddOrUpdate()`, `ValueGeneratedNever()` |
+| **Defaults & Generation** | `HasDefaultValue<TValue>(value)`, `HasDefaultValueSql(sql)`, `HasComputedColumnSql(expr / sql, stored: false)`, `ValueGeneratedOnAdd(isIdentity: true)`, `ValueGeneratedOnAddOrUpdate()`, `ValueGeneratedNever()` |
 | **Concurrency & Metadata** | `IsConcurrencyToken()`, `IsRowVersion()`, `HasComment(text)`, `SetAnnotation<TValue>(name, value)` |
 | **Type Conversions** | `HasConversion<TProvider>()` / `HasConversion(Type)`, plus `HasConversion(ValueConverter)` in `SharpPersistence.Migrator.EfCore` |

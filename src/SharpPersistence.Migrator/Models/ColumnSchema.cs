@@ -54,5 +54,8 @@ internal sealed class ColumnSchema
     public object? ValueConverter { get; set; }
 
     [JsonIgnore]
+    public bool IsOwnedColumn { get; set; }
+
+    [JsonIgnore]
     public Dictionary<string, object?> Annotations { get; set; } = new(StringComparer.Ordinal);
 }
