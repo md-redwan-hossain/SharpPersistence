@@ -245,6 +245,7 @@ internal sealed class ColumnDefinition
     public bool IsIdentity { get; set; }
     public ValueGenerationMode ValueGenerated { get; set; }
     public string? ComputedColumnSql { get; set; }
+    public Func<SqlDialect, SqlIdentifierCase, bool, string, string>? ComputedColumnSqlRenderer { get; set; }
     public bool IsComputedStored { get; set; }
     public string? Comment { get; set; }
     public bool IsConcurrencyToken { get; set; }

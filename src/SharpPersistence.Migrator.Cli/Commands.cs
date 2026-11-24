@@ -444,10 +444,10 @@ internal sealed class DoctorCommand : AsyncCommand<DoctorSettings>
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine("[bold]SharpPersistence Migrator Doctor[/]");
+            AnsiConsole.MarkupLine("[bold]db-migrator doctor[/]");
             AnsiConsole.WriteLine();
-            AnsiConsole.MarkupLine("[bold underline]DI & Wiring[/]");
-            AnsiConsole.MarkupLine($"  [red]{FailIcon}[/] Failed to bootstrap DI container: {Markup.Escape(ex.Message)}");
+            AnsiConsole.MarkupLine("[bold]Dependency Injection Configuration:[/]");
+            AnsiConsole.MarkupLine($"  [red]{FailIcon}[/] Failed to load startup project: {Markup.Escape(ex.Message)}");
             AnsiConsole.WriteLine();
             AnsiConsole.Write(new Rule().RuleStyle("grey"));
             AnsiConsole.MarkupLine("Summary: [green]0 passed[/], [yellow]0 warnings[/], [red]1 error[/]  (exit code 1)");
@@ -462,14 +462,15 @@ internal sealed class DoctorCommand : AsyncCommand<DoctorSettings>
                 discoveredAssemblies: loaded.LoadedAssemblies);
 
             var modeLabel = settings.CheckDb ? "Live DB" : "Offline";
-            AnsiConsole.MarkupLine("[bold]SharpPersistence Migrator Doctor[/]");
+            AnsiConsole.MarkupLine("[bold]db-migrator doctor[/]");
             AnsiConsole.MarkupLine(
-                $"[grey]Host: {Markup.Escape(loaded.HostName)} ({report.Dialect})  {DotIcon}  Mode: {modeLabel}  {DotIcon}  Registries: {report.RegistryReports.Count}[/]");
+                $"[grey]Project: {Markup.Escape(loaded.HostName)} ({report.Dialect})  {DotIcon}  Mode: {modeLabel}  {DotIcon}  Registries: {report.RegistryReports.Count}[/]");
             AnsiConsole.WriteLine();
 
-            // DI & Wiring
-            AnsiConsole.MarkupLine("[bold]DI & Wiring[/]");
-            AnsiConsole.MarkupLine($"  [green]{PassIcon}[/] ServiceProvider bootstrapped ({Markup.Escape(loaded.BootstrapSource)})");
+            // Dependency Injection Configuration
+            AnsiConsole.MarkupLine("[bold]Dependency Injection Configuration:[/]");
+            AnsiConsole.MarkupLine(
+                $"  [green]{PassIcon}[/] Services loaded from {Markup.Escape(loaded.StartupProjectDisplayPath)} ({Markup.Escape(loaded.BootstrapSource)})");
             RenderItems(report.WiringChecks);
 
             // Per-Registry summary
@@ -477,7 +478,7 @@ internal sealed class DoctorCommand : AsyncCommand<DoctorSettings>
             {
                 AnsiConsole.WriteLine();
                 AnsiConsole.MarkupLine(
-                    $"[bold]Registry: {Markup.Escape(reg.RegistryName)}[/] [grey]({reg.EntityCount} entities, {reg.ColumnCount} columns)[/]");
+                    $"[bold]Registry: {Markup.Escape(reg.RegistryName)}:[/] [grey]({reg.EntityCount} entities, {reg.ColumnCount} columns)[/]");
                 RenderItems(reg.Items);
             }
 
@@ -485,7 +486,7 @@ internal sealed class DoctorCommand : AsyncCommand<DoctorSettings>
             if (report.CrossRegistryChecks.Count > 0)
             {
                 AnsiConsole.WriteLine();
-                AnsiConsole.MarkupLine("[bold]Cross-Registry Checks[/]");
+                AnsiConsole.MarkupLine("[bold]Cross-Registry Checks:[/]");
                 RenderItems(report.CrossRegistryChecks);
             }
 
@@ -493,7 +494,7 @@ internal sealed class DoctorCommand : AsyncCommand<DoctorSettings>
             if (report.MigrationCoverageChecks.Count > 0)
             {
                 AnsiConsole.WriteLine();
-                AnsiConsole.MarkupLine("[bold]Migration Scripts[/]");
+                AnsiConsole.MarkupLine("[bold]Migration Scripts:[/]");
                 RenderItems(report.MigrationCoverageChecks);
             }
 
@@ -501,11 +502,11 @@ internal sealed class DoctorCommand : AsyncCommand<DoctorSettings>
             if (report.DatabaseChecks.Count > 0)
             {
                 AnsiConsole.WriteLine();
-                AnsiConsole.MarkupLine("[bold]Live Database[/]");
+                AnsiConsole.MarkupLine("[bold]Live Database:[/]");
                 RenderItems(report.DatabaseChecks);
             }
 
-            var totalPassed = report.PassedCount + 1; // includes ServiceProvider bootstrapped
+            var totalPassed = report.PassedCount + 1;
             var exitCode = report.HasErrors ? 1 : 0;
 
             AnsiConsole.WriteLine();
@@ -515,7 +516,7 @@ internal sealed class DoctorCommand : AsyncCommand<DoctorSettings>
 
             if (!settings.CheckDb)
             {
-                AnsiConsole.MarkupLine("[grey]Tip: Pass --check-db to also verify live database connectivity and schema sync.[/]");
+                AnsiConsole.MarkupLine("[grey]Tip: Pass --check-db to also check the live database.[/]");
             }
 
             return exitCode;

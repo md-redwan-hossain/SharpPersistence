@@ -95,3 +95,26 @@ DateTime? latestOrderAt = await orderRepo.Query()
 | `GetCountAsync(cond, ct)` | `Query().Where(cond).GetCountAsync(ct)` |
 | `ExistsAsync(filter, match, ct)` | `Query().Where(filter).ExistsAsync(match, ct)` |
 | `EveryAsync(filter, match, ct)` | `Query().Where(filter).EveryAsync(match, ct)` |
+
+## Compile-Time Entity Discovery Attributes
+
+`SharpPersistence.Abstractions` provides zero-dependency domain attributes (and transitively includes the Roslyn entity manifest generator):
+
+- `[Entity]` — built-in marker for single-registry projects.
+- `EntityMarkerAttribute` + `[assembly: DiscoverEntitiesBy<TMarkerAttribute>]` — custom per-module marker attributes for modular monoliths.
+- `[assembly: DisableEntityDiscovery]` (or MSBuild `<DisableEntityDiscovery>true</DisableEntityDiscovery>`) — opts an assembly out of source generation.
+
+```csharp
+using SharpPersistence.Abstractions;
+
+// Custom module marker in Billing.Domain
+public sealed class BillingEntityAttribute : EntityMarkerAttribute;
+
+[assembly: DiscoverEntitiesBy<BillingEntityAttribute>]
+
+[BillingEntity]
+public sealed class Invoice
+{
+    public Guid Id { get; set; }
+}
+```

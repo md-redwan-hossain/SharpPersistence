@@ -105,7 +105,13 @@ internal static class SchemaFinalizer
                 DefaultValueSql = cb.DefaultValueSql,
                 IsIdentity = cb.IsIdentity,
                 ValueGenerated = cb.ValueGenerated,
-                ComputedColumnSql = cb.ComputedColumnSql,
+                ComputedColumnSql = cb.ComputedColumnSqlRenderer is not null
+                    ? cb.ComputedColumnSqlRenderer(
+                        tb.Dialect,
+                        tb.IdentifierCase,
+                        tb.CheckConstraintOptions.DelimitIdentifiers,
+                        tb.CheckConstraintOptions.NestedColumnSeparator)
+                    : cb.ComputedColumnSql,
                 IsComputedStored = cb.IsComputedStored,
                 Comment = cb.Comment,
                 IsConcurrencyToken = cb.IsConcurrencyToken,

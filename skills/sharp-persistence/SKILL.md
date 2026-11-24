@@ -111,7 +111,7 @@ builder.ToTable(t =>
 
 ## Using with `SharpPersistence.Migrator`
 
-`EntityBuilder<TEntity>.HasCheckConstraint` accepts `Func<SqlCheckConstraintBuilder<TEntity>, SqlPredicate>` directly (inheriting `Dialect` and `IdentifierCase` automatically) and returns `CheckConstraintBuilder<TEntity>` for per-constraint fluent overrides:
+`EntityBuilder<TEntity>.HasCheckConstraint` and `IndexBuilder<TEntity>.HasFilter` accept `Func<SqlCheckConstraintBuilder<TEntity>, SqlPredicate>` directly (inheriting `Dialect` and `IdentifierCase` automatically). For full migrator setup, registries, and CLI usage, see the `sharp-persistence-migrator` skill.
 
 ```csharp
 // Global defaults in AddDbMigrator (defaults: DelimitIdentifiers = true, NestedColumnSeparator = "_")

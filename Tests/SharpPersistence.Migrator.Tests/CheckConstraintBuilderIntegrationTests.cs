@@ -158,4 +158,49 @@ public sealed class CheckConstraintBuilderIntegrationTests
         Assert.Equal("shipping__zip_code IS NOT NULL", byName["ck_inherits_global"]);
         Assert.Equal("\"shipping__zip_code\" IS NOT NULL", byName["ck_partial_override"]);
     }
+
+    private sealed class ComputedOrder
+    {
+        public int Id { get; set; }
+        public decimal Subtotal { get; set; }
+        public decimal Tax { get; set; }
+        public decimal FullTotal { get; set; }
+    }
+
+    private sealed class ComputedColumnRegistry : IEntityRegistry
+    {
+        public void Configure(IEntityRegistryBuilder registry)
+        {
+            registry.Entity<ComputedOrder>(b =>
+            {
+                b.ToTable("computed_orders");
+                b.Property(x => x.FullTotal)
+                    .HasComputedColumnSql(cc => cc.Column(x => x.Subtotal).Math().Plus(x => x.Tax), stored: true);
+            });
+        }
+    }
+
+    [Fact]
+    public void HasComputedColumnSql_TypedExpression_RendersForDialectAndIdentifierCase()
+    {
+        var registry = new ComputedColumnRegistry();
+
+        var pgSchema = SchemaScanner.ScanRegistry(
+            registry,
+            SqlDialect.PostgreSql,
+            SqlIdentifierCase.LowerSnakeCase,
+            [registry]);
+        var pgCol = pgSchema.Tables.Single().Columns.Single(c => c.PropertyName == nameof(ComputedOrder.FullTotal));
+        Assert.Equal("\"subtotal\" + \"tax\"", pgCol.ComputedColumnSql);
+        Assert.True(pgCol.IsComputedStored);
+
+        var oracleSchema = SchemaScanner.ScanRegistry(
+            registry,
+            SqlDialect.Oracle,
+            SqlIdentifierCase.UpperSnakeCase,
+            [registry]);
+        var oracleCol = oracleSchema.Tables.Single().Columns.Single(c => c.PropertyName == nameof(ComputedOrder.FullTotal));
+        Assert.Equal("\"SUBTOTAL\" + \"TAX\"", oracleCol.ComputedColumnSql);
+        Assert.True(oracleCol.IsComputedStored);
+    }
 }

@@ -15,6 +15,7 @@ internal sealed record LoadedMigrationContext(
     MigrationManager Manager,
     string RootPath,
     string HostName,
+    string StartupProjectDisplayPath,
     string BootstrapSource,
     IReadOnlyList<Assembly> LoadedAssemblies);
 
@@ -28,7 +29,12 @@ internal static class TargetAssemblyLoader
 
     public static LoadedMigrationContext CreateManagerContext(SharedSettings settings)
     {
-        var (assemblyPath, startupDir) = ResolveStartupAssembly(settings.StartupProjectPath, settings.NoBuild);
+        var (csprojPath, assemblyPath, startupDir) = ResolveStartupAssembly(settings.StartupProjectPath, settings.NoBuild);
+        var startupDisplayPath = Path.GetRelativePath(Directory.GetCurrentDirectory(), csprojPath);
+        if (startupDisplayPath.StartsWith("..", StringComparison.Ordinal))
+        {
+            startupDisplayPath = csprojPath;
+        }
         var destinationRoot = ResolveDestinationDirectory(settings.DestinationProjectPath, startupDir);
         var outputRoot = ResolveOutputDirectory(settings.OutputDir, settings.DestinationProjectPath is not null ? destinationRoot : null, destinationRoot);
 
@@ -92,7 +98,7 @@ internal static class TargetAssemblyLoader
 
             var provider = services.BuildServiceProvider();
             var manager = (MigrationManager)provider.GetRequiredService<IMigrationManager>();
-            return new LoadedMigrationContext(provider, manager, outputRoot, hostName, factoryType.Name, loadedAssemblies);
+            return new LoadedMigrationContext(provider, manager, outputRoot, hostName, startupDisplayPath, factoryType.Name, loadedAssemblies);
         }
 
         // Tier 2: Resolve IHost / IServiceProvider from Program.Main via Microsoft.Extensions.Hosting DiagnosticListener
@@ -105,7 +111,7 @@ internal static class TargetAssemblyLoader
         var options = host.Services.GetRequiredService<MigrationManagerOptions>();
         options.OverrideRootPath(outputRoot);
 
-        return new LoadedMigrationContext(host, hostManager, outputRoot, hostName, "Program.cs", loadedAssemblies);
+        return new LoadedMigrationContext(host, hostManager, outputRoot, hostName, startupDisplayPath, "Program.cs", loadedAssemblies);
     }
 
     public static async ValueTask DisposeAsync(object? owner)
@@ -195,7 +201,7 @@ internal static class TargetAssemblyLoader
         public void Dispose() => _listenerSubscription?.Dispose();
     }
 
-    private static (string AssemblyPath, string StartupDir) ResolveStartupAssembly(string? startupArg, bool noBuild)
+    private static (string CsprojPath, string AssemblyPath, string StartupDir) ResolveStartupAssembly(string? startupArg, bool noBuild)
     {
         var csprojPath = ResolveCsprojOrDirectory(
             startupArg ?? Directory.GetCurrentDirectory(),
@@ -228,7 +234,7 @@ internal static class TargetAssemblyLoader
                 $"Compiled assembly '{assemblyName}.dll' not found under '{binDir}'. Run 'dotnet build' first.");
         }
 
-        return (dll, startupDir);
+        return (csprojPath, dll, startupDir);
     }
 
     private static void BuildStartupProject(string csprojPath)

@@ -237,6 +237,9 @@ public sealed class SqlColumnBuilder<TEntity, TProp>
 
     public SqlPredicate IsNotNull() => new(new SqlNullCheckExpression(Node, Negated: true), Context);
 
+    public static implicit operator SqlBuiltExpression(SqlColumnBuilder<TEntity, TProp> column)
+        => new(column.Node, column.Context);
+
     /// <summary>
     /// Appends a raw SQL condition after the rendered column expression (e.g. <c>"~ '^ORD-[0-9]+$'"</c>).
     /// </summary>
@@ -481,6 +484,9 @@ public sealed class SqlNumericExpression<TEntity> : SqlNumericComparison<TEntity
 
     private SqlNumericExpression<TEntity> Op(string op, SqlExpression right)
         => new(new SqlBinaryExpression(Node, op, right), Context);
+
+    public static implicit operator SqlBuiltExpression(SqlNumericExpression<TEntity> numeric)
+        => new(numeric.Node, numeric.Context);
 }
 
 /// <summary>

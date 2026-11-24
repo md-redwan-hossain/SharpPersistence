@@ -18,7 +18,7 @@ internal sealed class DoctorWiringValidator(
         {
             new(
                 DoctorSeverity.Pass,
-                $"MigrationManager resolved (Dialect: {options.Dialect}, Case: {options.IdentifierCase})")
+                $"Migrator configured (Database: {options.Dialect}, Naming: {options.IdentifierCase})")
         };
 
         if (options.ConnectionFactory is not null)
@@ -33,13 +33,13 @@ internal sealed class DoctorWiringValidator(
             {
                 checks.Add(new DoctorCheckItem(
                     DoctorSeverity.Pass,
-                    "Database connection string and provider factory verified"));
+                    "Database connection string and driver verified"));
             }
             else
             {
                 checks.Add(new DoctorCheckItem(
                     DoctorSeverity.Error,
-                    $"Connection string is set, but no DbProviderFactory could be loaded for '{options.Dialect}'.",
+                    $"Connection string is set, but no database driver could be loaded for '{options.Dialect}'.",
                     Hint: options.Dialect == SqlDialect.PostgreSql
                         ? "Install the Npgsql NuGet package or pass a DbProviderFactory / connection factory."
                         : "Install Oracle.ManagedDataAccess.Core or pass a DbProviderFactory / connection factory."));

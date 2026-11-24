@@ -70,6 +70,7 @@ public sealed class ColumnBuilder
     public ColumnBuilder HasComputedColumnSql(string? sql, bool stored = false)
     {
         Definition.ComputedColumnSql = sql;
+        Definition.ComputedColumnSqlRenderer = null;
         Definition.IsComputedStored = stored;
         return this;
     }
@@ -139,4 +140,37 @@ public sealed class ColumnBuilder
         IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
         _ => $"'{value.ToString()?.Replace("'", "''")}'"
     };
+}
+
+public sealed class ColumnBuilder<TEntity> : ColumnBuilder where TEntity : class
+{
+    internal ColumnBuilder(ColumnDefinition definition) : base(definition)
+    {
+    }
+
+    public ColumnBuilder<TEntity> HasComputedColumnSql(
+        Func<SqlCheckConstraintBuilder<TEntity>, SqlBuiltExpression> expression,
+        bool stored = false)
+    {
+        ArgumentNullException.ThrowIfNull(expression);
+
+        Definition.ComputedColumnSql = null;
+        Definition.ComputedColumnSqlRenderer = (dialect, identifierCase, delimitIdentifiers, nestedSeparator) =>
+        {
+            var builder = new SqlCheckConstraintBuilder<TEntity>
+            {
+                Dialect = dialect,
+                IdentifierCase = identifierCase,
+                DelimitIdentifiers = delimitIdentifiers,
+                NestedSeparator = nestedSeparator
+            };
+
+            var result = expression(builder)
+                ?? throw new InvalidOperationException(
+                    $"Computed column expression for '{Definition.PropertyName}' on entity '{typeof(TEntity).Name}' returned null.");
+            return result.ToString();
+        };
+        Definition.IsComputedStored = stored;
+        return this;
+    }
 }

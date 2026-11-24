@@ -7,7 +7,7 @@ app.Configure(config =>
     config.SetApplicationName("db-migrator");
 
     config.AddCommand<DiffCommand>("diff")
-        .WithDescription("Scan entity registries, diff against snapshots, and generate idempotent SQL scripts.")
+        .WithDescription("Compare entity configurations against your latest migration scripts and generate SQL.")
         .WithExample("diff", "--name", "Initial", "--startup-project", "WebApi/WebApi.csproj");
 
     config.AddCommand<MigrateCommand>("migrate")
@@ -32,7 +32,7 @@ app.Configure(config =>
         .WithDescription("Mark _translated scripts already present in __EFMigrationsHistory as applied.");
 
     config.AddCommand<VerifyCommand>("verify")
-        .WithDescription("Compare live database tables and columns against your C# schema to detect drift.")
+        .WithDescription("Compare your live database against your entity configurations to find unexpected differences.")
         .WithExample("verify", "--startup-project", "WebApi/WebApi.csproj");
 
     config.AddCommand<DoctorCommand>("doctor")

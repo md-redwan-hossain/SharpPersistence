@@ -78,10 +78,10 @@ public sealed class EntityBuilder<TEntity> where TEntity : class
         return new KeyBuilder<TEntity>(Definition);
     }
 
-    public ColumnBuilder Property<TProperty>(Expression<Func<TEntity, TProperty>> propertyExpression)
+    public ColumnBuilder<TEntity> Property<TProperty>(Expression<Func<TEntity, TProperty>> propertyExpression)
     {
         var propName = ExpressionHelper.ExtractSinglePropertyName(propertyExpression);
-        return Definition.GetOrAddColumn(propName, typeof(TProperty), true);
+        return new ColumnBuilder<TEntity>(Definition.GetOrAddColumn(propName, typeof(TProperty)));
     }
 
     public IndexBuilder<TEntity, TKey> HasIndex<TKey>(Expression<Func<TEntity, TKey>> indexExpression)
