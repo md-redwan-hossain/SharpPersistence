@@ -5,7 +5,7 @@
   </PropertyGroup>
 
   <Target Name="_SharpPersistenceIncludeSqlFiles"
-          BeforeTargets="AssignTargetPaths"
+          BeforeTargets="AssignTargetPaths;CollectUpToDateCheckInputDesignTime"
           Condition="'$(SharpPersistenceAutoCopySqlFiles)' == 'true'">
     <ItemGroup>
       <_SharpPersistenceSqlRunlistFiles Include="$(MSBuildProjectDirectory)\**\db-migration-runlist.json"
@@ -13,12 +13,17 @@
     </ItemGroup>
 
     <ItemGroup Condition="'@(_SharpPersistenceSqlRunlistFiles)' != ''">
-      <_SharpPersistenceSqlMigrationExcludes Include="$([MSBuild]::MakeRelative($(MSBuildProjectDirectory), $([System.IO.Path]::GetDirectoryName('%(_SharpPersistenceSqlRunlistFiles.FullPath)'))))\**\*.sql" />
+      <_SharpPersistenceSqlRunlistDirs Include="$([MSBuild]::NormalizeDirectory($([System.IO.Path]::GetDirectoryName('%(_SharpPersistenceSqlRunlistFiles.FullPath)'))))" />
+      <_SharpPersistenceSqlMigrationExcludes Include="%(_SharpPersistenceSqlRunlistDirs.Identity)**\*.sql" />
     </ItemGroup>
 
     <ItemGroup>
+      <_SharpPersistenceSqlCustomItems Include="@(Content)" Condition="'%(Content.TargetPath)' != ''" />
+      <_SharpPersistenceSqlCustomItems Include="@(None)" Condition="'%(None.TargetPath)' != ''" />
       <_SharpPersistenceSqlFiles Include="**\*.sql"
-                                 Exclude="$(DefaultItemExcludes);$(DefaultExcludesInProjectFolder);out\**;publish\**;bin\**;obj\**;MigrationScripts\**;@(_SharpPersistenceSqlMigrationExcludes);@(EmbeddedResource);$(SharpPersistenceSqlExclude)" />
+                                 Exclude="$(DefaultItemExcludes);$(DefaultExcludesInProjectFolder);out\**;publish\**;bin\**;obj\**;MigrationScripts\**;@(EmbeddedResource);$(SharpPersistenceSqlExclude)" />
+      <_SharpPersistenceSqlFiles Remove="@(_SharpPersistenceSqlMigrationExcludes)" />
+      <_SharpPersistenceSqlFiles Remove="@(_SharpPersistenceSqlCustomItems)" />
     </ItemGroup>
 
     <ItemGroup Condition="'@(_SharpPersistenceSqlFiles)' != ''">
@@ -28,6 +33,7 @@
             CopyToOutputDirectory="PreserveNewest"
             CopyToPublishDirectory="PreserveNewest"
             TargetPath="$(SharpPersistenceSqlOutputFolder)\$(AssemblyName)\%(_SharpPersistenceSqlFiles.RecursiveDir)%(_SharpPersistenceSqlFiles.Filename)%(_SharpPersistenceSqlFiles.Extension)" />
+      <UpToDateCheckInput Include="@(_SharpPersistenceSqlFiles)" Set="SharpPersistenceSql" />
     </ItemGroup>
   </Target>
 </Project>

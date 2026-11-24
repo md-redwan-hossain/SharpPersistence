@@ -9,7 +9,8 @@ internal sealed record RunlistSyncResult(
     int AddedCount,
     int PrunedCount,
     string RunlistPath,
-    bool WasWritten);
+    bool WasWritten,
+    IReadOnlyList<Guid>? StaleOverrideIds = null);
 
 internal sealed class MigrationRunlistManager
 {
@@ -222,12 +223,57 @@ internal sealed class MigrationRunlistManager
             await File.WriteAllTextAsync(RunlistPath, json, ct);
         }
 
+        var staleOverrideIds = FindStaleOverrideIds(scriptsById);
+
         return new RunlistSyncResult(
             stampedCount,
             sortedUntracked.Count,
             prunedCount,
             RunlistPath,
-            !dryRun && (finalIds.Count > 0 || File.Exists(RunlistPath)));
+            !dryRun && (finalIds.Count > 0 || File.Exists(RunlistPath)),
+            staleOverrideIds);
+    }
+
+    private List<Guid> FindStaleOverrideIds(IReadOnlyDictionary<Guid, RunlistScriptEntry> scriptsById)
+    {
+        if (!File.Exists(OverridesPath))
+        {
+            return [];
+        }
+
+        try
+        {
+            var json = File.ReadAllText(OverridesPath);
+            var rawSequences = JsonSerializer.Deserialize<List<List<string>>>(json, ReadOverridesJsonOptions);
+            if (rawSequences is null)
+            {
+                return [];
+            }
+
+            var stale = new List<Guid>();
+            var seen = new HashSet<Guid>();
+            foreach (var seq in rawSequences)
+            {
+                if (seq is null)
+                {
+                    continue;
+                }
+
+                foreach (var rawId in seq)
+                {
+                    if (Guid.TryParse(rawId, out var id) && id != Guid.Empty && !scriptsById.ContainsKey(id) && seen.Add(id))
+                    {
+                        stale.Add(id);
+                    }
+                }
+            }
+
+            return stale;
+        }
+        catch
+        {
+            return [];
+        }
     }
 
     public List<DoctorCheckItem> Validate(IReadOnlyList<AppliedMigrationRecord>? applied = null)
@@ -412,10 +458,12 @@ internal sealed class MigrationRunlistManager
         foreach (var dir in dirs)
         {
             var folder = Path.GetFileName(dir);
-            var files = Directory.GetFiles(dir, "*.sql").OrderBy(Path.GetFileName, StringComparer.Ordinal);
+            var files = Directory.GetFiles(dir, "*.sql", SearchOption.AllDirectories)
+                .OrderBy(f => Path.GetRelativePath(dir, f).Replace('\\', '/'), StringComparer.Ordinal);
             foreach (var file in files)
             {
-                results.Add((folder, Path.GetFileName(file), file));
+                var relScript = Path.GetRelativePath(dir, file).Replace('\\', '/');
+                results.Add((folder, relScript, file));
             }
         }
 

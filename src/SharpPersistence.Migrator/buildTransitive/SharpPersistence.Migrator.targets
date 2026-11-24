@@ -1,22 +1,38 @@
 <Project>
-  <Target Name="_SharpPersistenceIncludeMigrationScripts" BeforeTargets="AssignTargetPaths">
+  <PropertyGroup>
+    <SharpPersistenceAutoCopyMigrationScripts Condition="'$(SharpPersistenceAutoCopyMigrationScripts)' == ''">true</SharpPersistenceAutoCopyMigrationScripts>
+  </PropertyGroup>
+
+  <Target Name="_SharpPersistenceIncludeMigrationScripts"
+          BeforeTargets="AssignTargetPaths;CollectUpToDateCheckInputDesignTime"
+          Condition="'$(SharpPersistenceAutoCopyMigrationScripts)' == 'true'">
     <ItemGroup>
       <_SharpPersistenceRunlistFiles Include="$(MSBuildProjectDirectory)\**\db-migration-runlist.json"
                                      Exclude="$(MSBuildProjectDirectory)\bin\**;$(MSBuildProjectDirectory)\obj\**;$(MSBuildProjectDirectory)\out\**;$(MSBuildProjectDirectory)\publish\**" />
     </ItemGroup>
 
-    <PropertyGroup>
-      <_SharpPersistenceDetectedMigrationsDir Condition="'@(_SharpPersistenceRunlistFiles)' != ''">$([System.IO.Path]::GetDirectoryName('%(_SharpPersistenceRunlistFiles.Identity)'))</_SharpPersistenceDetectedMigrationsDir>
-      <_SharpPersistenceDetectedMigrationsDir Condition="'$(_SharpPersistenceDetectedMigrationsDir)' == '' And Exists('$(MSBuildProjectDirectory)\MigrationScripts')">$(MSBuildProjectDirectory)\MigrationScripts</_SharpPersistenceDetectedMigrationsDir>
-    </PropertyGroup>
+    <ItemGroup Condition="'@(_SharpPersistenceRunlistFiles)' != ''">
+      <_SharpPersistenceMigrationsDirs Include="$([MSBuild]::NormalizeDirectory($([System.IO.Path]::GetDirectoryName('%(_SharpPersistenceRunlistFiles.FullPath)'))))" />
+    </ItemGroup>
 
-    <ItemGroup Condition="'$(_SharpPersistenceDetectedMigrationsDir)' != '' And Exists('$(_SharpPersistenceDetectedMigrationsDir)')">
-      <_SharpPersistenceMigrationAssets Include="$(_SharpPersistenceDetectedMigrationsDir)\**\*.sql" />
-      <_SharpPersistenceMigrationAssets Include="$(_SharpPersistenceDetectedMigrationsDir)\db-migration-runlist*.json" />
-      <Content Include="@(_SharpPersistenceMigrationAssets)"
-               Link="$([MSBuild]::MakeRelative($(MSBuildProjectDirectory), %(_SharpPersistenceMigrationAssets.FullPath)))"
-               CopyToOutputDirectory="PreserveNewest"
-               CopyToPublishDirectory="PreserveNewest" />
+    <ItemGroup Condition="'@(_SharpPersistenceMigrationsDirs)' == '' And Exists('$(MSBuildProjectDirectory)\MigrationScripts')">
+      <_SharpPersistenceMigrationsDirs Include="$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)\MigrationScripts'))" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'@(_SharpPersistenceMigrationsDirs)' != ''">
+      <_SharpPersistenceMigrationAssets Include="%(_SharpPersistenceMigrationsDirs.Identity)**\*.sql"
+                                        Exclude="$(MSBuildProjectDirectory)\bin\**;$(MSBuildProjectDirectory)\obj\**;$(MSBuildProjectDirectory)\out\**;$(MSBuildProjectDirectory)\publish\**" />
+      <_SharpPersistenceMigrationAssets Include="%(_SharpPersistenceMigrationsDirs.Identity)db-migration-runlist*.json" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'@(_SharpPersistenceMigrationAssets)' != ''">
+      <Content Remove="@(_SharpPersistenceMigrationAssets)" />
+      <None Remove="@(_SharpPersistenceMigrationAssets)" />
+      <None Include="@(_SharpPersistenceMigrationAssets)"
+            TargetPath="$([MSBuild]::MakeRelative($(MSBuildProjectDirectory), %(_SharpPersistenceMigrationAssets.FullPath)))"
+            CopyToOutputDirectory="PreserveNewest"
+            CopyToPublishDirectory="PreserveNewest" />
+      <UpToDateCheckInput Include="@(_SharpPersistenceMigrationAssets)" Set="SharpPersistenceMigrations" />
     </ItemGroup>
   </Target>
 </Project>

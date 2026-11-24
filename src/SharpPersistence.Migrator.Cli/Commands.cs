@@ -593,6 +593,12 @@ internal sealed class RunlistShowCommand : AsyncCommand<RunlistShowSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, RunlistShowSettings settings)
     {
+        if (settings.Recent is <= 0)
+        {
+            AnsiConsole.MarkupLine("[red]Error:[/] --recent must be a positive integer.");
+            return 1;
+        }
+
         var (owner, manager, _) = TargetAssemblyLoader.CreateManager(settings);
         try
         {
@@ -652,6 +658,14 @@ internal sealed class RunlistSyncCommand : AsyncCommand<RunlistSyncSettings>
             AnsiConsole.MarkupLine(
                 $"{prefix}Synced [cyan]{Markup.Escape(result.RunlistPath)}[/] " +
                 $"(stamped: {result.StampedCount}, added: {result.AddedCount}, pruned: {result.PrunedCount}).");
+
+            if (result.StaleOverrideIds is { Count: > 0 })
+            {
+                AnsiConsole.MarkupLine(
+                    $"[yellow]Warning:[/] db-migration-runlist.overrides.json still references {result.StaleOverrideIds.Count} missing script ID(s): " +
+                    $"{string.Join(", ", result.StaleOverrideIds)}. Remove them from the overrides file.");
+            }
+
             return 0;
         }
         finally

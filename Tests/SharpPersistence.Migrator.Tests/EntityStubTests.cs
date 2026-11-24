@@ -221,7 +221,7 @@ public sealed class EntityStubTests
     }
 
     [Fact]
-    public void MigrationScriptStore_DiscoverScripts_RespectsEntityStubsAndConventionsOrder()
+    public async Task MigrationScriptStore_DiscoverScripts_RespectsEntityStubsAndConventionsOrder()
     {
         var tempRoot = Path.Combine(Path.GetTempPath(), $"sp_stub_scripts_{Guid.NewGuid():N}");
         try
@@ -248,7 +248,9 @@ public sealed class EntityStubTests
                 .AddRegistry<BillingRegistry>()
                 .AddRegistry<AccessControlRegistry>();
 
-            var store = new MigrationScriptStore(optionsBuilder.Build());
+            var options = optionsBuilder.Build();
+            var store = new MigrationScriptStore(options);
+            await new MigrationRunlistManager(options, store).SyncAsync(ct: TestContext.Current.CancellationToken);
             var discovered = store.DiscoverScripts();
 
             Assert.Equal(

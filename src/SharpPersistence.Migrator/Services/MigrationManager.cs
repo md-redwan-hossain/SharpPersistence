@@ -69,10 +69,10 @@ internal sealed class MigrationManager : IMigrationManager
         if (_dialect.SupportsGlobalExtensionsAndEnums && string.IsNullOrWhiteSpace(registryFilter))
         {
             var globalItem = await GenerateGlobalObjectsAsync(migrationName, timestamp, stateDir, sqlRootDir, dryRun, ct);
-            if (globalItem is not null)
+            if (globalItem is { } g)
             {
-                generated.Add(globalItem.Item);
-                generatedScriptIds.Add(globalItem.ScriptId);
+                generated.Add(g.Item);
+                generatedScriptIds.Add(g.ScriptId);
             }
         }
 

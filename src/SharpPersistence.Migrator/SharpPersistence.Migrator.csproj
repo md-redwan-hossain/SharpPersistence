@@ -51,11 +51,11 @@
     </ItemGroup>
 
     <ItemGroup>
-        <None Include="buildTransitive\SharpPersistence.Migrator.props"
+        <None Update="buildTransitive\SharpPersistence.Migrator.props"
               Pack="true"
               PackagePath="buildTransitive\SharpPersistence.Migrator.props"
               Visible="false" />
-        <None Include="buildTransitive\SharpPersistence.Migrator.targets"
+        <None Update="buildTransitive\SharpPersistence.Migrator.targets"
               Pack="true"
               PackagePath="buildTransitive\SharpPersistence.Migrator.targets"
               Visible="false" />

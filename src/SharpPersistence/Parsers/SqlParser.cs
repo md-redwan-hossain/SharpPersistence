@@ -14,6 +14,8 @@ public class SqlParser
         bool throwIfDirectoryNotExists = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directoryName);
+        _validationErrors.Clear();
+        _parser.ValidationErrors.Clear();
 
         var sqlFiles = LoadFromDirectory(directoryName, throwIfDirectoryNotExists);
         foreach (var sqlFile in sqlFiles)
@@ -28,6 +30,8 @@ public class SqlParser
     public IParsedSqlStorage ParseFromString(string sqlContent)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sqlContent);
+        _validationErrors.Clear();
+        _parser.ValidationErrors.Clear();
 
         _parser.Parse(sqlContent, "sql from string");
         ThrowExceptionIfErrorsExist();
@@ -57,12 +61,13 @@ public class SqlParser
 
     private static IEnumerable<SqlFile> GetSqlFiles(string directoryName)
     {
-        var files = Directory.GetFiles(directoryName, "*.sql", SearchOption.AllDirectories);
+        var files = Directory.GetFiles(directoryName, "*.sql", SearchOption.AllDirectories)
+            .OrderBy(f => f, StringComparer.Ordinal);
         foreach (var file in files)
         {
             yield return new SqlFile
             {
-                FileName = Path.GetFileName(file),
+                FileName = Path.GetRelativePath(directoryName, file),
                 Content = File.ReadAllText(file)
             };
         }

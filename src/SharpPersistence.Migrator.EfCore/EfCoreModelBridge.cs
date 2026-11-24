@@ -107,7 +107,7 @@ public static class EfCoreModelBridge
                     foreach (var owned in table.OwnedNavigations)
                     {
                         entity.OwnsOne(owned.OwnedClrType, owned.NavigationName, ob =>
-                            ApplyOwnedNavigation(ob, owned, table));
+                            ApplyOwnedNavigation(ob, owned, table, owned.IsOptional));
 
                         if (!owned.IsOptional)
                         {
@@ -174,7 +174,8 @@ public static class EfCoreModelBridge
     private static void ApplyOwnedNavigation(
         OwnedNavigationBuilder ownedBuilder,
         OwnedNavigationSchema owned,
-        TableSchema table)
+        TableSchema table,
+        bool insideOptionalOwned)
     {
         foreach (var ignoredProp in owned.IgnoredProperties)
         {
@@ -182,6 +183,7 @@ public static class EfCoreModelBridge
         }
 
         var prefix = $"{owned.PropertyPathPrefix}.";
+        var mappedLocalProps = new HashSet<string>(StringComparer.Ordinal);
         foreach (var col in table.Columns)
         {
             if (!col.IsOwnedColumn || !col.PropertyName.StartsWith(prefix, StringComparison.Ordinal))
@@ -195,7 +197,25 @@ public static class EfCoreModelBridge
                 continue;
             }
 
-            ApplyColumnFacets(ownedBuilder.Property(localPropName), col);
+            mappedLocalProps.Add(localPropName);
+            ApplyColumnFacets(ownedBuilder.Property(localPropName), col, insideOptionalOwned);
+        }
+
+        var nestedNavNames = new HashSet<string>(
+            owned.NestedNavigations.Select(n => n.NavigationName),
+            StringComparer.Ordinal);
+
+        // Ignore any unconfigured CLR properties on the owned type (e.g. an unconfigured nested owned type
+        // that is configured on another sibling OwnsOne of the same CLR type) so EF Core does not throw.
+        foreach (var propInfo in owned.OwnedClrType.GetProperties(
+                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
+        {
+            if (!mappedLocalProps.Contains(propInfo.Name) &&
+                !nestedNavNames.Contains(propInfo.Name) &&
+                !owned.IgnoredProperties.Contains(propInfo.Name))
+            {
+                ownedBuilder.Ignore(propInfo.Name);
+            }
         }
 
         foreach (var ix in table.Indexes)
@@ -214,8 +234,9 @@ public static class EfCoreModelBridge
 
         foreach (var nested in owned.NestedNavigations)
         {
+            var nestedOptional = insideOptionalOwned || nested.IsOptional;
             ownedBuilder.OwnsOne(nested.OwnedClrType, nested.NavigationName, nb =>
-                ApplyOwnedNavigation(nb, nested, table));
+                ApplyOwnedNavigation(nb, nested, table, nestedOptional));
 
             if (!nested.IsOptional)
             {
@@ -224,11 +245,20 @@ public static class EfCoreModelBridge
         }
     }
 
-    private static void ApplyColumnFacets(PropertyBuilder prop, ColumnSchema col)
+    private static void ApplyColumnFacets(PropertyBuilder prop, ColumnSchema col, bool insideOptionalOwned = false)
     {
         prop.HasColumnName(col.ColumnName)
-            .HasColumnType(col.SqlType)
-            .IsRequired(!col.IsNullable);
+            .HasColumnType(col.SqlType);
+
+        if (!insideOptionalOwned)
+        {
+            var clrType = prop.Metadata.ClrType;
+            var isNonNullableValueType = clrType.IsValueType && Nullable.GetUnderlyingType(clrType) is null;
+            if (!col.IsNullable || !isNonNullableValueType)
+            {
+                prop.IsRequired(!col.IsNullable);
+            }
+        }
 
         if (col.ValueConverter is ValueConverter valueConverter)
         {

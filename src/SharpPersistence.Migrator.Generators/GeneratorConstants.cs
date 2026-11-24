@@ -12,12 +12,12 @@ internal static class GeneratorConstants
     public const string ManifestPrefix = "EntityManifest_";
     public const string AggregatorPrefix = "EntityRegistryAggregator_";
 
-    public const string EntityMarkerAttributeMetadataName = "SharpPersistence.Abstractions.EntityMarkerAttribute";
-    public const string DefaultEntityAttributeMetadataName = "SharpPersistence.Abstractions.EntityAttribute";
-    public const string DiscoverEntitiesByAttributeMetadataName = "SharpPersistence.Abstractions.DiscoverEntitiesByAttribute`1";
-    public const string DisableEntityDiscoveryAttributeMetadataName = "SharpPersistence.Abstractions.DisableEntityDiscoveryAttribute";
-    public const string EntityManifestAttributeMetadataName = "SharpPersistence.Abstractions.EntityManifestAttribute";
-    public const string EntityManifestEntryAttributeMetadataName = "SharpPersistence.Abstractions.EntityManifestEntryAttribute";
+    public const string EntityMarkerAttributeMetadataName = "SharpPersistence.Abstractions.Attributes.EntityMarkerAttribute";
+    public const string DefaultEntityAttributeMetadataName = "SharpPersistence.Abstractions.Attributes.EntityAttribute";
+    public const string DiscoverEntitiesByAttributeMetadataName = "SharpPersistence.Abstractions.Attributes.DiscoverEntitiesByAttribute`1";
+    public const string DisableEntityDiscoveryAttributeMetadataName = "SharpPersistence.Abstractions.Attributes.DisableEntityDiscoveryAttribute";
+    public const string EntityManifestAttributeMetadataName = "SharpPersistence.Abstractions.Attributes.EntityManifestAttribute";
+    public const string EntityManifestEntryAttributeMetadataName = "SharpPersistence.Abstractions.Attributes.EntityManifestEntryAttribute";
 
     public const string EntityRegistryAttributeMetadataName = "SharpPersistence.Migrator.Attributes.EntityRegistryAttribute";
     public const string GenericEntityRegistryAttributeMetadataName = "SharpPersistence.Migrator.Attributes.EntityRegistryAttribute`1";

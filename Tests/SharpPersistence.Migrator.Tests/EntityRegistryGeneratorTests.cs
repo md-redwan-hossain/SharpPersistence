@@ -84,7 +84,7 @@ public sealed class EntityRegistryGeneratorTests
     public void BuiltInEntityAttribute_SingleProject_GeneratesExplicitInterfaceConfigureAndPairsConfig()
     {
         const string source = """
-            using SharpPersistence.Abstractions;
+            using SharpPersistence.Abstractions.Attributes;
             using SharpPersistence.Migrator.Abstractions;
             using SharpPersistence.Migrator.Attributes;
             using SharpPersistence.Migrator.Builders;
@@ -138,7 +138,7 @@ public sealed class EntityRegistryGeneratorTests
     public void CrossAssembly_CustomMarker_DomainToInfrastructureToRoot_IsolatesModulesAndEmitsRootExtension()
     {
         const string aclDomainSource = """
-            using SharpPersistence.Abstractions;
+            using SharpPersistence.Abstractions.Attributes;
 
             [assembly: DiscoverEntitiesBy<AccessControl.Domain.AccessControlEntityAttribute>]
 
@@ -154,7 +154,7 @@ public sealed class EntityRegistryGeneratorTests
             """;
 
         const string billingDomainSource = """
-            using SharpPersistence.Abstractions;
+            using SharpPersistence.Abstractions.Attributes;
 
             [assembly: DiscoverEntitiesBy<Billing.Domain.BillingEntityAttribute>]
 
@@ -248,7 +248,7 @@ public sealed class EntityRegistryGeneratorTests
     public void Diagnostics_ReportsSpm001ThroughSpm005()
     {
         const string source = """
-            using SharpPersistence.Abstractions;
+            using SharpPersistence.Abstractions.Attributes;
             using SharpPersistence.Migrator.Abstractions;
             using SharpPersistence.Migrator.Attributes;
             using SharpPersistence.Migrator.Builders;
@@ -320,7 +320,7 @@ public sealed class EntityRegistryGeneratorTests
     public void Diagnostics_ReportsSpm006ForNonPublicEntityAndSpm007ForOrphanConfig()
     {
         const string source = """
-            using SharpPersistence.Abstractions;
+            using SharpPersistence.Abstractions.Attributes;
             using SharpPersistence.Migrator.Abstractions;
             using SharpPersistence.Migrator.Attributes;
             using SharpPersistence.Migrator.Builders;
@@ -359,7 +359,7 @@ public sealed class EntityRegistryGeneratorTests
     public void DisableEntityDiscovery_AssemblyAttributeAndMsBuildProp_SkipsAllGeneration()
     {
         const string source = """
-            using SharpPersistence.Abstractions;
+            using SharpPersistence.Abstractions.Attributes;
             using SharpPersistence.Migrator.Abstractions;
             using SharpPersistence.Migrator.Attributes;
 
@@ -388,7 +388,7 @@ public sealed class EntityRegistryGeneratorTests
         Assert.Empty(propResult.GeneratedTrees);
 
         const string attrDisabledSource = """
-            using SharpPersistence.Abstractions;
+            using SharpPersistence.Abstractions.Attributes;
             using SharpPersistence.Migrator.Abstractions;
             using SharpPersistence.Migrator.Attributes;
 

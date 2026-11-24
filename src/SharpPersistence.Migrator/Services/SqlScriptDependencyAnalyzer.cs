@@ -29,6 +29,7 @@ internal static partial class SqlScriptDependencyAnalyzer
         }
 
         var profiles = new Dictionary<Guid, ScriptDdlProfile>();
+        var strippedByScript = new Dictionary<Guid, string>();
         var allCreatedTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var allCreatedObjects = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -40,7 +41,9 @@ internal static partial class SqlScriptDependencyAnalyzer
             }
 
             var sql = File.ReadAllText(script.FullPath);
-            var profile = Analyze(sql);
+            var stripped = StripSqlComments(sql);
+            strippedByScript[script.Id] = stripped;
+            var profile = AnalyzeStripped(stripped);
             profiles[script.Id] = profile;
 
             foreach (var t in profile.ProvidesTables)
@@ -53,6 +56,8 @@ internal static partial class SqlScriptDependencyAnalyzer
                 allCreatedObjects.Add(o);
             }
         }
+
+        PopulateTypeUsage(profiles, strippedByScript, allCreatedObjects);
 
         var activeTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var droppedTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -149,14 +154,18 @@ internal static partial class SqlScriptDependencyAnalyzer
             .ToList();
 
         var profiles = new Dictionary<Guid, ScriptDdlProfile>(orderedByTimestamp.Count);
+        var strippedByScript = new Dictionary<Guid, string>(orderedByTimestamp.Count);
         var creatorByTable = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         var creatorByObject = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var allCreatedObjects = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         for (var i = 0; i < orderedByTimestamp.Count; i++)
         {
             var s = orderedByTimestamp[i];
             var sql = File.Exists(s.FullPath) ? File.ReadAllText(s.FullPath) : string.Empty;
-            var profile = Analyze(sql);
+            var stripped = StripSqlComments(sql);
+            strippedByScript[s.Id] = stripped;
+            var profile = AnalyzeStripped(stripped);
             profiles[s.Id] = profile;
 
             foreach (var t in profile.ProvidesTables)
@@ -167,8 +176,11 @@ internal static partial class SqlScriptDependencyAnalyzer
             foreach (var o in profile.ProvidesObjects)
             {
                 creatorByObject.TryAdd(o, i);
+                allCreatedObjects.Add(o);
             }
         }
+
+        PopulateTypeUsage(profiles, strippedByScript, allCreatedObjects);
 
         var n = orderedByTimestamp.Count;
         var adj = new HashSet<int>[n];
@@ -272,9 +284,8 @@ internal static partial class SqlScriptDependencyAnalyzer
         return "99999999999999";
     }
 
-    private static ScriptDdlProfile Analyze(string sql)
+    private static ScriptDdlProfile AnalyzeStripped(string strippedSql)
     {
-        var strippedSql = StripSqlComments(sql);
         var providesTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var requiresTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var dropsTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -329,10 +340,151 @@ internal static partial class SqlScriptDependencyAnalyzer
             requiresObjects);
     }
 
+    private static void PopulateTypeUsage(
+        Dictionary<Guid, ScriptDdlProfile> profiles,
+        Dictionary<Guid, string> strippedByScript,
+        HashSet<string> allCreatedObjects)
+    {
+        var createdTypes = allCreatedObjects
+            .Where(o => o.StartsWith("type:", StringComparison.Ordinal))
+            .Select(o => (Key: o, Name: o["type:".Length..]))
+            .ToList();
+
+        if (createdTypes.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var (scriptId, profile) in profiles)
+        {
+            if (!strippedByScript.TryGetValue(scriptId, out var stripped) || stripped.Length == 0)
+            {
+                continue;
+            }
+
+            foreach (var (key, typeName) in createdTypes)
+            {
+                if (profile.ProvidesObjects.Contains(key))
+                {
+                    continue;
+                }
+
+                var shortName = typeName.Contains('.', StringComparison.Ordinal)
+                    ? typeName[(typeName.LastIndexOf('.') + 1)..]
+                    : typeName;
+
+                if (Regex.IsMatch(stripped, $@"(?<![\w""]){Regex.Escape(shortName)}(?![\w""])", RegexOptions.IgnoreCase))
+                {
+                    profile.RequiresObjects.Add(key);
+                }
+            }
+        }
+    }
+
     private static string StripSqlComments(string sql)
     {
-        var withoutBlock = BlockCommentRegex().Replace(sql, " ");
-        return LineCommentRegex().Replace(withoutBlock, string.Empty);
+        if (string.IsNullOrEmpty(sql))
+        {
+            return sql;
+        }
+
+        var sb = new System.Text.StringBuilder(sql.Length);
+        var inSingleQuote = false;
+        var inDoubleQuote = false;
+
+        for (var i = 0; i < sql.Length; i++)
+        {
+            var c = sql[i];
+
+            if (inSingleQuote)
+            {
+                sb.Append(c);
+                if (c == '\'')
+                {
+                    if (i + 1 < sql.Length && sql[i + 1] == '\'')
+                    {
+                        sb.Append('\'');
+                        i++;
+                    }
+                    else
+                    {
+                        inSingleQuote = false;
+                    }
+                }
+
+                continue;
+            }
+
+            if (inDoubleQuote)
+            {
+                sb.Append(c);
+                if (c == '"')
+                {
+                    if (i + 1 < sql.Length && sql[i + 1] == '"')
+                    {
+                        sb.Append('"');
+                        i++;
+                    }
+                    else
+                    {
+                        inDoubleQuote = false;
+                    }
+                }
+
+                continue;
+            }
+
+            if (c == '\'')
+            {
+                inSingleQuote = true;
+                sb.Append(c);
+                continue;
+            }
+
+            if (c == '"')
+            {
+                inDoubleQuote = true;
+                sb.Append(c);
+                continue;
+            }
+
+            if (c == '-' && i + 1 < sql.Length && sql[i + 1] == '-')
+            {
+                i += 2;
+                while (i < sql.Length && sql[i] != '\n' && sql[i] != '\r')
+                {
+                    i++;
+                }
+
+                if (i < sql.Length)
+                {
+                    sb.Append(sql[i]);
+                }
+
+                continue;
+            }
+
+            if (c == '/' && i + 1 < sql.Length && sql[i + 1] == '*')
+            {
+                i += 2;
+                while (i + 1 < sql.Length && !(sql[i] == '*' && sql[i + 1] == '/'))
+                {
+                    i++;
+                }
+
+                if (i + 1 < sql.Length)
+                {
+                    i++;
+                }
+
+                sb.Append(' ');
+                continue;
+            }
+
+            sb.Append(c);
+        }
+
+        return sb.ToString();
     }
 
     private static string NormalizeIdent(string raw)
@@ -349,13 +501,13 @@ internal static partial class SqlScriptDependencyAnalyzer
     [GeneratedRegex(@"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?((?:""[^""]+""|\w+)(?:\s*\.\s*(?:""[^""]+""|\w+))?)", RegexOptions.IgnoreCase)]
     private static partial Regex CreateTableRegex();
 
-    [GeneratedRegex(@"ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?((?:""[^""]+""|\w+)(?:\s*\.\s*(?:""[^""]+""|\w+))?)", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:ONLY\s+)?((?:""[^""]+""|\w+)(?:\s*\.\s*(?:""[^""]+""|\w+))?)", RegexOptions.IgnoreCase)]
     private static partial Regex AlterTableRegex();
 
     [GeneratedRegex(@"REFERENCES\s+((?:""[^""]+""|\w+)(?:\s*\.\s*(?:""[^""]+""|\w+))?)", RegexOptions.IgnoreCase)]
     private static partial Regex ReferencesRegex();
 
-    [GeneratedRegex(@"CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:""[^""]+""|\w+)\s+ON\s+((?:""[^""]+""|\w+)(?:\s*\.\s*(?:""[^""]+""|\w+))?)", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:CONCURRENTLY\s+)?(?:IF\s+NOT\s+EXISTS\s+)?(?:""[^""]+""|\w+)\s+ON\s+((?:""[^""]+""|\w+)(?:\s*\.\s*(?:""[^""]+""|\w+))?)", RegexOptions.IgnoreCase)]
     private static partial Regex CreateIndexOnRegex();
 
     [GeneratedRegex(@"DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?((?:""[^""]+""|\w+)(?:\s*\.\s*(?:""[^""]+""|\w+))?)", RegexOptions.IgnoreCase)]
@@ -369,10 +521,4 @@ internal static partial class SqlScriptDependencyAnalyzer
 
     [GeneratedRegex(@"CREATE\s+TYPE\s+((?:""[^""]+""|\w+)(?:\s*\.\s*(?:""[^""]+""|\w+))?)", RegexOptions.IgnoreCase)]
     private static partial Regex CreateTypeRegex();
-
-    [GeneratedRegex(@"/\*[\s\S]*?\*/")]
-    private static partial Regex BlockCommentRegex();
-
-    [GeneratedRegex(@"--[^\r\n]*")]
-    private static partial Regex LineCommentRegex();
 }

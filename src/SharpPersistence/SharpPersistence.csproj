@@ -48,7 +48,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <None Include="buildTransitive\SharpPersistence.targets" Pack="True" PackagePath="buildTransitive\SharpPersistence.targets" />
+        <None Update="buildTransitive\SharpPersistence.targets" Pack="True" PackagePath="buildTransitive\SharpPersistence.targets" />
     </ItemGroup>
 
     <ItemGroup>

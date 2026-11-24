@@ -85,7 +85,7 @@ public sealed class EfCoreMigrationTranslatorTests
             var results = EfCoreMigrationTranslator.TranslateFromDirectory(
                 tempDir,
                 SqlDialect.Oracle,
-                OracleDbCompatibility.OracleDb19,
+                OracleDbCompatibility.Oracle19,
                 searchAssemblies: [typeof(SampleEfCoreMigration).Assembly]);
 
             var item = Assert.Single(results);

@@ -125,8 +125,8 @@ public sealed class OwnsOneTests
 
         // SQL generation emits all owned columns and index cleanly
         var diff = StandaloneSchemaDiffer.GenerateDiff(model, null, SqlDialect.PostgreSql, interactiveRenamePrompt: false);
-        Assert.Contains("\"billing_address_city\" varchar(100) NOT NULL", diff.SqlScript);
-        Assert.Contains("\"ship_city\" varchar(100) NULL", diff.SqlScript);
+        Assert.Contains("\"billing_address_city\" character varying(100) NOT NULL", diff.SqlScript);
+        Assert.Contains("\"ship_city\" character varying(100) NULL", diff.SqlScript);
         Assert.Contains("\"shipping_address_coordinates_latitude\" numeric(9,6) NULL", diff.SqlScript);
         Assert.Contains("\"ix_orders_billing_zip\"", diff.SqlScript);
     }

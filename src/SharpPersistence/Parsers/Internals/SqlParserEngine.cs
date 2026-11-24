@@ -5,7 +5,7 @@ using SharpPersistence.Abstractions.ValueObjects;
 
 namespace SharpPersistence.Parsers.Internals;
 
-internal class SqlParserEngine
+internal partial class SqlParserEngine
 {
     private static readonly string[] NewLineSeparators = ["\r\n", "\n", "\r"];
     private const string StartPrefix = "#start#";
@@ -64,8 +64,16 @@ internal class SqlParserEngine
                 var uniqueTag = ExtractUniqueName(ref line, EndPrefix);
                 switch (string.IsNullOrEmpty(uniqueTag))
                 {
-                    case false when sqlBlocks.ContainsKey(uniqueTag):
-                        sqlBlocks[uniqueTag] = sqlBlocks[uniqueTag] with { EndLine = line.Number, EndFound = true };
+                    case false when sqlBlocks.TryGetValue(uniqueTag, out var existingBlock) && existingBlock.EndFound:
+                        ValidationErrors.Add(FormatParserExceptionMessage(
+                            "Duplicate end tag '{0}' found. Each tag must have a single end tag.",
+                            actualValue: uniqueTag,
+                            lineNumber: line.Number,
+                            column: GetColumnPosition(line.Text, EndPrefix),
+                            sqlSource: _sqlSource));
+                        break;
+                    case false when sqlBlocks.TryGetValue(uniqueTag, out var openBlock):
+                        sqlBlocks[uniqueTag] = openBlock with { EndLine = line.Number, EndFound = true };
                         break;
                     case false:
                         ValidationErrors.Add(FormatParserExceptionMessage(
@@ -121,22 +129,32 @@ internal class SqlParserEngine
                     lineNumber: blockInfo.StartLine,
                     sqlSource: _sqlSource));
             }
-            else
+            else if (!ParsedSqlStatements.TryAdd(uniqueTag, finalSql))
             {
-                ParsedSqlStatements.TryAdd(uniqueTag, finalSql);
+                ValidationErrors.Add(FormatParserExceptionMessage(
+                    "Duplicate tag '{0}' found across SQL sources. Each tag must be unique.",
+                    actualValue: uniqueTag,
+                    lineNumber: blockInfo.StartLine,
+                    sqlSource: _sqlSource));
             }
         }
     }
 
     private static bool IsStartBlock(ref SqlLine sqlLine)
     {
-        return Regex.IsMatch(sqlLine.Text, @"^\s*--\s*#start#");
+        return StartBlockRegex().IsMatch(sqlLine.Text);
     }
 
     private static bool IsEndBlock(ref SqlLine sqlLine)
     {
-        return Regex.IsMatch(sqlLine.Text, @"^\s*--\s*#end#");
+        return EndBlockRegex().IsMatch(sqlLine.Text);
     }
+
+    [GeneratedRegex(@"^\s*--\s*#start#", RegexOptions.IgnoreCase)]
+    private static partial Regex StartBlockRegex();
+
+    [GeneratedRegex(@"^\s*--\s*#end#", RegexOptions.IgnoreCase)]
+    private static partial Regex EndBlockRegex();
 
     private string ExtractUniqueName(ref SqlLine sqlLine, string prefix)
     {

@@ -68,7 +68,7 @@ public sealed class OracleDialectGeneratorTests
     [Fact]
     public void GenerateSql_BooleanDefault_NormalizesTrueFalseToOneZeroOnNumber1()
     {
-        var generator = new OracleDialectGenerator(OracleDbCompatibility.OracleDb19);
+        var generator = new OracleDialectGenerator(OracleDbCompatibility.Oracle19);
         var addCol = new AddColumnOp(null, "USERS", new ColumnSchema
         {
             ColumnName = "IS_ACTIVE",
@@ -86,7 +86,7 @@ public sealed class OracleDialectGeneratorTests
     [Fact]
     public void GenerateSql_CreateTable_DoesNotDuplicateCommentsOrInlineFks()
     {
-        var generator = new OracleDialectGenerator(OracleDbCompatibility.OracleDb23);
+        var generator = new OracleDialectGenerator(OracleDbCompatibility.Oracle23);
         var table = new TableSchema
         {
             TableName = "ORDERS",
@@ -109,7 +109,7 @@ public sealed class OracleDialectGeneratorTests
     [Fact]
     public void GenerateSql_AlterColumn_HandlesIdentityAndComputedChanges()
     {
-        var generator = new OracleDialectGenerator(OracleDbCompatibility.OracleDb19);
+        var generator = new OracleDialectGenerator(OracleDbCompatibility.Oracle19);
         var oldIdentity = new ColumnSchema { ColumnName = "ID", SqlType = "NUMBER(19)", IsNullable = false, IsIdentity = false };
         var newIdentity = new ColumnSchema { ColumnName = "ID", SqlType = "NUMBER(19)", IsNullable = false, IsIdentity = true };
 
@@ -129,7 +129,7 @@ public sealed class OracleDialectGeneratorTests
     [Fact]
     public void GenerateSql_RenameTableAcrossSchemas_ThrowsNotSupportedException()
     {
-        var generator = new OracleDialectGenerator(OracleDbCompatibility.OracleDb19);
+        var generator = new OracleDialectGenerator(OracleDbCompatibility.Oracle19);
         Assert.Throws<NotSupportedException>(() =>
             generator.GenerateSql([new RenameTableOp("OLD_SCHEMA", "ORDERS", "NEW_SCHEMA", "ORDERS")]));
     }
@@ -137,7 +137,7 @@ public sealed class OracleDialectGeneratorTests
     [Fact]
     public void GenerateSql_PostgresStorageOperations_ThrowNotSupportedException()
     {
-        var generator = new OracleDialectGenerator(OracleDbCompatibility.OracleDb19);
+        var generator = new OracleDialectGenerator(OracleDbCompatibility.Oracle19);
         SchemaOperation[] unsupportedOps =
         [
             new SetTableLoggedOp(null, "ORDERS", IsUnlogged: true),
@@ -158,13 +158,13 @@ public sealed class OracleDialectGeneratorTests
     {
         var options = new MigrationManagerOptionsBuilder()
             .UseOracle("Data Source=localhost/XEPDB1", oracle => oracle
-                .UseSqlCompatibility(OracleDbCompatibility.OracleDb23))
+                .UseSqlCompatibility(OracleDbCompatibility.Oracle23))
             .UseNamingConvention(SqlIdentifierCase.UpperSnakeCase)
             .UseMigrationsDirectory("db/oracle_migrations")
             .Build();
 
         Assert.Equal(SqlDialect.Oracle, options.Dialect);
-        Assert.Equal(OracleDbCompatibility.OracleDb23, options.OracleCompatibility);
+        Assert.Equal(OracleDbCompatibility.Oracle23, options.OracleCompatibility);
         Assert.Equal("db/oracle_migrations", options.MigrationsDirectory);
     }
 }

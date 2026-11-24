@@ -4,14 +4,14 @@
 
 ## Why Use This?
 
-Embedding long multi-line SQL strings inside C# files (`"""SELECT ..."""`) makes queries hard to read, format, and test in a SQL client. Putting them in `.sql` files with `--@tag` markers lets you edit and run them directly in DataGrip, pgAdmin, or SQL Developer, while `SqlParser` validates every tag once at startup and exposes them through `IParsedSqlStorage`.
+Embedding long multi-line SQL strings inside C# files (`"""SELECT ..."""`) makes queries hard to read, format, and test in a SQL client. Putting them in `.sql` files with `-- #start# <tag>` / `-- #end# <tag>` markers lets you edit and run them directly in DataGrip, pgAdmin, or SQL Developer, while `SqlParser` validates every tag once at startup and exposes them through `IParsedSqlStorage`.
 
 ## 1. Write Tagged `.sql` Files
 
-Place your `.sql` files anywhere in your project (or in any referenced class library) and tag each query block:
+Place your `.sql` files anywhere in your project (or in any referenced class library) and wrap each query block with `-- #start# <tag>` and `-- #end# <tag>`:
 
 ```sql
---@get_monthly_revenue
+-- #start# get_monthly_revenue
 SELECT
     date_trunc('month', created_at) AS month,
     SUM(total) AS revenue
@@ -19,11 +19,13 @@ FROM sales.orders
 WHERE status = 'paid'
 GROUP BY 1
 ORDER BY 1 DESC;
+-- #end# get_monthly_revenue
 
---@get_customer_balance
+-- #start# get_customer_balance
 SELECT COALESCE(SUM(amount), 0)
 FROM billing.ledger_entries
 WHERE customer_id = @customer_id;
+-- #end# get_customer_balance
 ```
 
 ### Automatic Build & Publish Copying
@@ -63,20 +65,22 @@ using SharpPersistence.Parsers;
 
 var parser = new SqlParser();
 
-// Scans all *.sql files recursively under the directory
+// Scans all *.sql files recursively under sharp_persistence_sql_files (default)
 IParsedSqlStorage sqlStorage = parser.ParseFromStorage(
-    directoryName: "SqlQueries",
     throwIfDirectoryNotExists: true);
 
 builder.Services.AddSingleton(sqlStorage);
 ```
 
+If you customized `<SharpPersistenceSqlOutputFolder>`, pass the matching `directoryName` to `ParseFromStorage(directoryName: "custom_sql_folder", throwIfDirectoryNotExists: true)`.
+
 You can also parse SQL directly from a string (useful in unit tests):
 
 ```csharp
 IParsedSqlStorage storage = new SqlParser().ParseFromString("""
-    --@ping
+    -- #start# ping
     SELECT 1;
+    -- #end# ping
     """);
 ```
 

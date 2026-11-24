@@ -27,7 +27,7 @@ internal static partial class EfCoreMigrationTranslator
     public static IReadOnlyList<TranslatedEfCoreMigration> TranslateFromDirectory(
         string efCoreMigrationsDirectory,
         SqlDialect sqlDialect = SqlDialect.PostgreSql,
-        OracleDbCompatibility oracleCompatibility = OracleDbCompatibility.OracleDb19,
+        OracleDbCompatibility oracleCompatibility = OracleDbCompatibility.Oracle19,
         IEnumerable<Assembly>? searchAssemblies = null)
     {
         if (string.IsNullOrWhiteSpace(efCoreMigrationsDirectory))

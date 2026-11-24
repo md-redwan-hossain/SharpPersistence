@@ -12,7 +12,7 @@ internal static class MigrationScriptHeader
             return false;
         }
 
-        using var reader = new StringReader(sql);
+        using var reader = new StringReader(sql.TrimStart('\uFEFF'));
         while (reader.ReadLine() is { } line)
         {
             var trimmed = line.Trim();
@@ -56,7 +56,7 @@ internal static class MigrationScriptHeader
             return sql;
         }
 
-        var normalized = sql.Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\r", "\n", StringComparison.Ordinal);
+        var normalized = sql.TrimStart('\uFEFF').Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\r", "\n", StringComparison.Ordinal);
         var lines = normalized.Split('\n');
         var headerLineIndex = -1;
 
