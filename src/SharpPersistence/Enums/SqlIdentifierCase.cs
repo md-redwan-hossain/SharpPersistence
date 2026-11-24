@@ -4,5 +4,8 @@ public enum SqlIdentifierCase : byte
 {
     PascalCase,
     LowerSnakeCase,
-    UpperSnakeCase
+    UpperSnakeCase,
+    CamelCase,
+    LowerCase,
+    UpperCase
 }

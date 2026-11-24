@@ -103,6 +103,9 @@ internal static class SqlCheckRenderer
                 SqlIdentifierCase.LowerSnakeCase => col.Name.Underscore().ToLowerInvariant(),
                 SqlIdentifierCase.UpperSnakeCase => col.Name.Underscore().ToUpperInvariant(),
                 SqlIdentifierCase.PascalCase => col.Name.Pascalize(),
+                SqlIdentifierCase.CamelCase => col.Name.Camelize(),
+                SqlIdentifierCase.LowerCase => col.Name.ToLowerInvariant(),
+                SqlIdentifierCase.UpperCase => col.Name.ToUpperInvariant(),
                 _ => col.Name
             }
             : col.Name;

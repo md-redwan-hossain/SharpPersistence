@@ -14,9 +14,10 @@ internal sealed class DoctorCrossRegistryValidator(
         List<DoctorCheckItem> checks,
         bool hasRegistryErrors)
     {
-        var seenTables = new Dictionary<string, (string RegistryName, string EntityName)>(StringComparer.Ordinal);
+        var seenTables = new Dictionary<string, (string RegistryName, TableDefinition Table)>(StringComparer.Ordinal);
         var seenIndexes = new Dictionary<(string Schema, string IndexName), (string RegistryName, string TableName)>();
         var seenConstraints = new Dictionary<(string Schema, string ConstraintName), (string RegistryName, string TableName)>();
+        var excludedTables = new List<(string RegistryName, TableDefinition Table, string NormalizedSchema, string QualifiedName)>();
 
         foreach (var (_, (regName, tb)) in allTables)
         {
@@ -26,16 +27,22 @@ internal sealed class DoctorCrossRegistryValidator(
                 ? tb.TableName
                 : $"{normalizedSchema}.{tb.TableName}";
 
+            if (tb.ExcludeFromMigrations)
+            {
+                excludedTables.Add((regName, tb, normalizedSchema, displayQualifiedName));
+                continue;
+            }
+
             if (seenTables.TryGetValue(displayQualifiedName, out var existing))
             {
                 checks.Add(new DoctorCheckItem(
                     DoctorSeverity.Error,
-                    $"Table ownership collision: '{displayQualifiedName}' is mapped by both {existing.RegistryName} ({existing.EntityName}) and {regName} ({tb.EntityType.Name}).",
-                    Hint: "Use distinct table or schema names."));
+                    $"Table ownership collision: '{displayQualifiedName}' is mapped by both {existing.RegistryName} ({existing.Table.EntityType.Name}) and {regName} ({tb.EntityType.Name}).",
+                    Hint: "Use distinct table or schema names, or mark one as ExcludeFromMigrations()."));
             }
             else
             {
-                seenTables[displayQualifiedName] = (regName, tb.EntityType.Name);
+                seenTables[displayQualifiedName] = (regName, tb);
             }
 
             foreach (var ix in tb.Indexes)
@@ -90,6 +97,47 @@ internal sealed class DoctorCrossRegistryValidator(
             }
         }
 
+        var enumLookup = options.Enums.ToDictionary(e => e.ClrTypeName, StringComparer.Ordinal);
+        foreach (var (regName, excludedTb, _, qualifiedName) in excludedTables)
+        {
+            if (!seenTables.TryGetValue(qualifiedName, out var owner))
+            {
+                continue;
+            }
+
+            var ownerCols = owner.Table.ColumnsByProp.Values
+                .ToDictionary(c => c.ColumnName, c => c, StringComparer.Ordinal);
+
+            foreach (var stubCol in excludedTb.ColumnsByProp.Values)
+            {
+                if (!ownerCols.TryGetValue(stubCol.ColumnName, out var ownerCol))
+                {
+                    checks.Add(new DoctorCheckItem(
+                        DoctorSeverity.Error,
+                        $"External ref mismatch: {regName}.{excludedTb.EntityType.Name} maps column '{stubCol.ColumnName}', which does not exist on {owner.RegistryName}.{owner.Table.EntityType.Name} ('{qualifiedName}').",
+                        Hint: $"Update {excludedTb.EntityType.Name} configuration to match {owner.Table.EntityType.Name}."));
+                    continue;
+                }
+
+                try
+                {
+                    var stubType = excludedTb.ResolveColumnSqlType(stubCol, enumLookup);
+                    var ownerType = owner.Table.ResolveColumnSqlType(ownerCol, enumLookup);
+                    if (!dialect.AreSqlTypesCompatible(stubType, ownerType))
+                    {
+                        checks.Add(new DoctorCheckItem(
+                            DoctorSeverity.Error,
+                            $"External ref mismatch: {regName}.{excludedTb.EntityType.Name} maps column '{stubCol.ColumnName}' as {stubType}, but {owner.RegistryName}.{owner.Table.EntityType.Name} defines {ownerType}.",
+                            Hint: $"Update {excludedTb.EntityType.Name} configuration to match {owner.Table.EntityType.Name}."));
+                    }
+                }
+                catch
+                {
+                    // Individual column type errors are already reported under entity checks.
+                }
+            }
+        }
+
         if (!hasRegistryErrors && options.Registries.Count > 1)
         {
             try
@@ -98,7 +146,8 @@ internal sealed class DoctorCrossRegistryValidator(
                     options.Registries,
                     options.Dialect,
                     options.IdentifierCase,
-                    options.PropertyConventions);
+                    options.PropertyConventions,
+                    options.PluralizeTableNames);
             }
             catch (Exception ex)
             {

@@ -24,7 +24,8 @@ internal sealed class MigrationScriptStore
             _options.Registries,
             _options.Dialect,
             _options.IdentifierCase,
-            _options.PropertyConventions);
+            _options.PropertyConventions,
+            _options.PluralizeTableNames);
 
         var folders = new List<string> { "_global", "_translated" };
         folders.AddRange(sortedRegistries.Select(r => r.GetType().Name));

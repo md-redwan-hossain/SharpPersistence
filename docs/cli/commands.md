@@ -61,14 +61,14 @@ Live Database:
 Summary: 9 passed, 0 warnings, 0 errors  (exit code 0)
 ```
 
-### `diff`
+### `generate`
 
 Compares entity configurations against your latest migration scripts and generates safe-to-re-run SQL.
 
 ```powershell
-db-migrator diff --name Initial --startup-project WebApi/WebApi.csproj
-db-migrator diff --name AddOrders --registry SalesRegistry --dry-run
-db-migrator diff --name EmptyHook --allow-empty --ci
+db-migrator generate --name Initial --startup-project WebApi/WebApi.csproj
+db-migrator generate --name AddOrders --registry SalesRegistry --dry-run
+db-migrator generate --name EmptyHook --allow-empty --ci
 ```
 
 Options: `-n|--name <NAME>` (required), `-r|--registry <REGISTRY>`, `--ci|--non-interactive`, `--allow-empty`, `--dry-run`.
@@ -91,14 +91,6 @@ db-migrator status --startup-project WebApi/WebApi.csproj
 
 # List only pending scripts
 db-migrator pending --startup-project WebApi/WebApi.csproj
-```
-
-### `verify`
-
-Compares live database tables and columns against your C# schema to detect unexpected differences.
-
-```powershell
-db-migrator verify --startup-project WebApi/WebApi.csproj
 ```
 
 ### `translate-ef-configs`

@@ -52,4 +52,7 @@ internal sealed class ColumnSchema
 
     [JsonIgnore]
     public object? ValueConverter { get; set; }
+
+    [JsonIgnore]
+    public Dictionary<string, object?> Annotations { get; set; } = new(StringComparer.Ordinal);
 }

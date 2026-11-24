@@ -8,7 +8,6 @@ using SharpPersistence.Migrator.PostgreSql;
 using SharpPersistence.Migrator.Services;
 using Shouldly;
 using Testcontainers.PostgreSql;
-using Xunit;
 
 namespace SharpPersistence.Migrator.Tests;
 
@@ -100,7 +99,9 @@ public sealed class PostgresIntegrationTests(PostgresContainerFixture fixture)
                 e.HasCheckConstraint("ck_pg_bookings_amount", cc => cc.Column(x => x.Amount).GreaterThan(0));
                 e.HasExclusionConstraint("excl_pg_bookings_room_slot")
                     .WithElement(x => x.RoomId, PostgresExclusionOperator.Equals)
-                    .WithExpression("tstzrange(\"starts_at\", \"ends_at\", '[)')", PostgresExclusionOperator.Overlaps);
+                    .WithExpression(
+                        expr => expr.Raw("tstzrange(\"starts_at\", \"ends_at\", '[)')"),
+                        PostgresExclusionOperator.Overlaps);
                 e.HasIndex(x => x.CustomerId).HasDatabaseName("ix_pg_bookings_customer_id");
             });
         }
@@ -128,7 +129,9 @@ public sealed class PostgresIntegrationTests(PostgresContainerFixture fixture)
                 e.HasCheckConstraint("ck_pg_bookings_amount", cc => cc.Column(x => x.Amount).GreaterThan(0));
                 e.HasExclusionConstraint("excl_pg_bookings_room_slot")
                     .WithElement(x => x.RoomId, PostgresExclusionOperator.Equals)
-                    .WithExpression("tstzrange(\"starts_at\", \"ends_at\", '[)')", PostgresExclusionOperator.Overlaps);
+                    .WithExpression(
+                        expr => expr.Raw("tstzrange(\"starts_at\", \"ends_at\", '[)')"),
+                        PostgresExclusionOperator.Overlaps);
                 e.HasIndex(x => x.CustomerId).HasDatabaseName("ix_pg_bookings_customer_id");
             });
         }
@@ -172,7 +175,8 @@ public sealed class PostgresIntegrationTests(PostgresContainerFixture fixture)
             applied.Count.ShouldBe(2);
 
             (await manager.GetPendingMigrationsAsync(ct)).ShouldBeEmpty();
-            (await manager.VerifySchemaAsync(ct)).ShouldBeEmpty();
+            var report = await manager.DiagnoseAsync(checkDatabase: true, ct: ct);
+            report.HasErrors.ShouldBeFalse();
 
             // Verify live PostgreSQL enforces check constraint & GiST exclusion constraint
             await using var conn = new NpgsqlConnection(dbConnectionString);
@@ -259,7 +263,8 @@ public sealed class PostgresIntegrationTests(PostgresContainerFixture fixture)
             var v2Applied = await managerV2.MigrateAsync(ct: ct);
             v2Applied.ShouldContain(s => s.Contains("AddCustomerEmail", StringComparison.Ordinal));
 
-            (await managerV2.VerifySchemaAsync(ct)).ShouldBeEmpty();
+            var v2Report = await managerV2.DiagnoseAsync(checkDatabase: true, ct: ct);
+            v2Report.HasErrors.ShouldBeFalse();
             var statuses = await managerV2.GetStatusAsync(ct);
             statuses.ShouldAllBe(s => s.IsApplied && !s.HasChecksumMismatch);
         }

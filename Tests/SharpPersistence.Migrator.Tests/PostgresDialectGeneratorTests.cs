@@ -316,7 +316,7 @@ public sealed class PostgresDialectGeneratorTests
                 b.Property(x => x.StartsAt).HasColumnName("start_time");
 
                 b.HasExclusionConstraint("ex_reservations_no_overlap")
-                    .WithExpression(x => x.RoomCode, col => $"lower({col})", PostgresExclusionOperator.Equals)
+                    .WithExpression(e => e.Column(x => x.RoomCode).Lower(), PostgresExclusionOperator.Equals)
                     .WithRange(x => x.StartsAt, x => x.EndsAt, PostgresExclusionOperator.Overlaps)
                     .WithRange(x => x.ValidFrom, x => x.ValidTo, PostgresExclusionOperator.Overlaps, PostgresRangeBounds.Inclusive);
             });
@@ -331,7 +331,7 @@ public sealed class PostgresDialectGeneratorTests
         var diff = StandaloneSchemaDiffer.GenerateDiff(schema, null, SqlDialect.PostgreSql, interactiveRenamePrompt: false);
 
         Assert.Contains(
-            "CONSTRAINT \"ex_reservations_no_overlap\" EXCLUDE USING gist (lower(\"room_code\") WITH =, tstzrange(\"start_time\", \"ends_at\", '[)') WITH &&, daterange(\"valid_from\", \"valid_to\", '[]') WITH &&);",
+            "CONSTRAINT \"ex_reservations_no_overlap\" EXCLUDE USING gist (LOWER(\"room_code\") WITH =, tstzrange(\"start_time\", \"ends_at\", '[)') WITH &&, daterange(\"valid_from\", \"valid_to\", '[]') WITH &&);",
             diff.SqlScript);
     }
 }

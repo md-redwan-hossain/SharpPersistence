@@ -6,9 +6,9 @@ app.Configure(config =>
 {
     config.SetApplicationName("db-migrator");
 
-    config.AddCommand<DiffCommand>("diff")
+    config.AddCommand<DiffCommand>("generate")
         .WithDescription("Compare entity configurations against your latest migration scripts and generate SQL.")
-        .WithExample("diff", "--name", "Initial", "--startup-project", "WebApi/WebApi.csproj");
+        .WithExample("generate", "--name", "Initial", "--startup-project", "WebApi/WebApi.csproj");
 
     config.AddCommand<MigrateCommand>("migrate")
         .WithDescription("Apply all pending SQL migration scripts to the target database.")
@@ -30,10 +30,6 @@ app.Configure(config =>
 
     config.AddCommand<SyncEfCoreHistoryCommand>("sync-ef-history")
         .WithDescription("Mark _translated scripts already present in __EFMigrationsHistory as applied.");
-
-    config.AddCommand<VerifyCommand>("verify")
-        .WithDescription("Compare your live database against your entity configurations to find unexpected differences.")
-        .WithExample("verify", "--startup-project", "WebApi/WebApi.csproj");
 
     config.AddCommand<DoctorCommand>("doctor")
         .WithDescription("Validate DI wiring, entity registries, configurations, migration script coverage, and optionally live database connectivity.")

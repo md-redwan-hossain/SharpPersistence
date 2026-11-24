@@ -18,6 +18,9 @@ internal sealed class TableSchema
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Comment { get; set; }
 
+    [JsonIgnore]
+    public bool ExcludeFromMigrations { get; set; }
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool IsUnlogged { get; set; }
 
@@ -35,6 +38,9 @@ internal sealed class TableSchema
 
     [JsonIgnore]
     public Dictionary<string, LambdaExpression?> NamedQueryFilters { get; set; } = new(StringComparer.Ordinal);
+
+    [JsonIgnore]
+    public Dictionary<string, object?> Annotations { get; set; } = new(StringComparer.Ordinal);
 
     public PrimaryKeySchema? PrimaryKey { get; set; }
     public List<ColumnSchema> Columns { get; set; } = [];

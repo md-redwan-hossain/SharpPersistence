@@ -44,49 +44,36 @@ public sealed class PostgresExclusionConstraintBuilder<TEntity> where TEntity : 
     }
 
     public PostgresExclusionConstraintBuilder<TEntity> WithExpression(
-        string sqlExpression,
+        Func<ISqlExpressionBuilder<TEntity>, SqlBuiltExpression> expression,
         PostgresExclusionOperator op) =>
-        WithExpression(sqlExpression, op.ToSqlOperator());
+        WithExpression(expression, op.ToSqlOperator());
 
     public PostgresExclusionConstraintBuilder<TEntity> WithExpression(
-        string sqlExpression,
+        Func<ISqlExpressionBuilder<TEntity>, SqlBuiltExpression> expression,
         string rawOperator)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(sqlExpression);
+        ArgumentNullException.ThrowIfNull(expression);
         ArgumentException.ThrowIfNullOrWhiteSpace(rawOperator);
 
-        Definition.Elements.Add(new ExclusionConstraintElementDefinition(
-            PropertyName: null,
-            ExpressionSql: sqlExpression.Trim(),
-            OperatorClass: null,
-            Operator: rawOperator.Trim()));
-        return this;
-    }
-
-    public PostgresExclusionConstraintBuilder<TEntity> WithExpression<TProp>(
-        Expression<Func<TEntity, TProp>> propertyExpression,
-        Func<string, string> format,
-        PostgresExclusionOperator op) =>
-        WithExpression(propertyExpression, format, op.ToSqlOperator());
-
-    public PostgresExclusionConstraintBuilder<TEntity> WithExpression<TProp>(
-        Expression<Func<TEntity, TProp>> propertyExpression,
-        Func<string, string> format,
-        string rawOperator)
-    {
-        ArgumentNullException.ThrowIfNull(propertyExpression);
-        ArgumentNullException.ThrowIfNull(format);
-        ArgumentException.ThrowIfNullOrWhiteSpace(rawOperator);
-
-        var propName = ExpressionHelper.ExtractSinglePropertyName(propertyExpression);
         Definition.Elements.Add(new ExclusionConstraintElementDefinition(
             PropertyName: null,
             ExpressionSql: null,
             OperatorClass: null,
             Operator: rawOperator.Trim(),
-            ExpressionRenderer: resolveQuotedColumn =>
+            SqlExpressionRenderer: (dialect, identifierCase, delimitIdentifiers, nestedSeparator) =>
             {
-                var sql = format(resolveQuotedColumn(propName));
+                ISqlExpressionBuilder<TEntity> builder = new SqlExpressionBuilder<TEntity>
+                {
+                    Dialect = dialect,
+                    IdentifierCase = identifierCase,
+                    DelimitIdentifiers = delimitIdentifiers,
+                    NestedSeparator = nestedSeparator
+                };
+
+                var result = expression(builder)
+                    ?? throw new InvalidOperationException(
+                        $"Exclusion constraint expression on '{Definition.Name}' returned null.");
+                var sql = result.ToString();
                 ArgumentException.ThrowIfNullOrWhiteSpace(sql);
                 return sql.Trim();
             }));
@@ -186,13 +173,13 @@ public sealed class PostgresExclusionConstraintBuilder<TEntity> where TEntity : 
     }
 
     public PostgresExclusionConstraintBuilder<TEntity> HasFilter(
-        Func<SqlCheckConstraintBuilder<TEntity>, SqlPredicate> predicate)
+        Func<ISqlPredicateBuilder<TEntity>, SqlPredicate> predicate)
     {
         ArgumentNullException.ThrowIfNull(predicate);
         Definition.FilterSql = null;
         Definition.FilterRenderer = (dialect, identifierCase, delimitIdentifiers, nestedSeparator) =>
         {
-            var builder = new SqlCheckConstraintBuilder<TEntity>
+            ISqlPredicateBuilder<TEntity> builder = new SqlExpressionBuilder<TEntity>
             {
                 Dialect = dialect,
                 IdentifierCase = identifierCase,

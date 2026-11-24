@@ -54,7 +54,8 @@ internal sealed class MigrationManager : IMigrationManager
             _options.Registries,
             _options.Dialect,
             _options.IdentifierCase,
-            _options.PropertyConventions);
+            _options.PropertyConventions,
+            _options.PluralizeTableNames);
 
         var targets = string.IsNullOrWhiteSpace(registryFilter)
             ? sortedRegistries
@@ -93,7 +94,8 @@ internal sealed class MigrationManager : IMigrationManager
                 sortedRegistries,
                 _options.PropertyConventions,
                 _options.Enums,
-                _options.CheckConstraintOptions);
+                _options.CheckConstraintOptions,
+                _options.PluralizeTableNames);
 
             var result = StandaloneSchemaDiffer.GenerateDiff(
                 currentSchema,
@@ -325,22 +327,6 @@ internal sealed class MigrationManager : IMigrationManager
             }
 
             return synced;
-        }
-        finally
-        {
-            if (ownsConnection)
-            {
-                await conn.DisposeAsync();
-            }
-        }
-    }
-
-    public async Task<IReadOnlyList<SchemaDriftItem>> VerifySchemaAsync(CancellationToken ct = default)
-    {
-        var (conn, ownsConnection) = await _connectionOpener.OpenAsync(ct);
-        try
-        {
-            return await _driftVerifier.VerifyAsync(conn, ct);
         }
         finally
         {

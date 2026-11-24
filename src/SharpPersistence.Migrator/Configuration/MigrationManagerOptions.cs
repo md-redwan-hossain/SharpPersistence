@@ -13,6 +13,7 @@ internal sealed class MigrationManagerOptions
 {
     public SqlDialect Dialect { get; internal set; }
     public SqlIdentifierCase IdentifierCase { get; internal set; }
+    public bool PluralizeTableNames { get; internal set; }
     public OracleDbCompatibility OracleCompatibility { get; internal set; } = OracleDbCompatibility.OracleDb19;
     public string? ConnectionString { get; internal set; }
     public DbProviderFactory? ProviderFactory { get; internal set; }

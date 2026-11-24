@@ -49,6 +49,11 @@ public static class EfCoreModelBridge
             {
                 entity.ToTable(table.TableName, table.Schema, tb =>
                 {
+                    if (table.ExcludeFromMigrations)
+                    {
+                        tb.ExcludeFromMigrations();
+                    }
+
                     if (!string.IsNullOrWhiteSpace(table.Comment))
                     {
                         tb.HasComment(table.Comment);
@@ -68,6 +73,11 @@ public static class EfCoreModelBridge
                 if (table.QueryFilter is not null)
                 {
                     entity.HasQueryFilter(table.QueryFilter);
+                }
+
+                foreach (var (name, value) in table.Annotations)
+                {
+                    entity.Metadata.SetAnnotation(name, value);
                 }
 
                 foreach (var (filterKey, filter) in table.NamedQueryFilters)
@@ -147,6 +157,11 @@ public static class EfCoreModelBridge
                     else if (col.IsIdentity || col.ValueGenerated == ValueGenerationMode.OnAdd)
                     {
                         prop.ValueGeneratedOnAdd();
+                    }
+
+                    foreach (var (name, value) in col.Annotations)
+                    {
+                        prop.Metadata.SetAnnotation(name, value);
                     }
                 }
 

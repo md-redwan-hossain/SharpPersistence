@@ -111,11 +111,11 @@ builder.ToTable(t =>
 
 ## Using with `SharpPersistence.Migrator`
 
-`EntityBuilder<TEntity>.HasCheckConstraint` and `IndexBuilder<TEntity>.HasFilter` accept `Func<SqlCheckConstraintBuilder<TEntity>, SqlPredicate>` directly (inheriting `Dialect` and `IdentifierCase` automatically). For full migrator setup, registries, and CLI usage, see the `sharp-persistence-migrator` skill.
+`EntityBuilder<TEntity>.HasCheckConstraint`, `IndexBuilder<TEntity>.HasFilter`, and `PostgresExclusionConstraintBuilder<TEntity>.HasFilter` accept `Func<ISqlPredicateBuilder<TEntity>, SqlPredicate>`, and `ColumnBuilder<TEntity>.HasComputedColumnSql` accepts `Func<ISqlExpressionBuilder<TEntity>, SqlBuiltExpression>` (all backed by `SqlExpressionBuilder<TEntity>`, inheriting `Dialect` and `IdentifierCase` automatically). For full migrator setup, registries, and CLI usage, see the `sharp-persistence-migrator` skill.
 
 ```csharp
 // Global defaults in AddDbMigrator (defaults: DelimitIdentifiers = true, NestedColumnSeparator = "_")
-options.ConfigureCheckConstraintBuilder(cc => cc
+options.ConfigureSqlExpressionBuilder(cc => cc
     .UseDelimitedIdentifiers(false)
     .UseNestedColumnSeparator("__"));
 

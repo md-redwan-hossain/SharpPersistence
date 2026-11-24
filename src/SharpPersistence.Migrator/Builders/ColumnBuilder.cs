@@ -3,7 +3,7 @@ using SharpPersistence.Migrator.Enums;
 
 namespace SharpPersistence.Migrator.Builders;
 
-public sealed class ColumnBuilder
+public class ColumnBuilder
 {
     internal ColumnDefinition Definition { get; }
 
@@ -125,6 +125,12 @@ public sealed class ColumnBuilder
         return this;
     }
 
+    public ColumnBuilder SetAnnotation<TValue>(string name, TValue? value)
+    {
+        Definition.SetAnnotation(name, value);
+        return this;
+    }
+
     private static string FormatDefaultLiteral(object? value) => value switch
     {
         null => "NULL",
@@ -148,8 +154,14 @@ public sealed class ColumnBuilder<TEntity> : ColumnBuilder where TEntity : class
     {
     }
 
+    public new ColumnBuilder<TEntity> SetAnnotation<TValue>(string name, TValue? value)
+    {
+        Definition.SetAnnotation(name, value);
+        return this;
+    }
+
     public ColumnBuilder<TEntity> HasComputedColumnSql(
-        Func<SqlCheckConstraintBuilder<TEntity>, SqlBuiltExpression> expression,
+        Func<ISqlExpressionBuilder<TEntity>, SqlBuiltExpression> expression,
         bool stored = false)
     {
         ArgumentNullException.ThrowIfNull(expression);
@@ -157,7 +169,7 @@ public sealed class ColumnBuilder<TEntity> : ColumnBuilder where TEntity : class
         Definition.ComputedColumnSql = null;
         Definition.ComputedColumnSqlRenderer = (dialect, identifierCase, delimitIdentifiers, nestedSeparator) =>
         {
-            var builder = new SqlCheckConstraintBuilder<TEntity>
+            ISqlExpressionBuilder<TEntity> builder = new SqlExpressionBuilder<TEntity>
             {
                 Dialect = dialect,
                 IdentifierCase = identifierCase,

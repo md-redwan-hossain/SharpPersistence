@@ -206,54 +206,6 @@ internal sealed class TranslateEfConfigsCommand : Command<TranslateEfConfigsSett
     }
 }
 
-internal sealed class VerifyCommand : AsyncCommand<SharedSettings>
-{
-    public override async Task<int> ExecuteAsync(CommandContext context, SharedSettings settings)
-    {
-        var (owner, manager, _) = TargetAssemblyLoader.CreateManager(settings);
-        try
-        {
-            var drift = await manager.VerifySchemaAsync();
-            if (drift.Count == 0)
-            {
-                AnsiConsole.MarkupLine("[green]Schema matches the target database (0 drift items).[/]");
-                return 0;
-            }
-
-            var table = new Table()
-                .Border(TableBorder.Rounded)
-                .AddColumn("Registry")
-                .AddColumn("Table")
-                .AddColumn("Column")
-                .AddColumn("Kind")
-                .AddColumn("Details");
-
-            foreach (var item in drift)
-            {
-                var kindMarkup = item.Kind switch
-                {
-                    "MissingTable" or "MissingColumn" => $"[red]{Markup.Escape(item.Kind)}[/]",
-                    _ => $"[yellow]{Markup.Escape(item.Kind)}[/]"
-                };
-
-                table.AddRow(
-                    Markup.Escape(item.RegistryName),
-                    Markup.Escape(item.TableName),
-                    Markup.Escape(item.ColumnName ?? "-"),
-                    kindMarkup,
-                    Markup.Escape(item.Details));
-            }
-
-            AnsiConsole.Write(table);
-            return 1;
-        }
-        finally
-        {
-            await TargetAssemblyLoader.DisposeAsync(owner);
-        }
-    }
-}
-
 internal sealed class MigrateCommand : AsyncCommand<MigrateSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, MigrateSettings settings)
@@ -477,8 +429,11 @@ internal sealed class DoctorCommand : AsyncCommand<DoctorSettings>
             foreach (var reg in report.RegistryReports)
             {
                 AnsiConsole.WriteLine();
+                var excludedPart = reg.ExcludedEntityCount > 0
+                    ? $" [[{reg.ExcludedEntityCount} excluded]]"
+                    : string.Empty;
                 AnsiConsole.MarkupLine(
-                    $"[bold]Registry: {Markup.Escape(reg.RegistryName)}:[/] [grey]({reg.EntityCount} entities, {reg.ColumnCount} columns)[/]");
+                    $"[bold]Registry: {Markup.Escape(reg.RegistryName)}:[/] [grey]({reg.EntityCount} entities{excludedPart}, {reg.ColumnCount} columns)[/]");
                 RenderItems(reg.Items);
             }
 

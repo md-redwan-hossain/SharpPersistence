@@ -23,6 +23,12 @@ public sealed class EntityBuilder<TEntity> where TEntity : class
         return this;
     }
 
+    public EntityBuilder<TEntity> HasSchema(string? schema)
+    {
+        Definition.Schema = string.IsNullOrWhiteSpace(schema) ? null : schema.Trim();
+        return this;
+    }
+
     public EntityBuilder<TEntity> HasPreviousTableName(string previousTableName, string? previousSchema = null)
     {
         Definition.PreviousTableName = previousTableName;
@@ -33,6 +39,18 @@ public sealed class EntityBuilder<TEntity> where TEntity : class
     public EntityBuilder<TEntity> HasComment(string? comment)
     {
         Definition.Comment = comment;
+        return this;
+    }
+
+    public EntityBuilder<TEntity> ExcludeFromMigrations(bool excluded = true)
+    {
+        Definition.ExcludeFromMigrations = excluded;
+        return this;
+    }
+
+    public EntityBuilder<TEntity> SetAnnotation<TValue>(string name, TValue? value)
+    {
+        Definition.SetAnnotation(name, value);
         return this;
     }
 
@@ -98,7 +116,7 @@ public sealed class EntityBuilder<TEntity> where TEntity : class
 
     public CheckConstraintBuilder<TEntity> HasCheckConstraint(
         string constraintName,
-        Func<SqlCheckConstraintBuilder<TEntity>, SqlPredicate> predicate)
+        Func<ISqlPredicateBuilder<TEntity>, SqlPredicate> predicate)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(constraintName);
         ArgumentNullException.ThrowIfNull(predicate);
@@ -107,7 +125,7 @@ public sealed class EntityBuilder<TEntity> where TEntity : class
             constraintName,
             (dialect, identifierCase, delimitIdentifiers, nestedSeparator) =>
             {
-                var builder = new SqlCheckConstraintBuilder<TEntity>
+                ISqlPredicateBuilder<TEntity> builder = new SqlExpressionBuilder<TEntity>
                 {
                     Dialect = dialect,
                     IdentifierCase = identifierCase,

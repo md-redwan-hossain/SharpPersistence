@@ -6,7 +6,6 @@ using SharpPersistence.Migrator.Models;
 using SharpPersistence.Migrator.PostgreSql;
 using SharpPersistence.Migrator.Services;
 using Shouldly;
-using Xunit;
 
 namespace SharpPersistence.Migrator.Tests;
 
@@ -314,5 +313,56 @@ public sealed class MigrationDoctorTests
         report.CrossRegistryChecks.ShouldContain(c =>
             c.Severity == DoctorSeverity.Error &&
             c.Message.Contains("Duplicate index name 'ix_shared_name'", StringComparison.Ordinal));
+    }
+
+    private sealed class RefDoctorUser
+    {
+        public Guid Id { get; set; }
+    }
+
+    private sealed class MismatchedRefDoctorUser
+    {
+        public long Id { get; set; } // long instead of Guid
+    }
+
+    private sealed class ValidExcludedRefRegistry : IEntityRegistry
+    {
+        public void Configure(IEntityRegistryBuilder registry)
+        {
+            registry.Entity<RefDoctorUser>(e => e.ToTable("doctor_users").ExcludeFromMigrations());
+        }
+    }
+
+    private sealed class MismatchedExcludedRefRegistry : IEntityRegistry
+    {
+        public void Configure(IEntityRegistryBuilder registry)
+        {
+            registry.Entity<MismatchedRefDoctorUser>(e => e.ToTable("doctor_users").ExcludeFromMigrations());
+        }
+    }
+
+    [Fact]
+    public async Task DiagnoseAsync_AllowsExcludedRefStubAndValidatesMatchingColumnTypes()
+    {
+        var validManager = BuildManager(opt => opt
+            .UsePostgreSql(ThrowOnCall)
+            .AddRegistry<HealthyCoreRegistry>()
+            .AddRegistry<ValidExcludedRefRegistry>());
+
+        var validReport = await validManager.DiagnoseAsync(checkDatabase: false, ct: TestContext.Current.CancellationToken);
+        validReport.HasErrors.ShouldBeFalse();
+        validReport.RegistryReports.Single(r => r.RegistryName == nameof(HealthyCoreRegistry)).ExcludedEntityCount.ShouldBe(0);
+        validReport.RegistryReports.Single(r => r.RegistryName == nameof(ValidExcludedRefRegistry)).ExcludedEntityCount.ShouldBe(1);
+
+        var badManager = BuildManager(opt => opt
+            .UsePostgreSql(ThrowOnCall)
+            .AddRegistry<HealthyCoreRegistry>()
+            .AddRegistry<MismatchedExcludedRefRegistry>());
+
+        var badReport = await badManager.DiagnoseAsync(checkDatabase: false, ct: TestContext.Current.CancellationToken);
+        badReport.HasErrors.ShouldBeTrue();
+        badReport.CrossRegistryChecks.ShouldContain(c =>
+            c.Severity == DoctorSeverity.Error &&
+            c.Message.Contains("External ref mismatch", StringComparison.Ordinal));
     }
 }

@@ -25,6 +25,7 @@ internal static class StandaloneSchemaDiffer
         OracleDbCompatibility oracleCompatibility = OracleDbCompatibility.OracleDb19,
         Func<string, bool>? confirmRename = null)
     {
+        var migratableCurrent = FilterMigratableSchema(currentSchema);
         DatabaseSchema? previousSchema = null;
         if (!string.IsNullOrWhiteSpace(existingSnapshotJson))
         {
@@ -32,7 +33,7 @@ internal static class StandaloneSchemaDiffer
         }
 
         var prompter = confirmRename ?? (interactiveRenamePrompt ? DefaultConsoleConfirm : null);
-        var operations = ComputeOperations(previousSchema, currentSchema, prompter);
+        var operations = ComputeOperations(previousSchema, migratableCurrent, prompter);
         if (operations.Count == 0)
         {
             return new SchemaDiffResult(false, string.Empty, string.Empty, existingSnapshotJson ?? string.Empty);
@@ -57,20 +58,37 @@ internal static class StandaloneSchemaDiffer
 
         var sql = mainOps.Count > 0 ? generator.GenerateSql(mainOps) : string.Empty;
         var deferredSql = deferredOps.Count > 0 ? generator.GenerateSql(deferredOps) : string.Empty;
-        var updatedJson = JsonSerializer.Serialize(currentSchema, JsonOptions);
+        var updatedJson = JsonSerializer.Serialize(migratableCurrent, JsonOptions);
 
         return new SchemaDiffResult(true, sql, deferredSql, updatedJson);
     }
 
     internal static int CountPendingOperations(DatabaseSchema currentSchema, string? existingSnapshotJson)
     {
+        var migratableCurrent = FilterMigratableSchema(currentSchema);
         DatabaseSchema? previousSchema = null;
         if (!string.IsNullOrWhiteSpace(existingSnapshotJson))
         {
             previousSchema = JsonSerializer.Deserialize<DatabaseSchema>(existingSnapshotJson, JsonOptions);
         }
 
-        return ComputeOperations(previousSchema, currentSchema, confirmRename: null).Count;
+        return ComputeOperations(previousSchema, migratableCurrent, confirmRename: null).Count;
+    }
+
+    private static DatabaseSchema FilterMigratableSchema(DatabaseSchema schema)
+    {
+        if (schema.Tables.All(t => !t.ExcludeFromMigrations))
+        {
+            return schema;
+        }
+
+        return new DatabaseSchema
+        {
+            Extensions = schema.Extensions,
+            Enums = schema.Enums,
+            Sequences = schema.Sequences,
+            Tables = schema.Tables.Where(t => !t.ExcludeFromMigrations).ToList()
+        };
     }
 
     private static List<SchemaOperation> ComputeOperations(

@@ -375,6 +375,48 @@ internal static class EfCoreConfigTranslator
                     UsesEfCoreExtensions = true;
                 }
 
+                // Rewrite <target>.Metadata.SetAnnotation(...) -> <target>.SetAnnotation(...)
+                // and <target>.HasAnnotation(...) -> <target>.SetAnnotation(...)
+                if (string.Equals(methodName, "SetAnnotation", StringComparison.Ordinal) &&
+                    member.Expression is MemberAccessExpressionSyntax annMetaAccess &&
+                    string.Equals(annMetaAccess.Name.Identifier.ValueText, "Metadata", StringComparison.Ordinal))
+                {
+                    var newMember = member.WithExpression(annMetaAccess.Expression);
+                    return visited.WithExpression(newMember);
+                }
+
+                if (string.Equals(methodName, "HasAnnotation", StringComparison.Ordinal))
+                {
+                    var newMember = member.WithName(SyntaxFactory.IdentifierName("SetAnnotation"));
+                    return visited.WithExpression(newMember);
+                }
+
+                // Rewrite builder.Metadata.HasSchema("sales") / SetSchema("sales") -> builder.HasSchema("sales")
+                if (_activeBuilderParam is not null &&
+                    (string.Equals(methodName, "HasSchema", StringComparison.Ordinal) ||
+                     string.Equals(methodName, "SetSchema", StringComparison.Ordinal)) &&
+                    member.Expression is MemberAccessExpressionSyntax metaAccess &&
+                    string.Equals(metaAccess.Name.Identifier.ValueText, "Metadata", StringComparison.Ordinal) &&
+                    string.Equals(metaAccess.Expression.ToString(), _activeBuilderParam, StringComparison.Ordinal))
+                {
+                    var newMember = member.WithExpression(SyntaxFactory.IdentifierName(_activeBuilderParam))
+                        .WithName(SyntaxFactory.IdentifierName("HasSchema"));
+                    return visited.WithExpression(newMember);
+                }
+
+                // Rewrite builder.ToTable("orders", "sales") -> builder.ToTable("orders").HasSchema("sales")
+                if (_activeBuilderParam is not null &&
+                    string.Equals(methodName, "ToTable", StringComparison.Ordinal) &&
+                    string.Equals(member.Expression.ToString(), _activeBuilderParam, StringComparison.Ordinal) &&
+                    visited.ArgumentList.Arguments.Count == 2 &&
+                    visited.ArgumentList.Arguments[1].Expression is not LambdaExpressionSyntax)
+                {
+                    var tableArg = visited.ArgumentList.Arguments[0];
+                    var schemaArg = visited.ArgumentList.Arguments[1];
+                    return SyntaxFactory.ParseExpression($"{_activeBuilderParam}.ToTable({tableArg}).HasSchema({schemaArg})")
+                        .WithTriviaFrom(visited);
+                }
+
                 // Rewrite HasMethod("gin") -> HasMethod(PostgresIndexMethod.Gin)
                 if (string.Equals(methodName, "HasMethod", StringComparison.Ordinal) &&
                     visited.ArgumentList.Arguments.Count == 1 &&
@@ -433,7 +475,15 @@ internal static class EfCoreConfigTranslator
 
             var indent = GetIndentationString(stmt);
             var nonLambdaArgs = args.Take(args.Count - 1).ToList();
-            if (nonLambdaArgs.Count > 0)
+            if (nonLambdaArgs.Count == 1)
+            {
+                output.Add(SyntaxFactory.ParseStatement($"{indent}{builderParam}.ToTable({nonLambdaArgs[0]});\r\n"));
+            }
+            else if (nonLambdaArgs.Count == 2)
+            {
+                output.Add(SyntaxFactory.ParseStatement($"{indent}{builderParam}.ToTable({nonLambdaArgs[0]}).HasSchema({nonLambdaArgs[1]});\r\n"));
+            }
+            else if (nonLambdaArgs.Count > 2)
             {
                 var argsText = string.Join(", ", nonLambdaArgs.Select(a => a.ToString()));
                 output.Add(SyntaxFactory.ParseStatement($"{indent}{builderParam}.ToTable({argsText});\r\n"));

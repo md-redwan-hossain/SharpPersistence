@@ -71,6 +71,7 @@ internal sealed class MigrationDoctor
             }
 
             var entityCount = 0;
+            var excludedEntityCount = 0;
             var columnCount = 0;
             var fkCount = 0;
             var constraintCount = 0;
@@ -87,6 +88,10 @@ internal sealed class MigrationDoctor
 
                     var tb = entry.Table;
                     entityCount++;
+                    if (tb.ExcludeFromMigrations)
+                    {
+                        excludedEntityCount++;
+                    }
                     columnCount += tb.ColumnsByProp.Count;
                     fkCount += tb.ForeignKeys.Count;
                     constraintCount += tb.CheckConstraints.Count + tb.ExclusionConstraints.Count + tb.Indexes.Count;
@@ -105,6 +110,7 @@ internal sealed class MigrationDoctor
             registryReports.Add(new DoctorRegistryReport(
                 regName,
                 entityCount,
+                excludedEntityCount,
                 columnCount,
                 fkCount,
                 constraintCount,
@@ -190,7 +196,8 @@ internal sealed class MigrationDoctor
                         _options.IdentifierCase,
                         _options.PropertyConventions,
                         _options.CheckConstraintOptions,
-                        nullabilityContext);
+                        nullabilityContext,
+                        _options.PluralizeTableNames);
 
                     allTableDefinitions[entityType] = (regName, tableDef);
                 }
@@ -233,7 +240,8 @@ internal sealed class MigrationDoctor
                 _options.Registries,
                 _options.PropertyConventions,
                 _options.Enums,
-                _options.CheckConstraintOptions);
+                _options.CheckConstraintOptions,
+                _options.PluralizeTableNames);
 
             totalPendingChanges += StandaloneSchemaDiffer.CountPendingOperations(currentSchema, previousJson);
         }
@@ -253,7 +261,7 @@ internal sealed class MigrationDoctor
             checks.Add(new DoctorCheckItem(
                 DoctorSeverity.Warning,
                 msg,
-                Hint: "Run `db-migrator diff --name <Name>`"));
+                Hint: "Run `db-migrator generate --name <Name>`"));
         }
     }
 

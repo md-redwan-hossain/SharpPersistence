@@ -3,7 +3,7 @@ import { defineConfig } from 'vitepress';
 export default defineConfig({
   title: 'SharpPersistence',
   description:
-    'Composable .NET persistence abstractions, EF Core repositories, dialect-aware SQL check constraints, and C#-first database migrations for PostgreSQL and Oracle.',
+    'Composable .NET persistence abstractions, EF Core repositories, SQL expression builders, SQL file parsing, and C#-first database migrations for PostgreSQL and Oracle.',
   base: '/SharpPersistence/',
   cleanUrls: true,
   lastUpdated: true,
@@ -22,27 +22,29 @@ export default defineConfig({
         text: 'Getting Started',
         items: [
           { text: 'Installation & Packages', link: '/getting-started/installation' },
-          { text: '5-Minute Quick Start', link: '/getting-started/quick-start' }
+          { text: 'Quick Start: Repositories & Unit of Work', link: '/getting-started/quick-start-repositories' },
+          { text: 'Quick Start: SQL Expressions', link: '/getting-started/quick-start-expressions' },
+          { text: 'Quick Start: Database Migrator', link: '/getting-started/quick-start-migrator' }
         ]
       },
       {
         text: 'Core & Persistence',
         items: [
-          { text: 'Abstractions & Discovery', link: '/core/abstractions' },
-          { text: 'EF Core Repositories & UoW', link: '/core/efcore-repositories' },
-          { text: 'SQL Check Constraint Builder', link: '/core/check-constraint-builder' }
+          { text: 'Abstractions & Domain Markers', link: '/core/abstractions' },
+          { text: 'EF Core Repositories & Unit of Work', link: '/core/efcore-repositories' },
+          { text: 'SQL Expression & Check Builders', link: '/core/check-constraint-builder' },
+          { text: 'SQL Parser & ParsedSqlStorage', link: '/core/sql-parser' }
         ]
       },
       {
         text: 'Database Migrator',
         items: [
           { text: 'Setup, DI & Runtime', link: '/migrator/setup-and-di' },
-          { text: 'Entities, Keys & Columns', link: '/migrator/entity-configuration' },
+          { text: 'Entities and Configurations', link: '/migrator/entities-and-configurations' },
           { text: 'Relationships & Indexes', link: '/migrator/relationships-and-indexes' },
           { text: 'Constraints & Sequences', link: '/migrator/constraints-and-sequences' },
           { text: 'PostgreSQL Features', link: '/migrator/postgresql' },
-          { text: 'Oracle Features', link: '/migrator/oracle' },
-          { text: 'Compile-Time Discovery', link: '/migrator/source-generator' }
+          { text: 'Oracle Features', link: '/migrator/oracle' }
         ]
       },
       {

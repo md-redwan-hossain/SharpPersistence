@@ -11,7 +11,8 @@ internal static class RegistryDependencyResolver
         IReadOnlyList<IEntityRegistry> registries,
         SqlDialect dialect,
         SqlIdentifierCase identifierCase,
-        IReadOnlyList<PropertyConventionRule>? propertyConventions = null)
+        IReadOnlyList<PropertyConventionRule>? propertyConventions = null,
+        bool pluralizeTableNames = false)
     {
         if (registries.Count <= 1)
         {
@@ -46,7 +47,8 @@ internal static class RegistryDependencyResolver
                 dialect,
                 identifierCase,
                 registries,
-                propertyConventions);
+                propertyConventions,
+                pluralizeTableNames: pluralizeTableNames);
 
             foreach (var table in schema.Tables)
             {

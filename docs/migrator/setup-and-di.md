@@ -1,6 +1,8 @@
 # Setup, DI & Runtime Execution
 
-`SharpPersistence.Migrator` is configured through `AddDbMigrator(...)` and registers `IMigrationManager` as a singleton in your DI container.
+`SharpPersistence.Migrator` is configured once in your startup project through `AddDbMigrator(...)`, which registers `IMigrationManager` so both your application and the `db-migrator` CLI share the exact same configuration.
+
+> **Prerequisite:** Add `[assembly: EntityRegistryRoot]` to your startup project's `AssemblyInfo.cs` so `.AddGeneratedEntityRegistries()` is generated for you.
 
 ## Basic DI Setup
 
@@ -35,7 +37,8 @@ builder.Services.AddDbMigrator(opt =>
     opt.UseOracle(builder.Configuration.GetConnectionString("Oracle")!)
         .UseSqlCompatibility(OracleDbCompatibility.OracleDb23);
 
-    opt.UseIdentifierCase(SqlIdentifierCase.UpperSnakeCase)
+    opt.UseNamingConvention(SqlIdentifierCase.UpperSnakeCase)
+        .PluralizeTableNames()
         .AddGeneratedEntityRegistries();
 });
 ```
@@ -48,13 +51,14 @@ builder.Services.AddDbMigrator(opt =>
 | --- | --- | --- |
 | `UsePostgreSql(connStr / factory)` | — | Sets dialect to `PostgreSql` and identifier case to `LowerSnakeCase` |
 | `UseOracle(connStr / factory)` | — | Sets dialect to `Oracle` and identifier case to `UpperSnakeCase` |
-| `UseIdentifierCase(case)` | Dialect default | `LowerSnakeCase`, `UpperSnakeCase`, or `PascalCase` |
+| `UseNamingConvention(case)` | Dialect default | `LowerSnakeCase`, `UpperSnakeCase`, `PascalCase`, `CamelCase`, `LowerCase`, or `UpperCase` |
+| `PluralizeTableNames(bool)` | `false` | Pluralizes convention-derived table names (`Order` → `orders`, `OrderCategory` → `order_categories`) |
 | `UseHistoryTable(name, schema?)` | `__db_migration_logs` | Customizes the applied-migrations tracking table |
 | `UseMigrationsDirectory(dir)` | `MigrationScripts` | Output folder for generated `.sql` scripts |
 | `UseSnapshotDirectory(dir)` | `EntityChangelogs` | Output folder for schema snapshot `.json` files |
 | `UseRootPath(path)` | Working dir | Base directory for relative migration/snapshot paths |
 | `ConfigureProperties<T>(action)` | — | Global CLR-type conventions (e.g. all `string` max length `255`, or `Enum`) |
-| `ConfigureCheckConstraintBuilder(cfg)` | `DelimitIdentifiers = true`, `NestedColumnSeparator = "_"` | Global defaults for typed `HasCheckConstraint` / `HasFilter` |
+| `ConfigureSqlExpressionBuilder(cfg)` | `DelimitIdentifiers = true`, `NestedColumnSeparator = "_"` | Global defaults for typed `HasCheckConstraint`, `HasFilter`, and `HasComputedColumnSql` |
 | `AddRegistry<T>()` / `AddRegistry(reg)` | — | Manually register an `IEntityRegistry` |
 | `AddRegistriesFromAssembly(...)` | — | Reflection-based registry scan (prefer `AddGeneratedEntityRegistries()`) |
 

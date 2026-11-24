@@ -18,6 +18,7 @@ internal sealed record DoctorCheckItem(
 internal sealed record DoctorRegistryReport(
     string RegistryName,
     int EntityCount,
+    int ExcludedEntityCount,
     int ColumnCount,
     int ForeignKeyCount,
     int ConstraintCount,

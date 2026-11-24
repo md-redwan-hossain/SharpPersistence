@@ -11,7 +11,7 @@
 | `IUnitOfWork` | `Save()`, `SaveAsync(ct)`, `BeginTransaction(...)`, `BeginTransactionAsync(...)`, `UseTransactionAsync(...)`, `CurrentTransaction` |
 | `IRepositoryBase<TEntity>` | Legacy overload-based repository interface (prefer `IRepositoryCore<TEntity>` for new code) |
 
-See [EF Core Repositories & UoW](/core/efcore-repositories) for full usage examples.
+See [EF Core Repositories & Unit of Work](/core/efcore-repositories) for full usage examples.
 
 ## Entity Discovery Attributes
 
@@ -39,15 +39,17 @@ public sealed class Invoice
 In a modular monolith, each module can define its own marker attribute inheriting from `EntityMarkerAttribute` and opt in via `[assembly: DiscoverEntitiesBy<TMarkerAttribute>]`:
 
 ```csharp
+// Billing.Domain/BillingEntityAttribute.cs
 using SharpPersistence.Abstractions;
 
-// 1. Define a module marker
 public sealed class BillingEntityAttribute : EntityMarkerAttribute;
 
-// 2. Register it at assembly level in Billing.Domain
+// Billing.Domain/AssemblyInfo.cs
+using SharpPersistence.Abstractions;
+
 [assembly: DiscoverEntitiesBy<BillingEntityAttribute>]
 
-// 3. Mark domain entities
+// Billing.Domain/Payment.cs
 [BillingEntity]
 public sealed class Payment
 {
@@ -58,9 +60,10 @@ public sealed class Payment
 
 ### Disabling Discovery in an Assembly
 
-If an assembly (such as a test or shared DTO project) should opt out of source generation:
+If an assembly (such as a test or shared DTO project) should opt out of entity discovery, add this to its `AssemblyInfo.cs`:
 
 ```csharp
+// AssemblyInfo.cs
 using SharpPersistence.Abstractions;
 
 [assembly: DisableEntityDiscovery]
@@ -70,4 +73,4 @@ You can also disable it via MSBuild: `<DisableEntityDiscovery>true</DisableEntit
 
 ## SQL Parser & Value Objects
 
-`SharpPersistence.Abstractions` also includes value objects for SQL script parsing (`ParsedSql`, `SqlFile`, `SqlLine`, `SqlBlockInfo`, `IParsedSqlStorage`) and query pagination (`PagedData<T>`, `EntityKey`, `KeyData`).
+`SharpPersistence.Abstractions` also includes `IParsedSqlStorage` (see [SQL Parser & ParsedSqlStorage](/core/sql-parser)), SQL value objects (`ParsedSql`, `SqlFile`, `SqlLine`, `SqlBlockInfo`), and query pagination helpers (`PagedData<T>`, `EntityKey`, `KeyData`).

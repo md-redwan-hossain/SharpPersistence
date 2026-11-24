@@ -124,4 +124,70 @@ public sealed class EfCoreConfigTranslatorTests
         Assert.Contains("// TODO(SharpPersistence.Migrator): EF Core-specific call 'HasTrigger' requires manual review.", result.TranslatedSource);
         Assert.Single(result.Warnings, w => w.Contains("HasTrigger", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void TranslateSource_TranslatesMetadataHasSchema_ToTableWithSchema_AndExcludeFromMigrations()
+    {
+        const string efSource = """
+            using Microsoft.EntityFrameworkCore;
+            using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+            namespace Demo;
+
+            public class RefProductConfiguration : IEntityTypeConfiguration<RefProduct>
+            {
+                public void Configure(EntityTypeBuilder<RefProduct> builder)
+                {
+                    builder.ToTable("products", "inventory", t =>
+                    {
+                        t.ExcludeFromMigrations();
+                    });
+                }
+            }
+
+            public class LegacyOrderConfiguration : IEntityTypeConfiguration<LegacyOrder>
+            {
+                public void Configure(EntityTypeBuilder<LegacyOrder> builder)
+                {
+                    builder.Metadata.HasSchema("sales");
+                    builder.ToTable("legacy_orders");
+                }
+            }
+            """;
+
+        var result = EfCoreConfigTranslator.TranslateSource(efSource, "RefProductConfiguration.cs");
+
+        Assert.NotNull(result);
+        Assert.Contains("builder.ToTable(\"products\").HasSchema(\"inventory\");", result.TranslatedSource);
+        Assert.Contains("builder.ExcludeFromMigrations();", result.TranslatedSource);
+        Assert.Contains("builder.HasSchema(\"sales\");", result.TranslatedSource);
+    }
+
+    [Fact]
+    public void TranslateSource_TranslatesEntityAndPropertyAnnotations()
+    {
+        const string efSource = """
+            using Microsoft.EntityFrameworkCore;
+            using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+            namespace Demo;
+
+            public class AuditOrderConfiguration : IEntityTypeConfiguration<Order>
+            {
+                public void Configure(EntityTypeBuilder<Order> builder)
+                {
+                    builder.Metadata.SetAnnotation("Audit:TrackChanges", true);
+                    builder.Property(x => x.Secret).Metadata.SetAnnotation("Sensitive:Mask", true);
+                    builder.Property(x => x.Code).HasAnnotation("Custom:Tag", "v1");
+                }
+            }
+            """;
+
+        var result = EfCoreConfigTranslator.TranslateSource(efSource, "AuditOrderConfiguration.cs");
+
+        Assert.NotNull(result);
+        Assert.Contains("builder.SetAnnotation(\"Audit:TrackChanges\", true);", result.TranslatedSource);
+        Assert.Contains("builder.Property(x => x.Secret).SetAnnotation(\"Sensitive:Mask\", true);", result.TranslatedSource);
+        Assert.Contains("builder.Property(x => x.Code).SetAnnotation(\"Custom:Tag\", \"v1\");", result.TranslatedSource);
+    }
 }

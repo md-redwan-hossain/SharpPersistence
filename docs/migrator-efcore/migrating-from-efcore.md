@@ -17,7 +17,9 @@ db-migrator translate-ef-configs src/Infrastructure/Configurations -o src/Infras
 ### What It Rewrites Automatically
 
 * `IEntityTypeConfiguration<T>` → `IEntityConfiguration<T>`, `EntityTypeBuilder<T>` → `EntityBuilder<T>`, adds `sealed` and `[EntityConfiguration<T>]`
-* Flattens `builder.ToTable("orders", t => { t.HasCheckConstraint(...); })`
+* `builder.ToTable("orders", "sales")` → `builder.ToTable("orders").HasSchema("sales")`, and `builder.Metadata.HasSchema("sales")` / `SetSchema("sales")` → `builder.HasSchema("sales")`
+* `...Metadata.SetAnnotation(...)` and `...HasAnnotation(...)` → `...SetAnnotation(...)` (on both entities and properties)
+* Flattens `builder.ToTable("orders", t => { t.HasCheckConstraint(...); t.ExcludeFromMigrations(); })`
 * Rewrites `HasOne<TPrincipal>().WithMany()/WithOne().HasForeignKey(...).HasConstraintName(...).OnDelete(DeleteBehavior.X)` → `HasForeignKey(...).References<TPrincipal>(...).IsOneToOne().HasConstraintName(...).OnDelete(DbReferentialAction.X)`
 * Rewrites `HasMethod("gin")` → `HasMethod(PostgresIndexMethod.Gin)`
 * Updates `using` directives and flags EF-only calls (`OwnsOne`, `HasData`, `HasTrigger`, etc.) with `// TODO(SharpPersistence.Migrator): ...` comments

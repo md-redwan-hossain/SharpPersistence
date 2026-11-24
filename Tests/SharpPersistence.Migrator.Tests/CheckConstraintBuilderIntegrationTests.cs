@@ -139,7 +139,7 @@ public sealed class CheckConstraintBuilderIntegrationTests
         var optionsBuilder = new MigrationManagerOptionsBuilder();
         optionsBuilder
             .UsePostgreSql("Host=localhost;Database=test")
-            .ConfigureCheckConstraintBuilder(cc => cc
+            .ConfigureSqlExpressionBuilder(cc => cc
                 .UseDelimitedIdentifiers(false)
                 .UseNestedColumnSeparator("__"));
 

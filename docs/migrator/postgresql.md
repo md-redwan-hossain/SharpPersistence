@@ -63,12 +63,12 @@ builder.HasExclusionConstraint("excl_bookings_room_slot")
     .UseTablespace("fast_ssd");
 ```
 
-You can also pass raw or column-formatted expressions:
+You can also use `WithExpression` with `ISqlExpressionBuilder<TEntity>` for custom functions or raw SQL:
 
 ```csharp
-builder.HasExclusionConstraint("excl_bookings_raw")
-    .WithElement(x => x.RoomId, PostgresExclusionOperator.Equals)
-    .WithExpression("tstzrange(\"starts_at\", \"ends_at\", '[)')", PostgresExclusionOperator.Overlaps);
+builder.HasExclusionConstraint("excl_bookings_lower_code")
+    .WithExpression(e => e.Column(x => x.Code).Lower(), PostgresExclusionOperator.Equals)
+    .WithRange(x => x.StartsAt, x => x.EndsAt, PostgresExclusionOperator.Overlaps);
 ```
 
 ::: warning Requires `btree_gist` for Scalar Columns

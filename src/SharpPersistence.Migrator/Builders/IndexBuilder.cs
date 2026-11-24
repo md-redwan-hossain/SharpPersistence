@@ -33,13 +33,13 @@ public class IndexBuilder<TEntity> where TEntity : class
     }
 
     public IndexBuilder<TEntity> HasFilter(
-        Func<SqlCheckConstraintBuilder<TEntity>, SqlPredicate> predicate)
+        Func<ISqlPredicateBuilder<TEntity>, SqlPredicate> predicate)
     {
         ArgumentNullException.ThrowIfNull(predicate);
         Definition.FilterSql = null;
         Definition.FilterRenderer = (dialect, identifierCase, delimitIdentifiers, nestedSeparator) =>
         {
-            var builder = new SqlCheckConstraintBuilder<TEntity>
+            ISqlPredicateBuilder<TEntity> builder = new SqlExpressionBuilder<TEntity>
             {
                 Dialect = dialect,
                 IdentifierCase = identifierCase,
@@ -99,7 +99,7 @@ public sealed class IndexBuilder<TEntity, TKey> : IndexBuilder<TEntity> where TE
     }
 
     public new IndexBuilder<TEntity, TKey> HasFilter(
-        Func<SqlCheckConstraintBuilder<TEntity>, SqlPredicate> predicate)
+        Func<ISqlPredicateBuilder<TEntity>, SqlPredicate> predicate)
     {
         base.HasFilter(predicate);
         return this;

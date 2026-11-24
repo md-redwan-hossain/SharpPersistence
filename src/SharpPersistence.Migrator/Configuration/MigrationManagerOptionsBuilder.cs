@@ -103,10 +103,16 @@ public class MigrationManagerOptionsBuilder
         return new OracleOptionsBuilder(State);
     }
 
-    public MigrationManagerOptionsBuilder UseIdentifierCase(SqlIdentifierCase identifierCase)
+    public MigrationManagerOptionsBuilder UseNamingConvention(SqlIdentifierCase namingConvention)
     {
-        State.Options.IdentifierCase = identifierCase;
+        State.Options.IdentifierCase = namingConvention;
         State.IdentifierCaseExplicitlySet = true;
+        return this;
+    }
+
+    public MigrationManagerOptionsBuilder PluralizeTableNames(bool pluralize = true)
+    {
+        State.Options.PluralizeTableNames = pluralize;
         return this;
     }
 
@@ -144,7 +150,7 @@ public class MigrationManagerOptionsBuilder
         return this;
     }
 
-    public MigrationManagerOptionsBuilder ConfigureCheckConstraintBuilder(
+    public MigrationManagerOptionsBuilder ConfigureSqlExpressionBuilder(
         Action<CheckConstraintBuilderOptionsBuilder> configure)
     {
         ArgumentNullException.ThrowIfNull(configure);

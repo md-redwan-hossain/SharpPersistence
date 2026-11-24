@@ -120,11 +120,11 @@ public sealed class EntityRegistryGeneratorTests
         var (outputComp, diags, runResult) = RunGenerators("DemoApp", source);
 
         Assert.Empty(diags);
-        Assert.Empty(outputComp.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Empty(outputComp.GetDiagnostics(TestContext.Current.CancellationToken).Where(d => d.Severity == DiagnosticSeverity.Error));
 
         var registryTree = runResult.GeneratedTrees
             .Single(t => t.FilePath.EndsWith("DemoApp_AppRegistry.g.cs", StringComparison.Ordinal));
-        var registryGen = registryTree.GetText().ToString();
+        var registryGen = registryTree.GetText(TestContext.Current.CancellationToken).ToString();
 
         Assert.Contains("void global::SharpPersistence.Migrator.Abstractions.IEntityRegistry.Configure(", registryGen);
         Assert.Contains("registry.Map<global::DemoApp.Role, global::DemoApp.RoleConfiguration>();", registryGen);
@@ -166,11 +166,11 @@ public sealed class EntityRegistryGeneratorTests
 
         var (aclDomainComp, aclDomainDiags, _) = RunGenerators("AccessControl.Domain", aclDomainSource);
         Assert.Empty(aclDomainDiags);
-        Assert.Empty(aclDomainComp.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Empty(aclDomainComp.GetDiagnostics(TestContext.Current.CancellationToken).Where(d => d.Severity == DiagnosticSeverity.Error));
 
         var (billingDomainComp, billingDomainDiags, _) = RunGenerators("Billing.Domain", billingDomainSource);
         Assert.Empty(billingDomainDiags);
-        Assert.Empty(billingDomainComp.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Empty(billingDomainComp.GetDiagnostics(TestContext.Current.CancellationToken).Where(d => d.Severity == DiagnosticSeverity.Error));
 
         // AccessControl.Infrastructure references BOTH Domain assemblies (e.g. for cross-module FKs)
         // and must only pick up AccessControlEntityAttribute entities.
@@ -204,11 +204,11 @@ public sealed class EntityRegistryGeneratorTests
             extraRefs: [aclDomainComp.ToMetadataReference(), billingDomainComp.ToMetadataReference()]);
 
         Assert.Empty(aclInfraDiags);
-        Assert.Empty(aclInfraComp.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Empty(aclInfraComp.GetDiagnostics(TestContext.Current.CancellationToken).Where(d => d.Severity == DiagnosticSeverity.Error));
 
         var aclRegistryText = aclInfraResult.GeneratedTrees
             .Single(t => t.FilePath.EndsWith("AccessControlRegistry.g.cs", StringComparison.Ordinal))
-            .GetText()
+            .GetText(TestContext.Current.CancellationToken)
             .ToString();
 
         Assert.Contains("registry.Map<global::AccessControl.Domain.Role, global::AccessControl.Infrastructure.RoleConfiguration>();", aclRegistryText);
@@ -231,11 +231,11 @@ public sealed class EntityRegistryGeneratorTests
             extraRefs: [aclDomainComp.ToMetadataReference(), billingDomainComp.ToMetadataReference(), aclInfraComp.ToMetadataReference()]);
 
         Assert.Empty(rootDiags);
-        Assert.Empty(rootComp.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Empty(rootComp.GetDiagnostics(TestContext.Current.CancellationToken).Where(d => d.Severity == DiagnosticSeverity.Error));
 
         var rootText = rootResult.GeneratedTrees
             .Single(t => t.FilePath.EndsWith("GeneratedEntityRegistries.g.cs", StringComparison.Ordinal))
-            .GetText()
+            .GetText(TestContext.Current.CancellationToken)
             .ToString();
 
         Assert.Contains("AddGeneratedEntityRegistries(", rootText);

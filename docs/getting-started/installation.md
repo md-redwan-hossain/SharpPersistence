@@ -11,7 +11,7 @@ SharpPersistence targets **.NET 10 (`net10.0`)** and **.NET 11 (`net11.0`)** and
 | `SharpPersistence.EfCore` | Infrastructure | EF Core implementations of `RepositoryCore<T, TDbContext>` and `UnitOfWork<TDbContext>` |
 | `SharpPersistence.Migrator` | Infrastructure | EF Core–free schema scanner, differ, DDL generators (PostgreSQL & Oracle), lock service, and migration runner |
 | `SharpPersistence.Migrator.EfCore` | Infrastructure | `ApplySchemaToEfCore` runtime bridge and `HasConversion` extensions for EF Core |
-| `SharpPersistence.Migrator.Cli` | Global / Local Tool | `db-migrator` CLI (`doctor`, `diff`, `migrate`, `status`, `verify`, `translate-ef-configs`, `translate-ef-migration`) |
+| `SharpPersistence.Migrator.Cli` | Global / Local Tool | `db-migrator` CLI (`doctor`, `generate`, `migrate`, `status`, `pending`, `translate-ef-configs`, `translate-ef-migration`, `sync-ef-history`) |
 
 ## Installing Packages
 

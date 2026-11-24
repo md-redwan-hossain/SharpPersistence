@@ -17,14 +17,17 @@ internal static class NamingFormatter
         return convention switch
         {
             SqlIdentifierCase.PascalCase => identifier.Pascalize(),
+            SqlIdentifierCase.CamelCase => identifier.Camelize(),
+            SqlIdentifierCase.LowerCase => identifier.ToLowerInvariant(),
+            SqlIdentifierCase.UpperCase => identifier.ToUpperInvariant(),
             SqlIdentifierCase.UpperSnakeCase => identifier.Underscore().ToUpperInvariant(),
-            _ => identifier.Underscore()
+            _ => identifier.Underscore().ToLowerInvariant()
         };
     }
 
     public static string FormatPrefix(string prefix, SqlIdentifierCase convention)
     {
-        return convention == SqlIdentifierCase.LowerSnakeCase
+        return convention is SqlIdentifierCase.LowerSnakeCase or SqlIdentifierCase.CamelCase or SqlIdentifierCase.LowerCase
             ? prefix.ToLowerInvariant()
             : prefix.ToUpperInvariant();
     }

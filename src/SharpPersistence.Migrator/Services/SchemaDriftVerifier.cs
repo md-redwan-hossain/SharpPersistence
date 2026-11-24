@@ -22,7 +22,8 @@ internal sealed class SchemaDriftVerifier
             _options.Registries,
             _options.Dialect,
             _options.IdentifierCase,
-            _options.PropertyConventions);
+            _options.PropertyConventions,
+            _options.PluralizeTableNames);
 
         var expectedTables = new List<(string RegistryName, TableSchema Table)>();
         foreach (var registry in sortedRegistries)
@@ -34,12 +35,16 @@ internal sealed class SchemaDriftVerifier
                 sortedRegistries,
                 _options.PropertyConventions,
                 _options.Enums,
-                _options.CheckConstraintOptions);
+                _options.CheckConstraintOptions,
+                _options.PluralizeTableNames);
 
             var registryName = registry.GetType().Name;
             foreach (var table in schema.Tables)
             {
-                expectedTables.Add((registryName, table));
+                if (!table.ExcludeFromMigrations)
+                {
+                    expectedTables.Add((registryName, table));
+                }
             }
         }
 

@@ -1,5 +1,7 @@
 using System.Text;
 using SharpPersistence.Enums;
+using SharpPersistence.Migrator.Abstractions;
+using SharpPersistence.Migrator.Configuration;
 using SharpPersistence.Migrator.Services;
 
 namespace SharpPersistence.Migrator.Tests;
@@ -10,6 +12,9 @@ public sealed class NamingAndTruncationTests
     [InlineData("UserProfile", SqlIdentifierCase.LowerSnakeCase, "user_profile")]
     [InlineData("UserProfile", SqlIdentifierCase.UpperSnakeCase, "USER_PROFILE")]
     [InlineData("user_profile", SqlIdentifierCase.PascalCase, "UserProfile")]
+    [InlineData("UserProfile", SqlIdentifierCase.CamelCase, "userProfile")]
+    [InlineData("UserProfile", SqlIdentifierCase.LowerCase, "userprofile")]
+    [InlineData("UserProfile", SqlIdentifierCase.UpperCase, "USERPROFILE")]
     public void Format_RespectsConvention(string input, SqlIdentifierCase convention, string expected)
     {
         Assert.Equal(expected, NamingFormatter.Format(input, convention));
@@ -43,5 +48,50 @@ public sealed class NamingAndTruncationTests
         const string name = "pk_users";
         Assert.Equal(name, NamingFormatter.TruncateIdentifier(name, SqlDialect.PostgreSql));
         Assert.Equal(name, NamingFormatter.TruncateIdentifier(name, SqlDialect.Oracle));
+    }
+
+    private sealed class OrderCategory
+    {
+        public int Id { get; set; }
+        public string DisplayName { get; set; } = string.Empty;
+    }
+
+    private sealed class ExplicitNameItem
+    {
+        public int Id { get; set; }
+    }
+
+    private sealed class PluralNamingRegistry : IEntityRegistry
+    {
+        public void Configure(IEntityRegistryBuilder registry)
+        {
+            registry.Map<OrderCategory>();
+            registry.Entity<ExplicitNameItem>(e => e.ToTable("custom_singular"));
+        }
+    }
+
+    [Fact]
+    public void UseNamingConvention_And_PluralizeTableNames_ApplyGloballyWithoutOverridingExplicitToTable()
+    {
+        var builder = new MigrationManagerOptionsBuilder();
+        builder.UsePostgreSql("Host=localhost;Database=test");
+        builder.UseNamingConvention(SqlIdentifierCase.LowerSnakeCase)
+            .PluralizeTableNames();
+
+        var options = builder.Build();
+        var reg = new PluralNamingRegistry();
+        var schema = SchemaScanner.ScanRegistry(
+            reg,
+            options.Dialect,
+            options.IdentifierCase,
+            [reg],
+            pluralizeTableNames: options.PluralizeTableNames);
+
+        var catTable = schema.Tables.Single(t => t.EntityName.EndsWith(nameof(OrderCategory), StringComparison.Ordinal));
+        Assert.Equal("order_categories", catTable.TableName);
+        Assert.Contains(catTable.Columns, c => c.ColumnName == "display_name");
+
+        var explicitTable = schema.Tables.Single(t => t.EntityName.EndsWith(nameof(ExplicitNameItem), StringComparison.Ordinal));
+        Assert.Equal("custom_singular", explicitTable.TableName);
     }
 }

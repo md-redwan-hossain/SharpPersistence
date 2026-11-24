@@ -15,9 +15,11 @@ internal sealed class TableDefinition
     public string? PreviousTableName { get; set; }
     public string? PreviousSchema { get; set; }
     public string? Comment { get; set; }
+    public bool ExcludeFromMigrations { get; set; }
     public bool IsUnlogged { get; set; }
     public string? Tablespace { get; set; }
     public Dictionary<string, string>? StorageParameters { get; set; }
+    public Dictionary<string, object?> Annotations { get; } = new(StringComparer.Ordinal);
     public LambdaExpression? QueryFilter { get; set; }
     public Dictionary<string, LambdaExpression?> NamedQueryFilters { get; } = new(StringComparer.Ordinal);
     public HashSet<string> IgnoredProperties { get; } = new(StringComparer.Ordinal);
@@ -119,6 +121,19 @@ internal sealed class TableDefinition
         StorageParameters[name.Trim()] = value;
     }
 
+    public void SetAnnotation(string name, object? value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        if (value is null)
+        {
+            Annotations.Remove(name);
+        }
+        else
+        {
+            Annotations[name] = value;
+        }
+    }
+
     public bool IsPostgresXmin(ColumnDefinition col)
     {
         var unwrapped = Nullable.GetUnderlyingType(col.ClrType) ?? col.ClrType;
@@ -210,7 +225,8 @@ internal sealed record ExclusionConstraintElementDefinition(
     string? ExpressionSql,
     string? OperatorClass,
     string Operator,
-    Func<Func<string, string>, string>? ExpressionRenderer = null);
+    Func<Func<string, string>, string>? ExpressionRenderer = null,
+    Func<SqlDialect, SqlIdentifierCase, bool, string, string>? SqlExpressionRenderer = null);
 
 internal sealed class ExclusionConstraintDefinition
 {
@@ -253,6 +269,20 @@ internal sealed class ColumnDefinition
     public bool IsSystemColumn { get; set; }
     public Type? ProviderClrType { get; set; }
     public object? ValueConverter { get; set; }
+    public Dictionary<string, object?> Annotations { get; } = new(StringComparer.Ordinal);
+
+    public void SetAnnotation(string name, object? value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        if (value is null)
+        {
+            Annotations.Remove(name);
+        }
+        else
+        {
+            Annotations[name] = value;
+        }
+    }
 
     public ColumnDefinition(string propertyName, Type clrType, string columnName)
     {

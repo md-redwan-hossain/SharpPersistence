@@ -13,13 +13,15 @@ Use `SharpPersistence.Migrator` (plus `SharpPersistence.Migrator.EfCore` when br
 ## DI & Setup (`AddDbMigrator`)
 
 ```csharp
-using SharpPersistence.Enums;
+// AssemblyInfo.cs (place assembly-level attributes in AssemblyInfo.cs, not Program.cs)
 using SharpPersistence.Migrator.Attributes;
+[assembly: EntityRegistryRoot]
+
+// Program.cs
+using SharpPersistence.Enums;
 using SharpPersistence.Migrator.Configuration;
 using SharpPersistence.Migrator.Enums;
 using SharpPersistence.Migrator.Generated;
-
-[assembly: EntityRegistryRoot]
 
 builder.Services.AddDbMigrator(opt =>
 {
@@ -34,8 +36,10 @@ builder.Services.AddDbMigrator(opt =>
     opt.UseMigrationsDirectory("MigrationScripts")
         .UseSnapshotDirectory("EntityChangelogs")
         .UseHistoryTable("__db_migration_logs", "public")
+        .UseNamingConvention(SqlIdentifierCase.LowerSnakeCase)
+        .PluralizeTableNames()
         .ConfigureProperties<string>(c => c.HasMaxLength(200))
-        .ConfigureCheckConstraintBuilder(cc => cc
+        .ConfigureSqlExpressionBuilder(cc => cc
             .UseDelimitedIdentifiers(true)
             .UseNestedColumnSeparator("_"))
         .AddGeneratedEntityRegistries();
@@ -53,13 +57,15 @@ public sealed class BookingConfiguration : IEntityConfiguration<Booking>
 {
     public void Configure(EntityBuilder<Booking> builder)
     {
-        builder.ToTable("bookings", "sales")
+        builder.ToTable("bookings")
+            .HasSchema("sales")
             .IsUnlogged()
             .UseTablespace("fast_ssd")
             .HasStorageParameter(PostgresStorageParameter.FillFactor, 85);
 
         builder.HasKey(x => x.Id).HasName("pk_bookings");
         builder.Property(x => x.Code).HasMaxLength(32).IsRequired();
+        builder.Property(x => x.Total).HasComputedColumnSql(e => e.Column(x => x.Amount).Math().Plus(x => x.Tax), stored: true);
         builder.Ignore(x => x.ComputedLabel);
 
         builder.HasForeignKey(x => x.CustomerId)
@@ -116,8 +122,8 @@ public sealed partial class SalesRegistry : IEntityRegistry
 ## `db-migrator` CLI Commands
 
 - `db-migrator doctor [--registry <Name>] [--check-db]` — validates DI wiring, entity configs, FK types, cross-registry collisions, and migration script coverage (read-only).
-- `db-migrator diff --name <Name> [--registry <Name>] [--dry-run] [--ci] [--allow-empty]` — generates idempotent SQL scripts.
+- `db-migrator generate --name <Name> [--registry <Name>] [--dry-run] [--ci] [--allow-empty]` — generates idempotent SQL scripts.
 - `db-migrator migrate [--dry-run] [--sync-ef-history]` — applies pending scripts under distributed lock.
-- `db-migrator status` / `db-migrator pending` / `db-migrator verify` — inspects history & live DB sync.
+- `db-migrator status` / `db-migrator pending` — inspects migration history and pending scripts.
 - `db-migrator translate-ef-configs <CONFIGS_DIR> [-o <DIR>] [--dry-run] [--no-attribute]` — converts `IEntityTypeConfiguration<T>` to `IEntityConfiguration<T>`.
 - `db-migrator translate-ef-migration <MIGRATIONS_DIR>` & `db-migrator sync-ef-history` — translates EF Core migrations 1-to-1 and syncs `__EFMigrationsHistory`.

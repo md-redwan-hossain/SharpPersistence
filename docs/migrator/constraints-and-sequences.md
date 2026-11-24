@@ -2,7 +2,7 @@
 
 ## Check Constraints
 
-You can define check constraints using either raw SQL or the type-safe `SqlCheckConstraintBuilder<TEntity>` lambda overload (which inherits your configured `SqlDialect` and `SqlIdentifierCase`):
+You can define check constraints using either raw SQL or the type-safe `ISqlPredicateBuilder<TEntity>` lambda overload (which inherits your configured `SqlDialect` and `SqlIdentifierCase`):
 
 ```csharp
 // Type-safe check constraint
@@ -32,14 +32,14 @@ builder.HasCheckConstraint("ck_orders_country",
 You can also set defaults globally in `AddDbMigrator`:
 
 ```csharp
-opt.ConfigureCheckConstraintBuilder(cc => cc
+opt.ConfigureSqlExpressionBuilder(cc => cc
     .UseDelimitedIdentifiers(true)
     .UseNestedColumnSeparator("_"));
 ```
 
 ## Sequences
 
-Define database sequences inside `IEntityRegistry.Configure`:
+A sequence generates unique, auto-incrementing numbers (for example, human-readable invoice or order numbers) independently of any single table's identity column. You can define database sequences inside the `Configure` method of your entity registry class:
 
 ```csharp
 public void Configure(IEntityRegistryBuilder registry)

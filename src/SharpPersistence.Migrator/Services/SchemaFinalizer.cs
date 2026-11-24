@@ -24,17 +24,20 @@ internal static class SchemaFinalizer
         foreach (var (clrType, tb) in builders)
         {
             var tableSchemaName = string.IsNullOrWhiteSpace(tb.Schema) ? null : tb.Schema;
-            var qualifiedName = string.IsNullOrWhiteSpace(tableSchemaName)
-                ? tb.TableName
-                : $"{tableSchemaName}.{tb.TableName}";
-
-            if (seenQualifiedNames.TryGetValue(qualifiedName, out var existingType))
+            if (!tb.ExcludeFromMigrations)
             {
-                throw new InvalidOperationException(
-                    $"Duplicate table '{qualifiedName}' mapped by both '{existingType.Name}' and '{clrType.Name}'.");
-            }
+                var qualifiedName = string.IsNullOrWhiteSpace(tableSchemaName)
+                    ? tb.TableName
+                    : $"{tableSchemaName}.{tb.TableName}";
 
-            seenQualifiedNames[qualifiedName] = clrType;
+                if (seenQualifiedNames.TryGetValue(qualifiedName, out var existingType))
+                {
+                    throw new InvalidOperationException(
+                        $"Duplicate table '{qualifiedName}' mapped by both '{existingType.Name}' and '{clrType.Name}'.");
+                }
+
+                seenQualifiedNames[qualifiedName] = clrType;
+            }
 
             if (includedEntityTypes is not null && !includedEntityTypes.Contains(clrType))
             {
@@ -69,6 +72,7 @@ internal static class SchemaFinalizer
             PreviousTableName = tb.PreviousTableName,
             PreviousSchema = tb.PreviousSchema,
             Comment = tb.Comment,
+            ExcludeFromMigrations = tb.ExcludeFromMigrations,
             IsUnlogged = tb.IsUnlogged,
             Tablespace = tb.Tablespace,
             StorageParameters = tb.StorageParameters is { Count: > 0 }
@@ -78,6 +82,7 @@ internal static class SchemaFinalizer
                 : null,
             QueryFilter = tb.QueryFilter,
             NamedQueryFilters = new Dictionary<string, System.Linq.Expressions.LambdaExpression?>(tb.NamedQueryFilters, StringComparer.Ordinal),
+            Annotations = new Dictionary<string, object?>(tb.Annotations, StringComparer.Ordinal),
             IgnoredProperties = [.. tb.IgnoredProperties]
         };
 
@@ -118,7 +123,8 @@ internal static class SchemaFinalizer
                 IsRowVersion = cb.IsRowVersion,
                 IsSystemColumn = isPgXmin || cb.IsSystemColumn,
                 ProviderClrType = cb.ProviderClrType,
-                ValueConverter = cb.ValueConverter
+                ValueConverter = cb.ValueConverter,
+                Annotations = new Dictionary<string, object?>(cb.Annotations, StringComparer.Ordinal)
             });
         }
     }
@@ -239,6 +245,19 @@ internal static class SchemaFinalizer
                         ColumnName = colName,
                         PropertyName = el.PropertyName,
                         OperatorClass = el.OperatorClass,
+                        Operator = el.Operator
+                    });
+                }
+                else if (el.SqlExpressionRenderer is not null)
+                {
+                    var exprSql = el.SqlExpressionRenderer(
+                        tb.Dialect,
+                        tb.IdentifierCase,
+                        tb.CheckConstraintOptions.DelimitIdentifiers,
+                        tb.CheckConstraintOptions.NestedColumnSeparator);
+                    elements.Add(new ExclusionConstraintElementSchema
+                    {
+                        ExpressionSql = exprSql,
                         Operator = el.Operator
                     });
                 }
