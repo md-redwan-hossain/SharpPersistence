@@ -1,10 +1,10 @@
 # Runtime Model Bridge
 
-`SharpPersistence.Migrator.EfCore` lets your EF Core `DbContext` reuse the exact `DatabaseSchema` built by `AddDbMigrator(...)`, so you never maintain duplicate entity configurations for queries vs. migrations.
+`SharpPersistence.Migrator.EfCore` lets your EF Core `DbContext` reuse the exact `DatabaseModel` built by `AddDbMigrator(...)`, so you never maintain duplicate entity configurations for queries vs. migrations.
 
-## Applying `DatabaseSchema` to `DbContext`
+## Applying `DatabaseModel` to `DbContext`
 
-`AddDbMigrator(...)` registers `DatabaseSchema` as a singleton in DI. Inject it into your `DbContext` and call `modelBuilder.ApplySchemaToEfCore(schema)`:
+`AddDbMigrator(...)` registers `DatabaseModel` as a singleton in DI. Inject it into your `DbContext` and call `modelBuilder.ApplySchemaToEfCore(model)`:
 
 ```csharp
 using Microsoft.EntityFrameworkCore;
@@ -13,7 +13,7 @@ using SharpPersistence.Migrator.Models;
 
 public sealed class AppDbContext(
     DbContextOptions<AppDbContext> options,
-    DatabaseSchema schema) : DbContext(options)
+    DatabaseModel model) : DbContext(options)
 {
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<Customer> Customers => Set<Customer>();
@@ -21,7 +21,7 @@ public sealed class AppDbContext(
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-        modelBuilder.ApplySchemaToEfCore(schema);
+        modelBuilder.ApplySchemaToEfCore(model);
     }
 }
 ```

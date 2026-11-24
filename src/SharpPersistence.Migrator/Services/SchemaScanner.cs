@@ -11,7 +11,7 @@ namespace SharpPersistence.Migrator.Services;
 
 internal static class SchemaScanner
 {
-    public static DatabaseSchema ScanRegistries(
+    public static DatabaseModel ScanRegistries(
         SqlDialect dialect,
         SqlIdentifierCase identifierCase,
         IReadOnlyList<PropertyConventionRule>? propertyConventions = null,
@@ -20,7 +20,7 @@ internal static class SchemaScanner
         params IEntityRegistry[] registries) =>
         ScanRegistries(dialect, identifierCase, propertyConventions, pgEnums, sqlExpressionOptions, false, null, null, null, registries);
 
-    public static DatabaseSchema ScanRegistries(
+    public static DatabaseModel ScanRegistries(
         SqlDialect dialect,
         SqlIdentifierCase identifierCase,
         IReadOnlyList<PropertyConventionRule>? propertyConventions,
@@ -30,7 +30,7 @@ internal static class SchemaScanner
         params IEntityRegistry[] registries) =>
         ScanRegistries(dialect, identifierCase, propertyConventions, pgEnums, sqlExpressionOptions, pluralizeTableNames, null, null, null, registries);
 
-    public static DatabaseSchema ScanRegistries(
+    public static DatabaseModel ScanRegistries(
         SqlDialect dialect,
         SqlIdentifierCase identifierCase,
         IReadOnlyList<PropertyConventionRule>? propertyConventions,
@@ -54,7 +54,7 @@ internal static class SchemaScanner
         return SchemaFinalizer.FinalizeSchema(buildersByType, includedEntityTypes: null, sequences, pgEnums, entityStubs);
     }
 
-    public static DatabaseSchema ScanRegistry(
+    public static DatabaseModel ScanRegistry(
         IEntityRegistry registry,
         MigrationManagerOptions options,
         IReadOnlyList<IEntityRegistry>? allRegistries = null) =>
@@ -71,7 +71,7 @@ internal static class SchemaScanner
             options.TableNameConvention,
             options.EntityStubs);
 
-    public static DatabaseSchema ScanRegistry(
+    public static DatabaseModel ScanRegistry(
         IEntityRegistry registry,
         SqlDialect dialect,
         SqlIdentifierCase identifierCase,

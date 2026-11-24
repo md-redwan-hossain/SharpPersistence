@@ -18,7 +18,7 @@ internal static class StandaloneSchemaDiffer
     };
 
     public static SchemaDiffResult GenerateDiff(
-        DatabaseSchema currentSchema,
+        DatabaseModel currentSchema,
         string? existingSnapshotJson,
         SqlDialect sqlDialect = SqlDialect.PostgreSql,
         bool interactiveRenamePrompt = true,
@@ -26,10 +26,10 @@ internal static class StandaloneSchemaDiffer
         Func<string, bool>? confirmRename = null)
     {
         var migratableCurrent = FilterMigratableSchema(currentSchema);
-        DatabaseSchema? previousSchema = null;
+        DatabaseModel? previousSchema = null;
         if (!string.IsNullOrWhiteSpace(existingSnapshotJson))
         {
-            previousSchema = JsonSerializer.Deserialize<DatabaseSchema>(existingSnapshotJson, JsonOptions);
+            previousSchema = JsonSerializer.Deserialize<DatabaseModel>(existingSnapshotJson, JsonOptions);
         }
 
         var prompter = interactiveRenamePrompt ? confirmRename : null;
@@ -64,28 +64,28 @@ internal static class StandaloneSchemaDiffer
     }
 
     internal static int CountPendingOperations(
-        DatabaseSchema currentSchema,
+        DatabaseModel currentSchema,
         string? existingSnapshotJson,
         SqlDialect sqlDialect = SqlDialect.PostgreSql)
     {
         var migratableCurrent = FilterMigratableSchema(currentSchema);
-        DatabaseSchema? previousSchema = null;
+        DatabaseModel? previousSchema = null;
         if (!string.IsNullOrWhiteSpace(existingSnapshotJson))
         {
-            previousSchema = JsonSerializer.Deserialize<DatabaseSchema>(existingSnapshotJson, JsonOptions);
+            previousSchema = JsonSerializer.Deserialize<DatabaseModel>(existingSnapshotJson, JsonOptions);
         }
 
         return ComputeOperations(previousSchema, migratableCurrent, confirmRename: null, sqlDialect).Count;
     }
 
-    private static DatabaseSchema FilterMigratableSchema(DatabaseSchema schema)
+    private static DatabaseModel FilterMigratableSchema(DatabaseModel schema)
     {
         if (schema.Tables.All(t => !t.ExcludeFromMigrations))
         {
             return schema;
         }
 
-        return new DatabaseSchema
+        return new DatabaseModel
         {
             Extensions = schema.Extensions,
             Enums = schema.Enums,
@@ -95,8 +95,8 @@ internal static class StandaloneSchemaDiffer
     }
 
     private static List<SchemaOperation> ComputeOperations(
-        DatabaseSchema? oldSchema,
-        DatabaseSchema newSchema,
+        DatabaseModel? oldSchema,
+        DatabaseModel newSchema,
         Func<string, bool>? confirmRename,
         SqlDialect sqlDialect)
     {

@@ -131,7 +131,7 @@ public sealed partial class SalesRegistry : IEntityRegistry
 
 ## EF Core Bridge (`SharpPersistence.Migrator.EfCore`)
 
-- Inject `DatabaseSchema` into `DbContext` and call `modelBuilder.ApplySchemaToEfCore(schema);` in `OnModelCreating`.
+- Inject `DatabaseModel` into `DbContext` and call `modelBuilder.ApplySchemaToEfCore(model);` in `OnModelCreating`.
 - `HasConversion<TProvider>()` and `HasConversion(Type)` are built into `ColumnBuilder` (`SharpPersistence.Migrator`); use `SharpPersistence.Migrator.EfCore`'s `.HasConversion(ValueConverter)` when you need a custom EF Core `ValueConverter` at runtime.
 
 ## `db-migrator` CLI Commands

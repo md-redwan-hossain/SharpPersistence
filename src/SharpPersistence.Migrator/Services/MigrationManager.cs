@@ -393,7 +393,7 @@ internal sealed class MigrationManager : IMigrationManager
             ? await File.ReadAllTextAsync(globalSnapshotPath, ct)
             : null;
 
-        var globalSchema = new DatabaseSchema
+        var globalSchema = new DatabaseModel
         {
             Extensions = _options.Extensions.Count > 0 ? [.. _options.Extensions] : null,
             Enums = _options.Enums.Count > 0 ? [.. _options.Enums] : null

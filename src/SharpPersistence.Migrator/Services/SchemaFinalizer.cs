@@ -6,7 +6,7 @@ namespace SharpPersistence.Migrator.Services;
 
 internal static class SchemaFinalizer
 {
-    public static DatabaseSchema FinalizeSchema(
+    public static DatabaseModel FinalizeSchema(
         Dictionary<Type, TableDefinition> builders,
         IReadOnlySet<Type>? includedEntityTypes,
         IReadOnlyList<SequenceSchema>? sequences = null,
@@ -14,7 +14,7 @@ internal static class SchemaFinalizer
         IReadOnlyDictionary<Type, Type>? entityStubs = null)
     {
         var enumLookup = (pgEnums ?? []).ToDictionary(e => e.ClrTypeName, StringComparer.Ordinal);
-        var schema = new DatabaseSchema
+        var schema = new DatabaseModel
         {
             Sequences = sequences is { Count: > 0 }
                 ? sequences.OrderBy(s => s.QualifiedName, StringComparer.Ordinal).ToList()

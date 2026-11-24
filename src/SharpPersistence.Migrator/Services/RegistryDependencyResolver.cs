@@ -44,7 +44,7 @@ internal static class RegistryDependencyResolver
         var ownerByEntityName = new Dictionary<string, string>(StringComparer.Ordinal);
         var ownerByQualifiedTable = new Dictionary<(string Schema, string Table), string>();
         var excludedEntities = new HashSet<string>(StringComparer.Ordinal);
-        var scannedSchemas = new Dictionary<string, DatabaseSchema>(StringComparer.Ordinal);
+        var scannedSchemas = new Dictionary<string, DatabaseModel>(StringComparer.Ordinal);
 
         foreach (var registry in registries)
         {

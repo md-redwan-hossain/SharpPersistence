@@ -2,10 +2,10 @@ using System.Text.Json.Serialization;
 
 namespace SharpPersistence.Migrator.Models;
 
-public sealed class DatabaseSchema
+public sealed class DatabaseModel
 {
     [JsonConstructor]
-    internal DatabaseSchema()
+    internal DatabaseModel()
     {
     }
 

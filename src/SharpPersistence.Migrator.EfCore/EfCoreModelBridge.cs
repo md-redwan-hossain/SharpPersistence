@@ -7,7 +7,7 @@ namespace SharpPersistence.Migrator.EfCore;
 
 public static class EfCoreModelBridge
 {
-    public static void ApplySchemaToEfCore(this ModelBuilder modelBuilder, DatabaseSchema schema)
+    public static void ApplySchemaToEfCore(this ModelBuilder modelBuilder, DatabaseModel schema)
     {
         if (schema.Sequences is { Count: > 0 })
         {
