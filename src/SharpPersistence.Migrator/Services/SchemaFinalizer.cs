@@ -10,7 +10,8 @@ internal static class SchemaFinalizer
         Dictionary<Type, TableDefinition> builders,
         IReadOnlySet<Type>? includedEntityTypes,
         IReadOnlyList<SequenceSchema>? sequences = null,
-        IReadOnlyList<PostgresEnumSchema>? pgEnums = null)
+        IReadOnlyList<PostgresEnumSchema>? pgEnums = null,
+        IReadOnlyDictionary<Type, Type>? entityStubs = null)
     {
         var enumLookup = (pgEnums ?? []).ToDictionary(e => e.ClrTypeName, StringComparer.Ordinal);
         var schema = new DatabaseSchema
@@ -50,7 +51,7 @@ internal static class SchemaFinalizer
             BuildIndexes(table, tb);
             BuildCheckConstraints(table, tb);
             BuildExclusionConstraints(table, tb);
-            BuildForeignKeys(table, tb, builders);
+            BuildForeignKeys(table, tb, builders, entityStubs);
 
             table.Indexes.Sort((a, b) => string.CompareOrdinal(a.Name, b.Name));
             table.ForeignKeys.Sort((a, b) => string.CompareOrdinal(a.Name, b.Name));
@@ -114,8 +115,8 @@ internal static class SchemaFinalizer
                     ? cb.ComputedColumnSqlRenderer(
                         tb.Dialect,
                         tb.IdentifierCase,
-                        tb.CheckConstraintOptions.DelimitIdentifiers,
-                        tb.CheckConstraintOptions.NestedColumnSeparator)
+                        tb.SqlExpressionOptions.DelimitIdentifiers,
+                        tb.SqlExpressionOptions.NestedColumnSeparator)
                     : cb.ComputedColumnSql,
                 IsComputedStored = cb.IsComputedStored,
                 Comment = cb.Comment,
@@ -179,8 +180,8 @@ internal static class SchemaFinalizer
                 ? ib.FilterRenderer(
                     tb.Dialect,
                     tb.IdentifierCase,
-                    tb.CheckConstraintOptions.DelimitIdentifiers,
-                    tb.CheckConstraintOptions.NestedColumnSeparator)
+                    tb.SqlExpressionOptions.DelimitIdentifiers,
+                    tb.SqlExpressionOptions.NestedColumnSeparator)
                 : ib.FilterSql;
 
             table.Indexes.Add(new IndexSchema
@@ -213,7 +214,7 @@ internal static class SchemaFinalizer
             table.CheckConstraints.Add(new CheckConstraintSchema
             {
                 Name = NamingFormatter.TruncateIdentifier(ckName, tb.Dialect),
-                Sql = ckDef.RenderSql(tb.Dialect, tb.IdentifierCase, tb.CheckConstraintOptions)
+                Sql = ckDef.RenderSql(tb.Dialect, tb.IdentifierCase, tb.SqlExpressionOptions)
             });
         }
     }
@@ -253,8 +254,8 @@ internal static class SchemaFinalizer
                     var exprSql = el.SqlExpressionRenderer(
                         tb.Dialect,
                         tb.IdentifierCase,
-                        tb.CheckConstraintOptions.DelimitIdentifiers,
-                        tb.CheckConstraintOptions.NestedColumnSeparator);
+                        tb.SqlExpressionOptions.DelimitIdentifiers,
+                        tb.SqlExpressionOptions.NestedColumnSeparator);
                     elements.Add(new ExclusionConstraintElementSchema
                     {
                         ExpressionSql = exprSql,
@@ -289,8 +290,8 @@ internal static class SchemaFinalizer
                 ? exDef.FilterRenderer(
                     tb.Dialect,
                     tb.IdentifierCase,
-                    tb.CheckConstraintOptions.DelimitIdentifiers,
-                    tb.CheckConstraintOptions.NestedColumnSeparator)
+                    tb.SqlExpressionOptions.DelimitIdentifiers,
+                    tb.SqlExpressionOptions.NestedColumnSeparator)
                 : exDef.FilterSql;
 
             table.ExclusionConstraints.Add(new ExclusionConstraintSchema
@@ -311,17 +312,34 @@ internal static class SchemaFinalizer
         }
     }
 
+    internal static Type ResolveEntityStub(
+        Type principalType,
+        IReadOnlyDictionary<Type, Type>? entityStubs)
+    {
+        if (entityStubs is { Count: > 0 } && entityStubs.TryGetValue(principalType, out var target))
+        {
+            return target;
+        }
+
+        return principalType;
+    }
+
     private static void BuildForeignKeys(
         TableSchema table,
         TableDefinition tb,
-        Dictionary<Type, TableDefinition> builders)
+        Dictionary<Type, TableDefinition> builders,
+        IReadOnlyDictionary<Type, Type>? entityStubs)
     {
         foreach (var fk in tb.ForeignKeys)
         {
-            if (!builders.TryGetValue(fk.PrincipalType, out var principalTb))
+            var resolvedPrincipalType = ResolveEntityStub(fk.PrincipalType, entityStubs);
+            if (!builders.TryGetValue(resolvedPrincipalType, out var principalTb))
             {
+                var viaStub = resolvedPrincipalType != fk.PrincipalType
+                    ? $" (resolved from stub '{fk.PrincipalType.Name}')"
+                    : string.Empty;
                 throw new InvalidOperationException(
-                    $"Principal entity '{fk.PrincipalType.Name}' is not registered in any IEntityRegistry.");
+                    $"Principal entity '{resolvedPrincipalType.Name}'{viaStub} is not registered in any IEntityRegistry.");
             }
 
             var depCols = fk.DependentProps
@@ -341,7 +359,7 @@ internal static class SchemaFinalizer
                 Name = fkName,
                 DependentColumns = depCols,
                 DependentProperties = [.. fk.DependentProps],
-                PrincipalEntityName = fk.PrincipalType.FullName ?? fk.PrincipalType.Name,
+                PrincipalEntityName = resolvedPrincipalType.FullName ?? resolvedPrincipalType.Name,
                 PrincipalSchema = string.IsNullOrWhiteSpace(principalTb.Schema) ? null : principalTb.Schema,
                 PrincipalTable = principalTb.TableName,
                 PrincipalColumns = prinCols,

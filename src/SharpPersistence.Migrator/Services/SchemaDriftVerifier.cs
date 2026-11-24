@@ -23,7 +23,10 @@ internal sealed class SchemaDriftVerifier
             _options.Dialect,
             _options.IdentifierCase,
             _options.PropertyConventions,
-            _options.PluralizeTableNames);
+            _options.PluralizeTableNames,
+            _options.EntityConventions,
+            _options.TableNameConvention,
+            _options.EntityStubs);
 
         var expectedTables = new List<(string RegistryName, TableSchema Table)>();
         foreach (var registry in sortedRegistries)
@@ -35,8 +38,11 @@ internal sealed class SchemaDriftVerifier
                 sortedRegistries,
                 _options.PropertyConventions,
                 _options.Enums,
-                _options.CheckConstraintOptions,
-                _options.PluralizeTableNames);
+                _options.SqlExpressionOptions,
+                _options.PluralizeTableNames,
+                _options.EntityConventions,
+                _options.TableNameConvention,
+                _options.EntityStubs);
 
             var registryName = registry.GetType().Name;
             foreach (var table in schema.Tables)

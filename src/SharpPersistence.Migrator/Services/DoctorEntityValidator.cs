@@ -29,11 +29,15 @@ internal sealed class DoctorEntityValidator(
     {
         if (tb.PkProperties.Count == 0)
         {
-            items.Add(new DoctorCheckItem(
-                DoctorSeverity.Warning,
-                "No primary key configured and no 'Id' property found.",
-                Hint: "Call .HasKey(x => ...) if this table requires a primary key.",
-                EntityName: entityName));
+            if (!tb.ExcludeFromMigrations)
+            {
+                items.Add(new DoctorCheckItem(
+                    DoctorSeverity.Warning,
+                    "No primary key configured and no 'Id' property found.",
+                    Hint: "Call .HasKey(x => ...) if this table requires a primary key.",
+                    EntityName: entityName));
+            }
+
             return;
         }
 
@@ -69,6 +73,32 @@ internal sealed class DoctorEntityValidator(
                     $"Column '{cb.PropertyName}' cannot resolve a SQL type: {ex.Message}",
                     Hint: "Add .HasColumnType(...) or .HasConversion(...) for this property.",
                     EntityName: entityName));
+            }
+
+            if (cb.ComputedColumnSqlRenderer is not null)
+            {
+                try
+                {
+                    var sql = cb.ComputedColumnSqlRenderer(
+                        tb.Dialect,
+                        tb.IdentifierCase,
+                        tb.SqlExpressionOptions.DelimitIdentifiers,
+                        tb.SqlExpressionOptions.NestedColumnSeparator);
+                    if (string.IsNullOrWhiteSpace(sql))
+                    {
+                        items.Add(new DoctorCheckItem(
+                            DoctorSeverity.Error,
+                            $"Computed column '{cb.PropertyName}' produced empty SQL.",
+                            EntityName: entityName));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    items.Add(new DoctorCheckItem(
+                        DoctorSeverity.Error,
+                        $"Computed column '{cb.PropertyName}' expression failed to render: {ex.Message}",
+                        EntityName: entityName));
+                }
             }
         }
 
@@ -111,8 +141,8 @@ internal sealed class DoctorEntityValidator(
                     _ = ix.FilterRenderer(
                         tb.Dialect,
                         tb.IdentifierCase,
-                        tb.CheckConstraintOptions.DelimitIdentifiers,
-                        tb.CheckConstraintOptions.NestedColumnSeparator);
+                        tb.SqlExpressionOptions.DelimitIdentifiers,
+                        tb.SqlExpressionOptions.NestedColumnSeparator);
                 }
                 catch (Exception ex)
                 {
@@ -131,7 +161,7 @@ internal sealed class DoctorEntityValidator(
         {
             try
             {
-                var sql = ckDef.RenderSql(tb.Dialect, tb.IdentifierCase, tb.CheckConstraintOptions);
+                var sql = ckDef.RenderSql(tb.Dialect, tb.IdentifierCase, tb.SqlExpressionOptions);
                 if (string.IsNullOrWhiteSpace(sql))
                 {
                     items.Add(new DoctorCheckItem(
@@ -212,6 +242,31 @@ internal sealed class DoctorEntityValidator(
                             EntityName: entityName));
                     }
                 }
+                else if (el.SqlExpressionRenderer is not null)
+                {
+                    try
+                    {
+                        var sql = el.SqlExpressionRenderer(
+                            tb.Dialect,
+                            tb.IdentifierCase,
+                            tb.SqlExpressionOptions.DelimitIdentifiers,
+                            tb.SqlExpressionOptions.NestedColumnSeparator);
+                        if (string.IsNullOrWhiteSpace(sql))
+                        {
+                            items.Add(new DoctorCheckItem(
+                                DoctorSeverity.Error,
+                                $"Exclusion constraint '{exName}' expression produced empty SQL.",
+                                EntityName: entityName));
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        items.Add(new DoctorCheckItem(
+                            DoctorSeverity.Error,
+                            $"Exclusion constraint '{exName}' expression failed to render: {ex.Message}",
+                            EntityName: entityName));
+                    }
+                }
             }
 
             if (exDef.FilterRenderer is not null)
@@ -221,8 +276,8 @@ internal sealed class DoctorEntityValidator(
                     _ = exDef.FilterRenderer(
                         tb.Dialect,
                         tb.IdentifierCase,
-                        tb.CheckConstraintOptions.DelimitIdentifiers,
-                        tb.CheckConstraintOptions.NestedColumnSeparator);
+                        tb.SqlExpressionOptions.DelimitIdentifiers,
+                        tb.SqlExpressionOptions.NestedColumnSeparator);
                 }
                 catch (Exception ex)
                 {
@@ -245,13 +300,17 @@ internal sealed class DoctorEntityValidator(
     {
         foreach (var fk in tb.ForeignKeys)
         {
-            var fkDisplayName = fk.ConstraintName ?? $"{tb.TableName} -> {fk.PrincipalType.Name}";
-            if (!allTables.TryGetValue(fk.PrincipalType, out var principalEntry))
+            var resolvedPrincipalType = SchemaFinalizer.ResolveEntityStub(fk.PrincipalType, options.EntityStubs);
+            var fkDisplayName = fk.ConstraintName ?? $"{tb.TableName} -> {resolvedPrincipalType.Name}";
+            if (!allTables.TryGetValue(resolvedPrincipalType, out var principalEntry))
             {
+                var viaStub = resolvedPrincipalType != fk.PrincipalType
+                    ? $" (resolved from stub '{fk.PrincipalType.Name}')"
+                    : string.Empty;
                 items.Add(new DoctorCheckItem(
                     DoctorSeverity.Error,
-                    $"Foreign key '{fkDisplayName}' references principal entity '{fk.PrincipalType.Name}', which is not registered in any IEntityRegistry.",
-                    Hint: $"Map '{fk.PrincipalType.Name}' in an IEntityRegistry.",
+                    $"Foreign key '{fkDisplayName}' references principal entity '{resolvedPrincipalType.Name}'{viaStub}, which is not registered in any IEntityRegistry.",
+                    Hint: $"Map '{resolvedPrincipalType.Name}' in an IEntityRegistry or configure a stub mapping in ConfigureEntityStubs.",
                     EntityName: entityName));
                 continue;
             }

@@ -334,7 +334,9 @@ public class RepositoryBaseTests : IAsyncLifetime
     {
         _dbContext.ChangeTracker.Clear();
 
-        var removed = await _repository.RemoveManyDirectAsync(e => e.NumericValue > 2);
+        var removed = await _repository.RemoveManyDirectAsync(
+            e => e.NumericValue > 2,
+            TestContext.Current.CancellationToken);
 
         removed.ShouldBe(2);
 

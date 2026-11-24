@@ -30,8 +30,11 @@ public static class MigrationManagerServiceCollectionExtensions
                 options.IdentifierCase,
                 options.PropertyConventions,
                 options.Enums,
-                options.CheckConstraintOptions,
+                options.SqlExpressionOptions,
                 options.PluralizeTableNames,
+                options.EntityConventions,
+                options.TableNameConvention,
+                options.EntityStubs,
                 [.. options.Registries]);
             schema.Extensions = options.Extensions.Count > 0 ? [.. options.Extensions] : null;
             schema.Enums = options.Enums.Count > 0 ? [.. options.Enums] : null;

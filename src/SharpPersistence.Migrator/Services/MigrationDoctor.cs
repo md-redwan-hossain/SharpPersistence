@@ -195,9 +195,11 @@ internal sealed class MigrationDoctor
                         _options.Dialect,
                         _options.IdentifierCase,
                         _options.PropertyConventions,
-                        _options.CheckConstraintOptions,
+                        _options.SqlExpressionOptions,
                         nullabilityContext,
-                        _options.PluralizeTableNames);
+                        _options.PluralizeTableNames,
+                        _options.EntityConventions,
+                        _options.TableNameConvention);
 
                     allTableDefinitions[entityType] = (regName, tableDef);
                 }
@@ -240,8 +242,11 @@ internal sealed class MigrationDoctor
                 _options.Registries,
                 _options.PropertyConventions,
                 _options.Enums,
-                _options.CheckConstraintOptions,
-                _options.PluralizeTableNames);
+                _options.SqlExpressionOptions,
+                _options.PluralizeTableNames,
+                _options.EntityConventions,
+                _options.TableNameConvention,
+                _options.EntityStubs);
 
             totalPendingChanges += StandaloneSchemaDiffer.CountPendingOperations(currentSchema, previousJson);
         }

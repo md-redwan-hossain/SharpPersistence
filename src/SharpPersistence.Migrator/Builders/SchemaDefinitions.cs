@@ -25,7 +25,7 @@ internal sealed class TableDefinition
     public HashSet<string> IgnoredProperties { get; } = new(StringComparer.Ordinal);
     public SqlDialect Dialect { get; }
     public SqlIdentifierCase IdentifierCase { get; }
-    public CheckConstraintBuilderOptions CheckConstraintOptions { get; }
+    public SqlExpressionBuilderOptions SqlExpressionOptions { get; }
     public IReadOnlyList<string> PkProperties { get; private set; } = [];
     public string? PkName { get; private set; }
     public Dictionary<string, ColumnDefinition> ColumnsByProp { get; } = new(StringComparer.Ordinal);
@@ -40,14 +40,14 @@ internal sealed class TableDefinition
         string? schema,
         SqlDialect dialect,
         SqlIdentifierCase identifierCase,
-        CheckConstraintBuilderOptions? checkConstraintOptions = null)
+        SqlExpressionBuilderOptions? sqlExpressionOptions = null)
     {
         EntityType = entityType;
         TableName = tableName;
         Schema = schema;
         Dialect = dialect;
         IdentifierCase = identifierCase;
-        CheckConstraintOptions = checkConstraintOptions ?? new CheckConstraintBuilderOptions();
+        SqlExpressionOptions = sqlExpressionOptions ?? new SqlExpressionBuilderOptions();
     }
 
     public void SetPrimaryKey(IReadOnlyList<string> propNames, string? constraintName = null)
@@ -72,12 +72,6 @@ internal sealed class TableDefinition
         return col;
     }
 
-    public ColumnBuilder GetOrAddColumn(string propName, Type clrType, bool returnFluent)
-    {
-        var col = GetOrAddColumn(propName, clrType);
-        return new ColumnBuilder(col);
-    }
-
     public void IgnoreProperty(string propName)
     {
         IgnoredProperties.Add(propName);
@@ -86,6 +80,17 @@ internal sealed class TableDefinition
 
     public IndexDefinition AddIndex(IReadOnlyList<string> propNames)
     {
+        var existing = Indexes.FirstOrDefault(ix =>
+            ix.IndexName is null &&
+            ix.FilterSql is null &&
+            ix.FilterRenderer is null &&
+            ix.PropertyNames.SequenceEqual(propNames, StringComparer.Ordinal));
+
+        if (existing is not null)
+        {
+            return existing;
+        }
+
         var idx = new IndexDefinition(propNames);
         Indexes.Add(idx);
         return idx;
@@ -207,7 +212,7 @@ internal sealed class CheckConstraintDefinition
     public string RenderSql(
         SqlDialect dialect,
         SqlIdentifierCase identifierCase,
-        CheckConstraintBuilderOptions defaults)
+        SqlExpressionBuilderOptions defaults)
     {
         if (_rawSql is not null)
         {

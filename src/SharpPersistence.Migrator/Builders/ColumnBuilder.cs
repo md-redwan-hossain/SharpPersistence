@@ -3,132 +3,135 @@ using SharpPersistence.Migrator.Enums;
 
 namespace SharpPersistence.Migrator.Builders;
 
-public class ColumnBuilder
+public abstract class ColumnBuilderBase<TBuilder>
+    where TBuilder : ColumnBuilderBase<TBuilder>
 {
     internal ColumnDefinition Definition { get; }
 
-    internal ColumnBuilder(ColumnDefinition definition)
+    internal ColumnBuilderBase(ColumnDefinition definition)
     {
         Definition = definition;
     }
 
-    public ColumnBuilder HasColumnName(string columnName)
+    private TBuilder Self => (TBuilder)this;
+
+    public TBuilder HasColumnName(string columnName)
     {
         Definition.ColumnName = columnName;
-        return this;
+        return Self;
     }
 
-    public ColumnBuilder HasPreviousColumnName(string previousColumnName)
+    public TBuilder HasPreviousColumnName(string previousColumnName)
     {
         Definition.PreviousColumnName = previousColumnName;
-        return this;
+        return Self;
     }
 
-    public ColumnBuilder HasColumnType(string sqlType)
+    public TBuilder HasColumnType(string sqlType)
     {
         Definition.ExplicitSqlType = sqlType;
-        return this;
+        return Self;
     }
 
-    public ColumnBuilder HasMaxLength(int maxLength)
+    public TBuilder HasMaxLength(int maxLength)
     {
         Definition.MaxLength = maxLength;
-        return this;
+        return Self;
     }
 
-    public ColumnBuilder HasPrecision(int precision, int scale)
+    public TBuilder HasPrecision(int precision, int scale)
     {
         Definition.Precision = precision;
         Definition.Scale = scale;
-        return this;
+        return Self;
     }
 
-    public ColumnBuilder IsRequired(bool required = true)
+    public TBuilder IsRequired(bool required = true)
     {
         Definition.IsNullable = !required;
-        return this;
+        return Self;
     }
 
-    public ColumnBuilder IsUnicode(bool unicode = true)
+    public TBuilder IsUnicode(bool unicode = true)
     {
         Definition.IsUnicode = unicode;
-        return this;
+        return Self;
     }
 
-    public ColumnBuilder HasDefaultValueSql(string? defaultSql)
+    public TBuilder HasDefaultValueSql(string? defaultSql)
     {
         Definition.DefaultValueSql = defaultSql;
-        return this;
+        return Self;
     }
 
-    public ColumnBuilder HasDefaultValue(object? value)
+    public TBuilder HasDefaultValue<TValue>(TValue? value)
     {
         Definition.DefaultValueSql = FormatDefaultLiteral(value);
-        return this;
+        return Self;
     }
 
-    public ColumnBuilder HasComputedColumnSql(string? sql, bool stored = false)
+    public TBuilder HasComputedColumnSql(string? sql, bool stored = false)
     {
         Definition.ComputedColumnSql = sql;
         Definition.ComputedColumnSqlRenderer = null;
         Definition.IsComputedStored = stored;
-        return this;
+        return Self;
     }
 
-    public ColumnBuilder HasComment(string? comment)
+    public TBuilder HasComment(string? comment)
     {
         Definition.Comment = comment;
-        return this;
+        return Self;
     }
 
-    public ColumnBuilder HasConversion<TProvider>() =>
+    public TBuilder HasConversion<TProvider>() =>
         HasConversion(typeof(TProvider));
 
-    public ColumnBuilder HasConversion(Type providerClrType)
+    public TBuilder HasConversion(Type providerClrType)
     {
         Definition.ProviderClrType = providerClrType;
-        return this;
+        return Self;
     }
 
-    public ColumnBuilder ValueGeneratedOnAdd(bool isIdentity = true)
+    public TBuilder ValueGeneratedOnAdd(bool isIdentity = true)
     {
         Definition.IsIdentity = isIdentity;
         Definition.ValueGenerated = isIdentity ? ValueGenerationMode.OnAdd : ValueGenerationMode.Default;
-        return this;
+        return Self;
     }
 
-    public ColumnBuilder ValueGeneratedNever()
+    public TBuilder ValueGeneratedNever()
     {
         Definition.IsIdentity = false;
         Definition.ValueGenerated = ValueGenerationMode.Never;
-        return this;
+        return Self;
     }
 
-    public ColumnBuilder ValueGeneratedOnAddOrUpdate()
+    public TBuilder ValueGeneratedOnAddOrUpdate()
     {
         Definition.IsIdentity = false;
         Definition.ValueGenerated = ValueGenerationMode.OnAddOrUpdate;
-        return this;
+        return Self;
     }
 
-    public ColumnBuilder IsConcurrencyToken(bool concurrencyToken = true)
+    public TBuilder IsConcurrencyToken(bool concurrencyToken = true)
     {
         Definition.IsConcurrencyToken = concurrencyToken;
-        return this;
+        return Self;
     }
 
-    public ColumnBuilder IsRowVersion()
+    public TBuilder IsRowVersion()
     {
         Definition.IsRowVersion = true;
         Definition.IsConcurrencyToken = true;
         Definition.ValueGenerated = ValueGenerationMode.OnAddOrUpdate;
-        return this;
+        return Self;
     }
 
-    public ColumnBuilder SetAnnotation<TValue>(string name, TValue? value)
+    public TBuilder SetAnnotation<TValue>(string name, TValue? value)
     {
         Definition.SetAnnotation(name, value);
-        return this;
+        return Self;
     }
 
     private static string FormatDefaultLiteral(object? value) => value switch
@@ -148,16 +151,17 @@ public class ColumnBuilder
     };
 }
 
-public sealed class ColumnBuilder<TEntity> : ColumnBuilder where TEntity : class
+public sealed class ColumnBuilder : ColumnBuilderBase<ColumnBuilder>
 {
     internal ColumnBuilder(ColumnDefinition definition) : base(definition)
     {
     }
+}
 
-    public new ColumnBuilder<TEntity> SetAnnotation<TValue>(string name, TValue? value)
+public sealed class ColumnBuilder<TEntity> : ColumnBuilderBase<ColumnBuilder<TEntity>> where TEntity : class
+{
+    internal ColumnBuilder(ColumnDefinition definition) : base(definition)
     {
-        Definition.SetAnnotation(name, value);
-        return this;
     }
 
     public ColumnBuilder<TEntity> HasComputedColumnSql(

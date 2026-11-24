@@ -10,71 +10,47 @@ namespace SharpPersistence.Migrator.Services;
 
 internal static class SchemaScanner
 {
-    public static IReadOnlyList<IEntityRegistry> DiscoverRegistries(params Assembly[] assemblies)
-    {
-        var registries = new List<IEntityRegistry>();
-
-        foreach (var assembly in assemblies)
-        {
-            Type[] types;
-            try
-            {
-                types = assembly.GetTypes();
-            }
-            catch (ReflectionTypeLoadException ex)
-            {
-                types = ex.Types.Where(t => t is not null).Cast<Type>().ToArray();
-            }
-
-            foreach (var type in types)
-            {
-                if (type.IsAbstract || type.IsInterface || !type.IsClass || !typeof(IEntityRegistry).IsAssignableFrom(type))
-                {
-                    continue;
-                }
-
-                if (Activator.CreateInstance(type) is IEntityRegistry registry)
-                {
-                    registries.Add(registry);
-                }
-            }
-        }
-
-        return registries;
-    }
-
-    public static DatabaseSchema ScanAllRegistries(
-        SqlDialect dialect,
-        SqlIdentifierCase identifierCase,
-        IReadOnlyList<PropertyConventionRule>? propertyConventions = null,
-        IReadOnlyList<PostgresEnumSchema>? pgEnums = null,
-        CheckConstraintBuilderOptions? checkConstraintOptions = null,
-        params Assembly[] assemblies)
-    {
-        var registries = DiscoverRegistries(assemblies);
-        return ScanRegistries(dialect, identifierCase, propertyConventions, pgEnums, checkConstraintOptions, false, [.. registries]);
-    }
-
     public static DatabaseSchema ScanRegistries(
         SqlDialect dialect,
         SqlIdentifierCase identifierCase,
         IReadOnlyList<PropertyConventionRule>? propertyConventions = null,
         IReadOnlyList<PostgresEnumSchema>? pgEnums = null,
-        CheckConstraintBuilderOptions? checkConstraintOptions = null,
+        SqlExpressionBuilderOptions? sqlExpressionOptions = null,
         params IEntityRegistry[] registries) =>
-        ScanRegistries(dialect, identifierCase, propertyConventions, pgEnums, checkConstraintOptions, false, registries);
+        ScanRegistries(dialect, identifierCase, propertyConventions, pgEnums, sqlExpressionOptions, false, null, null, null, registries);
 
     public static DatabaseSchema ScanRegistries(
         SqlDialect dialect,
         SqlIdentifierCase identifierCase,
         IReadOnlyList<PropertyConventionRule>? propertyConventions,
         IReadOnlyList<PostgresEnumSchema>? pgEnums,
-        CheckConstraintBuilderOptions? checkConstraintOptions,
+        SqlExpressionBuilderOptions? sqlExpressionOptions,
         bool pluralizeTableNames,
+        params IEntityRegistry[] registries) =>
+        ScanRegistries(dialect, identifierCase, propertyConventions, pgEnums, sqlExpressionOptions, pluralizeTableNames, null, null, null, registries);
+
+    public static DatabaseSchema ScanRegistries(
+        SqlDialect dialect,
+        SqlIdentifierCase identifierCase,
+        IReadOnlyList<PropertyConventionRule>? propertyConventions,
+        IReadOnlyList<PostgresEnumSchema>? pgEnums,
+        SqlExpressionBuilderOptions? sqlExpressionOptions,
+        bool pluralizeTableNames,
+        IReadOnlyList<EntityConventionRule>? entityConventions,
+        Func<Type, string, string>? tableNameConvention,
+        IReadOnlyDictionary<Type, Type>? entityStubs,
         params IEntityRegistry[] registries)
     {
-        var (buildersByType, sequences) = BuildTableBuilders(registries, dialect, identifierCase, propertyConventions, checkConstraintOptions, pluralizeTableNames);
-        return SchemaFinalizer.FinalizeSchema(buildersByType, includedEntityTypes: null, sequences, pgEnums);
+        var (buildersByType, sequences) = BuildTableBuilders(
+            registries,
+            dialect,
+            identifierCase,
+            propertyConventions,
+            sqlExpressionOptions,
+            pluralizeTableNames,
+            entityConventions,
+            tableNameConvention);
+        return SchemaFinalizer.FinalizeSchema(buildersByType, includedEntityTypes: null, sequences, pgEnums, entityStubs);
     }
 
     public static DatabaseSchema ScanRegistry(
@@ -84,19 +60,30 @@ internal static class SchemaScanner
         IReadOnlyList<IEntityRegistry>? allRegistries = null,
         IReadOnlyList<PropertyConventionRule>? propertyConventions = null,
         IReadOnlyList<PostgresEnumSchema>? pgEnums = null,
-        CheckConstraintBuilderOptions? checkConstraintOptions = null,
-        bool pluralizeTableNames = false)
+        SqlExpressionBuilderOptions? sqlExpressionOptions = null,
+        bool pluralizeTableNames = false,
+        IReadOnlyList<EntityConventionRule>? entityConventions = null,
+        Func<Type, string, string>? tableNameConvention = null,
+        IReadOnlyDictionary<Type, Type>? entityStubs = null)
     {
         var contextRegistries = allRegistries is { Count: > 0 }
             ? allRegistries
             : [registry];
 
         var evaluated = EntityRegistryBuilder.Evaluate(registry);
-        var (buildersByType, _) = BuildTableBuilders(contextRegistries, dialect, identifierCase, propertyConventions, checkConstraintOptions, pluralizeTableNames);
+        var (buildersByType, _) = BuildTableBuilders(
+            contextRegistries,
+            dialect,
+            identifierCase,
+            propertyConventions,
+            sqlExpressionOptions,
+            pluralizeTableNames,
+            entityConventions,
+            tableNameConvention);
         var ownedTypes = evaluated.Mappings.Keys.ToHashSet();
         var ownedSequences = BuildSequenceSchemas(evaluated, dialect);
 
-        return SchemaFinalizer.FinalizeSchema(buildersByType, ownedTypes, ownedSequences, pgEnums);
+        return SchemaFinalizer.FinalizeSchema(buildersByType, ownedTypes, ownedSequences, pgEnums, entityStubs);
     }
 
     private static (Dictionary<Type, TableDefinition> Builders, List<SequenceSchema> Sequences) BuildTableBuilders(
@@ -104,8 +91,10 @@ internal static class SchemaScanner
         SqlDialect dialect,
         SqlIdentifierCase identifierCase,
         IReadOnlyList<PropertyConventionRule>? propertyConventions,
-        CheckConstraintBuilderOptions? checkConstraintOptions,
-        bool pluralizeTableNames)
+        SqlExpressionBuilderOptions? sqlExpressionOptions,
+        bool pluralizeTableNames,
+        IReadOnlyList<EntityConventionRule>? entityConventions,
+        Func<Type, string, string>? tableNameConvention)
     {
         var buildersByType = new Dictionary<Type, TableDefinition>();
         var sequences = new List<SequenceSchema>();
@@ -133,9 +122,11 @@ internal static class SchemaScanner
                     dialect,
                     identifierCase,
                     propertyConventions,
-                    checkConstraintOptions,
+                    sqlExpressionOptions,
                     nullabilityContext,
-                    pluralizeTableNames);
+                    pluralizeTableNames,
+                    entityConventions,
+                    tableNameConvention);
 
                 buildersByType[entityType] = tableBuilder;
             }
@@ -152,15 +143,25 @@ internal static class SchemaScanner
         SqlDialect dialect,
         SqlIdentifierCase identifierCase,
         IReadOnlyList<PropertyConventionRule>? propertyConventions,
-        CheckConstraintBuilderOptions? checkConstraintOptions,
+        SqlExpressionBuilderOptions? sqlExpressionOptions,
         NullabilityInfoContext? nullabilityContext = null,
-        bool pluralizeTableNames = false)
+        bool pluralizeTableNames = false,
+        IReadOnlyList<EntityConventionRule>? entityConventions = null,
+        Func<Type, string, string>? tableNameConvention = null)
     {
         nullabilityContext ??= new NullabilityInfoContext();
         var rawTableName = pluralizeTableNames
             ? entityType.Name.Pluralize(inputIsKnownToBeSingular: false)
             : entityType.Name;
         var defaultTableName = NamingFormatter.Format(rawTableName, identifierCase);
+        if (tableNameConvention is not null)
+        {
+            var customTableName = tableNameConvention(entityType, defaultTableName);
+            if (!string.IsNullOrWhiteSpace(customTableName))
+            {
+                defaultTableName = customTableName.Trim();
+            }
+        }
 
         var tableBuilder = new TableDefinition(
             entityType,
@@ -168,7 +169,7 @@ internal static class SchemaScanner
             defaultSchema,
             dialect,
             identifierCase,
-            checkConstraintOptions);
+            sqlExpressionOptions);
 
         foreach (var prop in entityType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
         {
@@ -192,6 +193,8 @@ internal static class SchemaScanner
                 tableBuilder.SetPrimaryKey([prop.Name], null);
             }
         }
+
+        ApplyGlobalEntityConventions(entityType, tableBuilder, entityConventions);
 
         if (configType is not null)
         {
@@ -244,6 +247,25 @@ internal static class SchemaScanner
         }
 
         return list;
+    }
+
+    private static void ApplyGlobalEntityConventions(
+        Type entityType,
+        TableDefinition tableBuilder,
+        IReadOnlyList<EntityConventionRule>? conventions)
+    {
+        if (conventions is null or { Count: 0 })
+        {
+            return;
+        }
+
+        foreach (var rule in conventions)
+        {
+            if (rule.TargetType.IsAssignableFrom(entityType))
+            {
+                rule.Apply(tableBuilder);
+            }
+        }
     }
 
     private static void ApplyGlobalPropertyConventions(

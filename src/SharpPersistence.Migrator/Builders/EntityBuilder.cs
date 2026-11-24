@@ -14,10 +14,11 @@ public sealed class EntityBuilder<TEntity> where TEntity : class
 
     public EntityBuilder<TEntity> ToTable(string tableName, string? schema = null)
     {
-        Definition.TableName = tableName;
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+        Definition.TableName = tableName.Trim();
         if (schema is not null)
         {
-            Definition.Schema = schema;
+            Definition.Schema = string.IsNullOrWhiteSpace(schema) ? null : schema.Trim();
         }
 
         return this;
@@ -71,19 +72,7 @@ public sealed class EntityBuilder<TEntity> where TEntity : class
         return this;
     }
 
-    public EntityBuilder<TEntity> HasQueryFilter(LambdaExpression? filter)
-    {
-        Definition.QueryFilter = filter;
-        return this;
-    }
-
     public EntityBuilder<TEntity> HasQueryFilter(string filterKey, Expression<Func<TEntity, bool>>? filter)
-    {
-        Definition.NamedQueryFilters[filterKey] = filter;
-        return this;
-    }
-
-    public EntityBuilder<TEntity> HasQueryFilter(string filterKey, LambdaExpression? filter)
     {
         Definition.NamedQueryFilters[filterKey] = filter;
         return this;

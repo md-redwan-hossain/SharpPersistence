@@ -138,6 +138,35 @@ internal sealed class DoctorCrossRegistryValidator(
             }
         }
 
+        foreach (var (stubType, targetType) in options.EntityStubs)
+        {
+            if (options.EntityStubs.ContainsKey(targetType))
+            {
+                checks.Add(new DoctorCheckItem(
+                    DoctorSeverity.Error,
+                    $"Invalid entity stub mapping: '{stubType.Name}' maps to '{targetType.Name}', which is itself registered as a stub.",
+                    Hint: $"Map '{stubType.Name}' directly to the owning entity instead of chaining stubs."));
+                continue;
+            }
+
+            if (!allTables.TryGetValue(targetType, out var targetEntry))
+            {
+                checks.Add(new DoctorCheckItem(
+                    DoctorSeverity.Error,
+                    $"Invalid entity stub mapping: '{stubType.Name}' maps to '{targetType.Name}', which is not registered in any IEntityRegistry.",
+                    Hint: $"Register '{targetType.Name}' in its owning IEntityRegistry."));
+                continue;
+            }
+
+            if (targetEntry.Table.ExcludeFromMigrations)
+            {
+                checks.Add(new DoctorCheckItem(
+                    DoctorSeverity.Error,
+                    $"Invalid entity stub mapping: '{stubType.Name}' maps to '{targetType.Name}' in {targetEntry.RegistryName}, which is marked ExcludeFromMigrations().",
+                    Hint: $"Map '{stubType.Name}' to the non-excluded owning entity instead."));
+            }
+        }
+
         if (!hasRegistryErrors && options.Registries.Count > 1)
         {
             try
@@ -147,7 +176,10 @@ internal sealed class DoctorCrossRegistryValidator(
                     options.Dialect,
                     options.IdentifierCase,
                     options.PropertyConventions,
-                    options.PluralizeTableNames);
+                    options.PluralizeTableNames,
+                    options.EntityConventions,
+                    options.TableNameConvention,
+                    options.EntityStubs);
             }
             catch (Exception ex)
             {

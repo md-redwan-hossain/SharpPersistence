@@ -151,7 +151,7 @@ public sealed class CheckConstraintBuilderIntegrationTests
             options.Dialect,
             options.IdentifierCase,
             [registry],
-            checkConstraintOptions: options.CheckConstraintOptions);
+            sqlExpressionOptions: options.SqlExpressionOptions);
 
         var byName = schema.Tables.Single().CheckConstraints.ToDictionary(c => c.Name, c => c.Sql);
 
@@ -175,6 +175,7 @@ public sealed class CheckConstraintBuilderIntegrationTests
             {
                 b.ToTable("computed_orders");
                 b.Property(x => x.FullTotal)
+                    .HasPrecision(18, 2)
                     .HasComputedColumnSql(cc => cc.Column(x => x.Subtotal).Math().Plus(x => x.Tax), stored: true);
             });
         }

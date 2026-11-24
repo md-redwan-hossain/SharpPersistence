@@ -55,7 +55,10 @@ internal sealed class MigrationManager : IMigrationManager
             _options.Dialect,
             _options.IdentifierCase,
             _options.PropertyConventions,
-            _options.PluralizeTableNames);
+            _options.PluralizeTableNames,
+            _options.EntityConventions,
+            _options.TableNameConvention,
+            _options.EntityStubs);
 
         var targets = string.IsNullOrWhiteSpace(registryFilter)
             ? sortedRegistries
@@ -94,8 +97,11 @@ internal sealed class MigrationManager : IMigrationManager
                 sortedRegistries,
                 _options.PropertyConventions,
                 _options.Enums,
-                _options.CheckConstraintOptions,
-                _options.PluralizeTableNames);
+                _options.SqlExpressionOptions,
+                _options.PluralizeTableNames,
+                _options.EntityConventions,
+                _options.TableNameConvention,
+                _options.EntityStubs);
 
             var result = StandaloneSchemaDiffer.GenerateDiff(
                 currentSchema,

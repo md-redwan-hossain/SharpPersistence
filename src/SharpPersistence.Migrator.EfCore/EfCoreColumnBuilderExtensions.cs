@@ -5,7 +5,8 @@ namespace SharpPersistence.Migrator.EfCore;
 
 public static class EfCoreColumnBuilderExtensions
 {
-    public static ColumnBuilder HasConversion(this ColumnBuilder builder, ValueConverter converter)
+    public static TBuilder HasConversion<TBuilder>(this TBuilder builder, ValueConverter converter)
+        where TBuilder : ColumnBuilderBase<TBuilder>
     {
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(converter);

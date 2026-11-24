@@ -1,5 +1,4 @@
 using System.Data.Common;
-using System.Reflection;
 using SharpPersistence.Enums;
 using SharpPersistence.Migrator.Abstractions;
 using SharpPersistence.Migrator.Builders;
@@ -16,6 +15,8 @@ public class MigrationManagerOptionsBuilder
         public MigrationManagerOptions Options { get; } = new();
         public List<IEntityRegistry> Registries { get; } = [];
         public List<PropertyConventionRule> PropertyConventions { get; } = [];
+        public List<EntityConventionRule> EntityConventions { get; } = [];
+        public Dictionary<Type, Type> EntityStubs { get; } = [];
         public List<PostgresExtensionSchema> Extensions { get; } = [];
         public List<(Type EnumType, string? Name, string? Schema)> EnumRegistrations { get; } = [];
         public bool DialectConfigured { get; set; }
@@ -39,61 +40,52 @@ public class MigrationManagerOptionsBuilder
         string connectionString,
         DbProviderFactory? providerFactory = null)
     {
-        State.Options.Dialect = SqlDialect.PostgreSql;
         State.Options.ConnectionString = connectionString;
         State.Options.ProviderFactory = providerFactory;
-        State.DialectConfigured = true;
-        if (!State.IdentifierCaseExplicitlySet)
-        {
-            State.Options.IdentifierCase = SqlIdentifierCase.LowerSnakeCase;
-        }
-
-        if (!State.HistorySchemaExplicitlySet)
-        {
-            State.Options.HistorySchema = "public";
-        }
-
-        return new PostgreSqlOptionsBuilder(State);
+        return ConfigurePostgreSqlDefaults();
     }
 
     public PostgreSqlOptionsBuilder UsePostgreSql(Func<IServiceProvider, DbConnection> connectionFactory)
     {
-        State.Options.Dialect = SqlDialect.PostgreSql;
         State.Options.ConnectionFactory = connectionFactory;
-        State.DialectConfigured = true;
-        if (!State.IdentifierCaseExplicitlySet)
-        {
-            State.Options.IdentifierCase = SqlIdentifierCase.LowerSnakeCase;
-        }
-
-        if (!State.HistorySchemaExplicitlySet)
-        {
-            State.Options.HistorySchema = "public";
-        }
-
-        return new PostgreSqlOptionsBuilder(State);
+        return ConfigurePostgreSqlDefaults();
     }
 
     public OracleOptionsBuilder UseOracle(
         string connectionString,
         DbProviderFactory? providerFactory = null)
     {
-        State.Options.Dialect = SqlDialect.Oracle;
         State.Options.ConnectionString = connectionString;
         State.Options.ProviderFactory = providerFactory;
-        State.DialectConfigured = true;
-        if (!State.IdentifierCaseExplicitlySet)
-        {
-            State.Options.IdentifierCase = SqlIdentifierCase.UpperSnakeCase;
-        }
-
-        return new OracleOptionsBuilder(State);
+        return ConfigureOracleDefaults();
     }
 
     public OracleOptionsBuilder UseOracle(Func<IServiceProvider, DbConnection> connectionFactory)
     {
-        State.Options.Dialect = SqlDialect.Oracle;
         State.Options.ConnectionFactory = connectionFactory;
+        return ConfigureOracleDefaults();
+    }
+
+    private PostgreSqlOptionsBuilder ConfigurePostgreSqlDefaults()
+    {
+        State.Options.Dialect = SqlDialect.PostgreSql;
+        State.DialectConfigured = true;
+        if (!State.IdentifierCaseExplicitlySet)
+        {
+            State.Options.IdentifierCase = SqlIdentifierCase.LowerSnakeCase;
+        }
+
+        if (!State.HistorySchemaExplicitlySet)
+        {
+            State.Options.HistorySchema = "public";
+        }
+
+        return new PostgreSqlOptionsBuilder(State);
+    }
+
+    private OracleOptionsBuilder ConfigureOracleDefaults()
+    {
+        State.Options.Dialect = SqlDialect.Oracle;
         State.DialectConfigured = true;
         if (!State.IdentifierCaseExplicitlySet)
         {
@@ -113,6 +105,13 @@ public class MigrationManagerOptionsBuilder
     public MigrationManagerOptionsBuilder PluralizeTableNames(bool pluralize = true)
     {
         State.Options.PluralizeTableNames = pluralize;
+        return this;
+    }
+
+    public MigrationManagerOptionsBuilder UseTableNameConvention(Func<Type, string, string> convention)
+    {
+        ArgumentNullException.ThrowIfNull(convention);
+        State.Options.TableNameConvention = convention;
         return this;
     }
 
@@ -146,15 +145,33 @@ public class MigrationManagerOptionsBuilder
 
     public MigrationManagerOptionsBuilder ConfigureProperties<TProperty>(Action<ColumnBuilder> configure)
     {
+        ArgumentNullException.ThrowIfNull(configure);
         State.PropertyConventions.Add(new PropertyConventionRule(typeof(TProperty), configure));
         return this;
     }
 
-    public MigrationManagerOptionsBuilder ConfigureSqlExpressionBuilder(
-        Action<CheckConstraintBuilderOptionsBuilder> configure)
+    public MigrationManagerOptionsBuilder ConfigureEntities<TEntity>(Action<EntityBuilder<TEntity>> configure)
+        where TEntity : class
     {
         ArgumentNullException.ThrowIfNull(configure);
-        configure(new CheckConstraintBuilderOptionsBuilder(State.Options.CheckConstraintOptions));
+        State.EntityConventions.Add(new EntityConventionRule(
+            typeof(TEntity),
+            tableDef => configure(new EntityBuilder<TEntity>(tableDef))));
+        return this;
+    }
+
+    public MigrationManagerOptionsBuilder ConfigureEntityStubs(Action<EntityStubBuilder> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        configure(new EntityStubBuilder(State.EntityStubs));
+        return this;
+    }
+
+    public MigrationManagerOptionsBuilder ConfigureSqlExpressionBuilder(
+        Action<SqlExpressionBuilderOptionsBuilder> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        configure(new SqlExpressionBuilderOptionsBuilder(State.Options.SqlExpressionOptions));
         return this;
     }
 
@@ -171,13 +188,6 @@ public class MigrationManagerOptionsBuilder
         return this;
     }
 
-    public MigrationManagerOptionsBuilder AddRegistriesFromAssembly(params Assembly[] assemblies)
-    {
-        var discovered = SchemaScanner.DiscoverRegistries(assemblies);
-        State.Registries.AddRange(discovered);
-        return this;
-    }
-
     internal MigrationManagerOptions Build()
     {
         if (!State.DialectConfigured)
@@ -186,11 +196,15 @@ public class MigrationManagerOptionsBuilder
                 "No database provider configured. Call a provider method such as UsePostgreSql(...) or UseOracle(...) inside AddDbMigrator.");
         }
 
+        var identifierCase = State.Options.IdentifierCase;
+
         State.Options.Registries = State.Registries
             .GroupBy(r => r.GetType())
             .Select(g => g.First())
             .ToList();
         State.Options.PropertyConventions = [.. State.PropertyConventions];
+        State.Options.EntityConventions = [.. State.EntityConventions];
+        State.Options.EntityStubs = new Dictionary<Type, Type>(State.EntityStubs);
         State.Options.Extensions = State.Extensions
             .GroupBy(e => e.Name, StringComparer.Ordinal)
             .Select(g => g.Last())
@@ -201,11 +215,11 @@ public class MigrationManagerOptionsBuilder
             .Select(g => g.Last())
             .Select(e => new PostgresEnumSchema
             {
-                Name = e.Name ?? NamingFormatter.Format(e.EnumType.Name, SqlIdentifierCase.LowerSnakeCase),
+                Name = e.Name ?? NamingFormatter.Format(e.EnumType.Name, identifierCase),
                 Schema = e.Schema,
                 ClrTypeName = e.EnumType.FullName ?? e.EnumType.Name,
                 Labels = Enum.GetNames(e.EnumType)
-                    .Select(l => NamingFormatter.Format(l, SqlIdentifierCase.LowerSnakeCase))
+                    .Select(l => NamingFormatter.Format(l, identifierCase))
                     .ToList()
             })
             .OrderBy(e => e.QualifiedName, StringComparer.Ordinal)

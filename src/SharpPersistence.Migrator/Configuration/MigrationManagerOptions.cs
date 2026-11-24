@@ -9,11 +9,14 @@ namespace SharpPersistence.Migrator.Configuration;
 
 internal sealed record PropertyConventionRule(Type TargetClrType, Action<ColumnBuilder> Configure);
 
+internal sealed record EntityConventionRule(Type TargetType, Action<TableDefinition> Apply);
+
 internal sealed class MigrationManagerOptions
 {
     public SqlDialect Dialect { get; internal set; }
     public SqlIdentifierCase IdentifierCase { get; internal set; }
     public bool PluralizeTableNames { get; internal set; }
+    public Func<Type, string, string>? TableNameConvention { get; internal set; }
     public OracleDbCompatibility OracleCompatibility { get; internal set; } = OracleDbCompatibility.OracleDb19;
     public string? ConnectionString { get; internal set; }
     public DbProviderFactory? ProviderFactory { get; internal set; }
@@ -25,9 +28,11 @@ internal sealed class MigrationManagerOptions
     public string SnapshotDirectory { get; internal set; } = "EntityChangelogs";
     public IReadOnlyList<IEntityRegistry> Registries { get; internal set; } = [];
     public IReadOnlyList<PropertyConventionRule> PropertyConventions { get; internal set; } = [];
+    public IReadOnlyList<EntityConventionRule> EntityConventions { get; internal set; } = [];
+    public IReadOnlyDictionary<Type, Type> EntityStubs { get; internal set; } = new Dictionary<Type, Type>();
     public IReadOnlyList<PostgresExtensionSchema> Extensions { get; internal set; } = [];
     public IReadOnlyList<PostgresEnumSchema> Enums { get; internal set; } = [];
-    public CheckConstraintBuilderOptions CheckConstraintOptions { get; } = new();
+    public SqlExpressionBuilderOptions SqlExpressionOptions { get; } = new();
 
     public void OverrideRootPath(string rootPath) => RootPath = rootPath;
 }

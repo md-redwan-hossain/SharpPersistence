@@ -2,6 +2,7 @@ using SharpPersistence.Enums;
 using SharpPersistence.Migrator.Abstractions;
 using SharpPersistence.Migrator.Builders;
 using SharpPersistence.Migrator.Configuration;
+using SharpPersistence.Migrator.Models;
 
 namespace SharpPersistence.Migrator.Services;
 
@@ -12,7 +13,10 @@ internal static class RegistryDependencyResolver
         SqlDialect dialect,
         SqlIdentifierCase identifierCase,
         IReadOnlyList<PropertyConventionRule>? propertyConventions = null,
-        bool pluralizeTableNames = false)
+        bool pluralizeTableNames = false,
+        IReadOnlyList<EntityConventionRule>? entityConventions = null,
+        Func<Type, string, string>? tableNameConvention = null,
+        IReadOnlyDictionary<Type, Type>? entityStubs = null)
     {
         if (registries.Count <= 1)
         {
@@ -21,6 +25,9 @@ internal static class RegistryDependencyResolver
 
         var registryByName = registries.ToDictionary(r => r.GetType().Name, StringComparer.Ordinal);
         var ownerByEntityName = new Dictionary<string, string>(StringComparer.Ordinal);
+        var ownerByQualifiedTable = new Dictionary<(string Schema, string Table), string>();
+        var excludedEntities = new HashSet<string>(StringComparer.Ordinal);
+        var scannedSchemas = new Dictionary<string, DatabaseSchema>(StringComparer.Ordinal);
 
         foreach (var registry in registries)
         {
@@ -31,6 +38,31 @@ internal static class RegistryDependencyResolver
                 var fullName = entityType.FullName ?? entityType.Name;
                 ownerByEntityName[fullName] = regName;
             }
+
+            var schema = SchemaScanner.ScanRegistry(
+                registry,
+                dialect,
+                identifierCase,
+                registries,
+                propertyConventions,
+                pluralizeTableNames: pluralizeTableNames,
+                entityConventions: entityConventions,
+                tableNameConvention: tableNameConvention,
+                entityStubs: entityStubs);
+
+            scannedSchemas[regName] = schema;
+
+            foreach (var table in schema.Tables)
+            {
+                if (table.ExcludeFromMigrations)
+                {
+                    excludedEntities.Add(table.EntityName);
+                    continue;
+                }
+
+                var key = (NormalizeSchema(table.Schema, dialect), table.TableName);
+                ownerByQualifiedTable.TryAdd(key, regName);
+            }
         }
 
         var dependents = registryByName.Keys.ToDictionary(
@@ -39,19 +71,15 @@ internal static class RegistryDependencyResolver
             StringComparer.Ordinal);
         var inDegree = registryByName.Keys.ToDictionary(k => k, _ => 0, StringComparer.Ordinal);
 
-        foreach (var registry in registries)
+        foreach (var (currentName, schema) in scannedSchemas)
         {
-            var currentName = registry.GetType().Name;
-            var schema = SchemaScanner.ScanRegistry(
-                registry,
-                dialect,
-                identifierCase,
-                registries,
-                propertyConventions,
-                pluralizeTableNames: pluralizeTableNames);
-
             foreach (var table in schema.Tables)
             {
+                if (table.ExcludeFromMigrations)
+                {
+                    continue;
+                }
+
                 foreach (var fk in table.ForeignKeys)
                 {
                     if (fk.IsCircular || string.IsNullOrWhiteSpace(fk.PrincipalEntityName))
@@ -59,7 +87,18 @@ internal static class RegistryDependencyResolver
                         continue;
                     }
 
-                    if (ownerByEntityName.TryGetValue(fk.PrincipalEntityName, out var principalName) &&
+                    string? principalName = null;
+                    if (excludedEntities.Contains(fk.PrincipalEntityName))
+                    {
+                        var tableKey = (NormalizeSchema(fk.PrincipalSchema, dialect), fk.PrincipalTable);
+                        ownerByQualifiedTable.TryGetValue(tableKey, out principalName);
+                    }
+                    else
+                    {
+                        ownerByEntityName.TryGetValue(fk.PrincipalEntityName, out principalName);
+                    }
+
+                    if (principalName is not null &&
                         !string.Equals(principalName, currentName, StringComparison.Ordinal) &&
                         dependents[principalName].Add(currentName))
                     {
@@ -100,5 +139,15 @@ internal static class RegistryDependencyResolver
         }
 
         return ordered;
+    }
+
+    private static string NormalizeSchema(string? schema, SqlDialect dialect)
+    {
+        if (string.IsNullOrWhiteSpace(schema))
+        {
+            return dialect == SqlDialect.PostgreSql ? "public" : string.Empty;
+        }
+
+        return schema.Trim();
     }
 }
