@@ -36,7 +36,7 @@ internal static class StandaloneSchemaDiffer
         var operations = ComputeOperations(previousSchema, migratableCurrent, prompter, sqlDialect);
         if (operations.Count == 0)
         {
-            return new SchemaDiffResult(false, string.Empty, string.Empty, existingSnapshotJson ?? string.Empty);
+            return new SchemaDiffResult(false, string.Empty, string.Empty, existingSnapshotJson ?? string.Empty, []);
         }
 
         var mainOps = new List<SchemaOperation>(operations.Count);
@@ -60,7 +60,7 @@ internal static class StandaloneSchemaDiffer
         var deferredSql = deferredOps.Count > 0 ? generator.GenerateSql(deferredOps) : string.Empty;
         var updatedJson = JsonSerializer.Serialize(migratableCurrent, JsonOptions);
 
-        return new SchemaDiffResult(true, sql, deferredSql, updatedJson);
+        return new SchemaDiffResult(true, sql, deferredSql, updatedJson, operations);
     }
 
     internal static int CountPendingOperations(

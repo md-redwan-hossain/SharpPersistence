@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Check, Copy, FileCode2, Loader2, Search } from "lucide-react";
+import { AlertTriangle, FileCode2, Loader2, Search } from "lucide-react";
 import {
   fetchValidatedJson,
   UiRunlistSchema,
@@ -7,9 +7,9 @@ import {
   type UiRunlistScript,
 } from "../schemas/apiSchemas";
 import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
 import { Input } from "./ui/input";
+import { SqlCodeBlock } from "./ui/sql-code-block";
 
 export function RunlistView() {
   const [runlist, setRunlist] = useState<UiRunlist | null>(null);
@@ -19,7 +19,6 @@ export function RunlistView() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sqlCache, setSqlCache] = useState<Record<string, string>>({});
   const [loadingSql, setLoadingSql] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -81,17 +80,6 @@ export function RunlistView() {
 
   const activeSql = activeScript ? sqlCache[activeScript.id] ?? "" : "";
 
-  const handleCopy = async () => {
-    if (!activeSql) return;
-    try {
-      await navigator.clipboard.writeText(activeSql);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1600);
-    } catch {
-      // Clipboard unavailable
-    }
-  };
-
   if (loading) {
     return (
       <div className="h-64 flex items-center justify-center gap-2 text-xs text-muted-foreground">
@@ -118,16 +106,22 @@ export function RunlistView() {
   }
 
   return (
-    <div className="flex flex-col lg:flex-row lg:h-[calc(100vh-3.5rem)] lg:overflow-hidden">
-      {/* Left List */}
-      <aside className="w-full lg:w-96 max-h-72 lg:max-h-none shrink-0 border-b lg:border-b-0 lg:border-r border-border bg-muted/20 flex flex-col">
-        <div className="p-3 border-b border-border">
+    <div className="flex flex-col lg:flex-row lg:h-[calc(100vh-6.75rem)] lg:overflow-hidden">
+      {/* Left Script List */}
+      <aside className="w-full lg:w-96 shrink-0 border-b lg:border-b-0 lg:border-r border-border bg-muted/20 flex flex-col max-h-72 lg:max-h-none">
+        <div className="p-3 border-b border-border space-y-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-semibold">Execution Order</span>
+            <span className="text-[11px] font-mono text-muted-foreground tabular-nums">
+              {runlist?.scripts.length ?? 0} scripts
+            </span>
+          </div>
           <div className="relative">
             <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-2.5" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Filter scripts, registry, UUIDv7..."
+              placeholder="Filter by script, registry, or UUID..."
               className="pl-8"
             />
           </div>
@@ -168,49 +162,34 @@ export function RunlistView() {
       </aside>
 
       {/* Right SQL Viewer */}
-      <main className="flex-1 min-w-0 flex flex-col overflow-hidden bg-zinc-950 text-zinc-100">
+      <main className="flex-1 min-w-0 flex flex-col overflow-hidden bg-background">
         {!activeScript ? (
-          <div className="flex-1 flex items-center justify-center text-xs text-zinc-500 p-6">
+          <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground p-6">
             Select a migration script to inspect its SQL.
           </div>
         ) : (
           <>
-            <div className="px-4 sm:px-5 py-3 border-b border-zinc-800 bg-zinc-900/90 flex flex-wrap items-center justify-between gap-3">
+            <div className="px-4 sm:px-5 py-3 border-b border-border bg-card flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2 text-xs font-mono font-semibold truncate">
-                  <FileCode2 className="w-4 h-4 text-sky-400 shrink-0" />
+                  <FileCode2 className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0" />
                   <span className="truncate">
                     {activeScript.registryName}/{activeScript.scriptName}
                   </span>
                 </div>
-                <div className="text-[11px] font-mono text-zinc-400 mt-0.5">
+                <div className="text-[11px] font-mono text-muted-foreground mt-0.5">
                   #{activeScript.order} · {activeScript.id}
                 </div>
               </div>
-              <Button variant="outline" size="sm" onClick={handleCopy} className="border-zinc-700 bg-zinc-900 text-zinc-200 hover:bg-zinc-800">
-                {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                {copied ? "Copied" : "Copy SQL"}
-              </Button>
             </div>
-            <div className="flex-1 overflow-auto p-4 font-mono text-xs leading-relaxed">
+            <div className="flex-1 overflow-auto">
               {loadingSql ? (
-                <div className="flex items-center gap-2 text-zinc-400">
+                <div className="p-4 flex items-center gap-2 text-xs text-muted-foreground">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   Loading SQL...
                 </div>
               ) : (
-                <table className="w-full border-collapse">
-                  <tbody>
-                    {activeSql.split(/\r?\n/).map((line, i) => (
-                      <tr key={i} className="hover:bg-zinc-900/70">
-                        <td className="select-none pr-4 text-right text-zinc-600 w-10 align-top tabular-nums">
-                          {i + 1}
-                        </td>
-                        <td className="whitespace-pre text-zinc-200">{line}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <SqlCodeBlock code={activeSql} />
               )}
             </div>
           </>

@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
+  Code2,
   Database,
+  HardDrive,
   Hash,
   KeyRound,
   Link2,
@@ -11,6 +13,7 @@ import {
   PanelLeft,
   Search,
   ShieldCheck,
+  SlidersHorizontal,
   Table2,
 } from "lucide-react";
 import {
@@ -35,6 +38,13 @@ interface Props {
 
 export function tableKey(t: Pick<UiTableSummary, "registryName" | "entityName">): string {
   return `${t.registryName}::${t.entityName}`;
+}
+
+function sameColumnSet(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length || a.length === 0) return false;
+  const setA = new Set(a.map((c) => c.toLowerCase()));
+  if (setA.size !== b.length) return false;
+  return b.every((c) => setA.has(c.toLowerCase()));
 }
 
 export function EntityExplorer({ overview, selectedKey, onSelectTable }: Props) {
@@ -78,6 +88,32 @@ export function EntityExplorer({ overview, selectedKey, onSelectTable }: Props) 
 
   const activeKey = activeSummary ? tableKey(activeSummary) : null;
   const activeDetail = activeKey ? detailCache[activeKey] ?? null : null;
+
+  const columnIndexesMap = useMemo(() => {
+    const map = new Map<string, string[]>();
+    if (!activeDetail) return map;
+    for (const ix of activeDetail.indexes) {
+      const cols = new Set<string>([
+        ...ix.columns.map((c) => c.toLowerCase()),
+        ...(ix.includedColumns ?? []).map((c) => c.toLowerCase()),
+      ]);
+      for (const col of cols) {
+        const list = map.get(col) ?? [];
+        list.push(ix.name);
+        map.set(col, list);
+      }
+    }
+    return map;
+  }, [activeDetail]);
+
+  const columnNullabilityMap = useMemo(() => {
+    const map = new Map<string, boolean>();
+    if (!activeDetail) return map;
+    for (const c of activeDetail.columns) {
+      map.set(c.columnName.toLowerCase(), c.isNullable);
+    }
+    return map;
+  }, [activeDetail]);
 
   useEffect(() => {
     if (!activeSummary || !activeKey) return;
@@ -223,8 +259,8 @@ export function EntityExplorer({ overview, selectedKey, onSelectTable }: Props) 
                     {s.schema ? `${s.schema}.${s.name}` : s.name}
                   </div>
                   <div className="text-[11px] text-muted-foreground mt-0.5 font-mono">
-                    {s.clrTypeName} · start {s.startValue} · inc {s.incrementBy}
-                    {s.isCyclic ? " · CYCLE" : ""}
+                    {s.clrTypeName} {"\u00b7"} start {s.startValue} {"\u00b7"} inc {s.incrementBy}
+                    {s.isCyclic ? " \u00b7 CYCLE" : ""}
                   </div>
                 </div>
               ))}
@@ -234,6 +270,10 @@ export function EntityExplorer({ overview, selectedKey, onSelectTable }: Props) 
       </div>
     </div>
   );
+
+  const tableStorageEntries = activeDetail?.storageParameters
+    ? Object.entries(activeDetail.storageParameters)
+    : [];
 
   return (
     <div className="flex flex-col lg:flex-row lg:h-[calc(100vh-3.5rem)] lg:overflow-hidden">
@@ -281,45 +321,75 @@ export function EntityExplorer({ overview, selectedKey, onSelectTable }: Props) 
             <Card>
               <CardContent className="space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                  <div className="min-w-0 flex-1 space-y-1">
+                  <div className="min-w-0 flex-1 space-y-1.5">
                     <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                       <span className="font-medium break-words">{activeDetail.registryName}</span>
-                      {activeDetail.excludeFromMigrations && (
+                      {activeDetail.excludeFromMigrations ? (
                         <Badge variant="warning">Excluded from Migrations</Badge>
+                      ) : (
+                        <Badge variant="success">Under Migration</Badge>
                       )}
                       {activeDetail.isUnlogged && <Badge variant="violet">UNLOGGED</Badge>}
                     </div>
                     <h1 className="text-xl sm:text-2xl font-bold tracking-tight break-words">
                       {activeDetail.shortEntityName}
                     </h1>
-                    {activeDetail.entityName !== activeDetail.shortEntityName && (
-                      <div className="text-xs font-mono text-muted-foreground break-words">
-                        {activeDetail.entityName.split(".").map((part, idx, arr) => (
-                          <span key={idx}>
-                            {part}
-                            {idx < arr.length - 1 && (
-                              <>
-                                .<wbr />
-                              </>
-                            )}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    <div className="pt-1 flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted border border-border font-mono text-xs text-foreground break-all">
-                        <Database className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
-                        {activeDetail.qualifiedName}
+
+                    {/* Row 1: Code & Table Pills */}
+                    <div className="pt-0.5 flex flex-wrap items-center gap-2">
+                      <span
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted border border-border font-mono text-xs text-foreground max-w-full break-words"
+                        title={activeDetail.entityName}
+                      >
+                        <Code2 className="w-3.5 h-3.5 shrink-0 text-violet-600 dark:text-violet-400" />
+                        <span className="min-w-0 break-words">
+                          {activeDetail.entityName.split(".").map((part, idx, arr) => (
+                            <span key={idx}>
+                              {part}
+                              {idx < arr.length - 1 && (
+                                <>
+                                  .<wbr />
+                                </>
+                              )}
+                            </span>
+                          ))}
+                        </span>
                       </span>
-                      {activeDetail.tablespace && (
-                        <Badge variant="outline">TABLESPACE {activeDetail.tablespace}</Badge>
-                      )}
-                      {activeDetail.storageParameters &&
-                        Object.entries(activeDetail.storageParameters).map(([k, v]) => (
-                          <Badge key={k} variant="outline">
-                            {k}={v}
-                          </Badge>
-                        ))}
+
+                      <span className="inline-flex flex-wrap items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted border border-border text-xs text-foreground max-w-full">
+                        <Database className="w-3.5 h-3.5 shrink-0 text-sky-600 dark:text-sky-400" />
+                        <span className="font-mono break-all">{activeDetail.qualifiedName}</span>
+                        {activeDetail.comment && (
+                          <span className="text-muted-foreground break-words">({activeDetail.comment})</span>
+                        )}
+                      </span>
+                    </div>
+
+                    {/* Row 2: Tablespace & Storage Parameters Pills */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted border border-border text-xs text-muted-foreground max-w-full">
+                        <HardDrive className="w-3.5 h-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                        <span className="inline-flex items-baseline gap-1.5 leading-none">
+                          <span>Tablespace:</span>
+                          <span className="font-mono font-medium text-foreground">
+                            {activeDetail.tablespace ?? "default"}
+                          </span>
+                        </span>
+                      </span>
+
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted border border-border text-xs text-muted-foreground max-w-full">
+                        <SlidersHorizontal className="w-3.5 h-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                        <span className="inline-flex flex-wrap items-baseline gap-1.5 leading-none">
+                          <span>Storage Parameters:</span>
+                          {tableStorageEntries.length > 0 ? (
+                            <span className="font-mono font-medium text-foreground break-words">
+                              {tableStorageEntries.map(([k, v]) => `${k}=${v}`).join(", ")}
+                            </span>
+                          ) : (
+                            <span className="font-mono font-medium text-foreground">none</span>
+                          )}
+                        </span>
+                      </span>
                     </div>
                   </div>
 
@@ -333,12 +403,6 @@ export function EntityExplorer({ overview, selectedKey, onSelectTable }: Props) 
                     />
                   </div>
                 </div>
-
-                {activeDetail.comment && (
-                  <p className="text-xs text-muted-foreground bg-muted/50 border border-border rounded-lg px-3 py-2">
-                    {activeDetail.comment}
-                  </p>
-                )}
               </CardContent>
             </Card>
 
@@ -363,55 +427,70 @@ export function EntityExplorer({ overview, selectedKey, onSelectTable }: Props) 
                     <TableHead>CLR Property</TableHead>
                     <TableHead>DB Data Type</TableHead>
                     <TableHead>Nullability</TableHead>
+                    <TableHead>Indexes</TableHead>
                     <TableHead>Default / Computed</TableHead>
                     <TableHead>Comment</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {activeDetail.columns.map((c) => (
-                    <TableRow key={c.columnName}>
-                      <TableCell className="font-mono whitespace-nowrap">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-semibold text-foreground">{c.columnName}</span>
-                          {c.isPrimaryKey && <Badge variant="warning">PK</Badge>}
-                          {c.isForeignKey && <Badge variant="info">FK</Badge>}
-                          {c.isIdentity && <Badge variant="success">ID</Badge>}
-                          {c.isOwnedColumn && <Badge variant="violet">OWNED</Badge>}
-                          {c.isRowVersion && <Badge variant="destructive">VER</Badge>}
-                          {c.isConcurrencyToken && !c.isRowVersion && <Badge variant="destructive">CONC</Badge>}
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-mono text-muted-foreground whitespace-nowrap">
-                        {c.propertyName}
-                        <span className="ml-1.5 opacity-70">({c.clrTypeName})</span>
-                      </TableCell>
-                      <TableCell className="font-mono text-sky-700 dark:text-sky-400 whitespace-nowrap">
-                        {c.sqlType}
-                      </TableCell>
-                      <TableCell className="font-mono whitespace-nowrap">
-                        {c.isNullable ? (
-                          <span className="text-muted-foreground">NULL</span>
-                        ) : (
-                          <span className="font-semibold text-emerald-700 dark:text-emerald-400">NOT NULL</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="font-mono text-muted-foreground">
-                        {c.computedColumnSql ? (
-                          <span>
-                            <Badge variant="violet">{c.isComputedStored ? "STORED" : "VIRTUAL"}</Badge>{" "}
-                            {c.computedColumnSql}
-                          </span>
-                        ) : c.defaultValueSql ? (
-                          c.defaultValueSql
-                        ) : (
-                          <span className="opacity-40">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground max-w-xs">
-                        {c.comment ?? <span className="opacity-40">—</span>}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {activeDetail.columns.map((c) => {
+                    const colIndexes = columnIndexesMap.get(c.columnName.toLowerCase()) ?? [];
+                    return (
+                      <TableRow key={c.columnName}>
+                        <TableCell className="font-mono whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-foreground">{c.columnName}</span>
+                            {c.isPrimaryKey && <Badge variant="warning">PK</Badge>}
+                            {c.isForeignKey && <Badge variant="info">FK</Badge>}
+                            {c.isIdentity && <Badge variant="success">ID</Badge>}
+                            {c.isOwnedColumn && <Badge variant="violet">OWNED</Badge>}
+                            {c.isRowVersion && <Badge variant="destructive">VER</Badge>}
+                            {c.isConcurrencyToken && !c.isRowVersion && <Badge variant="destructive">CONC</Badge>}
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-mono text-muted-foreground whitespace-nowrap">
+                          {c.propertyName}
+                          <span className="ml-1.5 opacity-70">({c.clrTypeName})</span>
+                        </TableCell>
+                        <TableCell className="font-mono text-sky-700 dark:text-sky-400 whitespace-nowrap">
+                          {c.sqlType}
+                        </TableCell>
+                        <TableCell className="font-mono whitespace-nowrap">
+                          {c.isNullable ? (
+                            <span className="text-muted-foreground">NULL</span>
+                          ) : (
+                            <span className="font-semibold text-emerald-700 dark:text-emerald-400">NOT NULL</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="font-mono whitespace-nowrap">
+                          {colIndexes.length > 0 ? (
+                            <span title={colIndexes.join("\n")}>
+                              <Badge variant="secondary" className="tabular-nums">
+                                {colIndexes.length}
+                              </Badge>
+                            </span>
+                          ) : (
+                            <span className="opacity-40">{"\u2014"}</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="font-mono text-muted-foreground">
+                          {c.computedColumnSql ? (
+                            <span>
+                              <Badge variant="violet">{c.isComputedStored ? "STORED" : "VIRTUAL"}</Badge>{" "}
+                              {c.computedColumnSql}
+                            </span>
+                          ) : c.defaultValueSql ? (
+                            c.defaultValueSql
+                          ) : (
+                            <span className="opacity-40">{"\u2014"}</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground max-w-xs">
+                          {c.comment ?? <span className="opacity-40">{"\u2014"}</span>}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </Card>
@@ -425,27 +504,78 @@ export function EntityExplorer({ overview, selectedKey, onSelectTable }: Props) 
                     Foreign Keys ({activeDetail.foreignKeys.length})
                   </CardTitle>
                 </CardHeader>
-                <div className="divide-y divide-border/70">
-                  {activeDetail.foreignKeys.map((fk) => (
-                    <div key={fk.name} className="px-4 sm:px-5 py-3 flex flex-wrap items-center justify-between gap-2 text-xs">
-                      <div className="font-mono [overflow-wrap:anywhere]">
-                        <span className="font-semibold">{fk.name}</span>
-                        <span className="mx-2 text-muted-foreground">({fk.dependentColumns.join(", ")})</span>
-                        <span className="text-muted-foreground">→</span>
-                        <button
-                          onClick={() => jumpToTarget(fk.principalTable, fk.principalSchema, fk.principalEntityName)}
-                          className="ml-2 text-sky-600 dark:text-sky-400 hover:underline font-semibold cursor-pointer"
-                        >
-                          {fk.principalQualifiedName}({fk.principalColumns.join(", ")})
-                        </button>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <Badge variant="outline">ON DELETE {fk.onDelete.toUpperCase()}</Badge>
-                        {fk.isCircular && <Badge variant="warning">DEFERRED</Badge>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Constraint Name</TableHead>
+                      <TableHead>Dependent Columns</TableHead>
+                      <TableHead>References</TableHead>
+                      <TableHead>Relation</TableHead>
+                      <TableHead>On Delete</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {activeDetail.foreignKeys.map((fk) => {
+                      const isRequired =
+                        fk.dependentColumns.length > 0 &&
+                        fk.dependentColumns.every((col) => columnNullabilityMap.get(col.toLowerCase()) === false);
+
+                      const matchesPk =
+                        activeDetail.primaryKey !== null &&
+                        sameColumnSet(activeDetail.primaryKey.columns, fk.dependentColumns);
+                      const matchesUniqueIx = activeDetail.indexes.some(
+                        (ix) => ix.isUnique && !ix.filterSql && sameColumnSet(ix.columns, fk.dependentColumns)
+                      );
+                      const isOneToOne = matchesPk || matchesUniqueIx;
+
+                      return (
+                        <TableRow key={fk.name}>
+                          <TableCell className="font-mono font-semibold whitespace-nowrap">
+                            <div className="flex items-center gap-1.5">
+                              <span>{fk.name}</span>
+                              {fk.isCircular && <Badge variant="warning">CIRCULAR</Badge>}
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-mono whitespace-nowrap">
+                            <div className="text-foreground">{fk.dependentColumns.join(", ")}</div>
+                            {fk.dependentProperties.length > 0 && (
+                              <div className="text-[11px] text-muted-foreground">
+                                {fk.dependentProperties.join(", ")}
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell className="font-mono whitespace-nowrap">
+                            <button
+                              onClick={() => jumpToTarget(fk.principalTable, fk.principalSchema, fk.principalEntityName)}
+                              className="text-sky-600 dark:text-sky-400 hover:underline font-semibold cursor-pointer text-left"
+                            >
+                              {fk.principalQualifiedName}({fk.principalColumns.join(", ")})
+                            </button>
+                            {fk.principalProperties.length > 0 && (
+                              <div className="text-[11px] text-muted-foreground">
+                                {(fk.principalEntityName.split(/[.+]/).pop() ?? fk.principalEntityName)}
+                                ({fk.principalProperties.join(", ")})
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            <div className="flex items-center gap-1.5">
+                              <Badge variant={isOneToOne ? "violet" : "info"}>
+                                {isOneToOne ? "1:1 One-to-One" : "N:1 Many-to-One"}
+                              </Badge>
+                              <Badge variant={isRequired ? "success" : "secondary"}>
+                                {isRequired ? "Required" : "Optional"}
+                              </Badge>
+                            </div>
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            <Badge variant="outline">{fk.onDelete.toUpperCase()}</Badge>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
               </Card>
             )}
 
@@ -458,28 +588,93 @@ export function EntityExplorer({ overview, selectedKey, onSelectTable }: Props) 
                     Indexes ({activeDetail.indexes.length})
                   </CardTitle>
                 </CardHeader>
-                <div className="divide-y divide-border/70">
-                  {activeDetail.indexes.map((ix) => (
-                    <div key={ix.name} className="px-4 sm:px-5 py-3 text-xs space-y-1">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="font-mono flex flex-wrap items-center gap-1.5">
-                          <span className="font-semibold">{ix.name}</span>
-                          {ix.isUnique && <Badge variant="success">UNIQUE</Badge>}
-                          {ix.method && <Badge variant="violet">{ix.method.toUpperCase()}</Badge>}
-                        </div>
-                        <div className="font-mono text-muted-foreground">
-                          ({ix.columns.map((col, idx) => (ix.isDescending?.[idx] ? `${col} DESC` : col)).join(", ")})
-                          {ix.includedColumns && ix.includedColumns.length > 0 && (
-                            <span> INCLUDE ({ix.includedColumns.join(", ")})</span>
-                          )}
-                        </div>
-                      </div>
-                      {ix.filterSql && (
-                        <div className="font-mono text-amber-600 dark:text-amber-400">WHERE {ix.filterSql}</div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Index Name</TableHead>
+                      <TableHead>Key Columns (Order &amp; Operator)</TableHead>
+                      <TableHead>Included Columns</TableHead>
+                      <TableHead>Filter (WHERE)</TableHead>
+                      <TableHead>Storage &amp; Tablespace</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {activeDetail.indexes.map((ix) => {
+                      const storageEntries = ix.storageParameters ? Object.entries(ix.storageParameters) : [];
+                      return (
+                        <TableRow key={ix.name}>
+                          <TableCell className="font-mono whitespace-nowrap">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-foreground">{ix.name}</span>
+                              {ix.isUnique && <Badge variant="success">UNIQUE</Badge>}
+                              <Badge variant="violet">{(ix.method ?? "btree").toUpperCase()}</Badge>
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-mono">
+                            <div className="flex flex-wrap gap-1.5">
+                              {ix.columns.map((col, idx) => {
+                                const dir = ix.isDescending?.[idx] ? "DESC" : "ASC";
+                                const op = ix.operatorsByColumn?.[col];
+                                return (
+                                  <span
+                                    key={`${col}-${idx}`}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-muted border border-border text-[11px]"
+                                  >
+                                    <span className="font-medium text-foreground">{col}</span>
+                                    <span className={dir === "DESC" ? "text-amber-600 dark:text-amber-400 font-semibold" : "text-muted-foreground"}>
+                                      {dir}
+                                    </span>
+                                    {op && (
+                                      <Badge variant="info" className="px-1 py-0 text-[10px]">
+                                        {op}
+                                      </Badge>
+                                    )}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-mono text-muted-foreground">
+                            {ix.includedColumns && ix.includedColumns.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {ix.includedColumns.map((col, idx) => {
+                                  const prop = ix.includedProperties?.[idx];
+                                  return (
+                                    <Badge key={`${col}-${idx}`} variant="secondary" className="font-mono">
+                                      {col}
+                                      {prop && prop !== col ? ` (${prop})` : ""}
+                                    </Badge>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <span className="opacity-40">{"\u2014"}</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="font-mono text-amber-600 dark:text-amber-400 max-w-xs break-words">
+                            {ix.filterSql ?? <span className="text-muted-foreground opacity-40">{"\u2014"}</span>}
+                          </TableCell>
+                          <TableCell className="font-mono">
+                            {ix.tablespace || storageEntries.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {ix.tablespace && (
+                                  <Badge variant="outline">TABLESPACE {ix.tablespace}</Badge>
+                                )}
+                                {storageEntries.map(([k, v]) => (
+                                  <Badge key={k} variant="outline">
+                                    {k}={v}
+                                  </Badge>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="opacity-40">{"\u2014"}</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
               </Card>
             )}
 
@@ -492,29 +687,50 @@ export function EntityExplorer({ overview, selectedKey, onSelectTable }: Props) 
                     Constraints ({activeDetail.checkConstraints.length + activeDetail.exclusionConstraints.length})
                   </CardTitle>
                 </CardHeader>
-                <div className="divide-y divide-border/70">
-                  {activeDetail.checkConstraints.map((ck) => (
-                    <div key={ck.name} className="px-4 sm:px-5 py-3 text-xs font-mono space-y-1">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="success">CHECK</Badge>
-                        <span className="font-semibold">{ck.name}</span>
-                      </div>
-                      <div className="text-muted-foreground pl-1 [overflow-wrap:anywhere]">{ck.sql}</div>
-                    </div>
-                  ))}
-                  {activeDetail.exclusionConstraints.map((ex) => (
-                    <div key={ex.name} className="px-4 sm:px-5 py-3 text-xs font-mono space-y-1">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="violet">EXCLUDE ({ex.method.toUpperCase()})</Badge>
-                        <span className="font-semibold">{ex.name}</span>
-                      </div>
-                      <div className="text-muted-foreground pl-1 [overflow-wrap:anywhere]">
-                        {ex.elements.join(", ")}
-                        {ex.filterSql ? ` WHERE (${ex.filterSql})` : ""}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Constraint Name</TableHead>
+                      <TableHead>Expression / Definition</TableHead>
+                      <TableHead>Filter (WHERE)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {activeDetail.checkConstraints.map((ck) => (
+                      <TableRow key={ck.name}>
+                        <TableCell className="whitespace-nowrap">
+                          <Badge variant="success">CHECK</Badge>
+                        </TableCell>
+                        <TableCell className="font-mono font-semibold whitespace-nowrap">
+                          {ck.name}
+                        </TableCell>
+                        <TableCell className="font-mono text-muted-foreground break-words">
+                          {ck.sql}
+                        </TableCell>
+                        <TableCell className="font-mono text-muted-foreground">
+                          <span className="opacity-40">{"\u2014"}</span>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {activeDetail.exclusionConstraints.map((ex) => (
+                      <TableRow key={ex.name}>
+                        <TableCell className="whitespace-nowrap">
+                          <Badge variant="violet">EXCLUDE ({ex.method.toUpperCase()})</Badge>
+                        </TableCell>
+                        <TableCell className="font-mono font-semibold whitespace-nowrap">
+                          {ex.name}
+                        </TableCell>
+                        <TableCell className="font-mono text-muted-foreground break-words">
+                          {ex.elements.join(", ")}
+                        </TableCell>
+                        <TableCell className="font-mono text-amber-600 dark:text-amber-400 break-words">
+                          {ex.filterSql ?? <span className="text-muted-foreground opacity-40">{"\u2014"}</span>}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </Card>
             )}
           </div>

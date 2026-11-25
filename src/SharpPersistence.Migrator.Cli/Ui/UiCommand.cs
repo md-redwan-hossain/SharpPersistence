@@ -71,6 +71,15 @@ internal sealed class UiCommand : AsyncCommand<UiSettings>
             app.MapGet("/api/erd", (string? registry) =>
                 Results.Json(dataService.BuildErd(registry), UiDataService.JsonOptions));
 
+            app.MapGet("/api/dependencies", () =>
+                Results.Json(dataService.BuildDependencies(), UiDataService.JsonOptions));
+
+            app.MapGet("/api/migrations/dry-run", () =>
+                Results.Json(dataService.BuildDryRun(), UiDataService.JsonOptions));
+
+            app.MapGet("/api/search", (string? q, int? limit) =>
+                Results.Json(dataService.SearchSchema(q, limit ?? 40), UiDataService.JsonOptions));
+
             app.MapGet("/api/runlist", () =>
                 Results.Json(dataService.BuildRunlist(), UiDataService.JsonOptions));
 

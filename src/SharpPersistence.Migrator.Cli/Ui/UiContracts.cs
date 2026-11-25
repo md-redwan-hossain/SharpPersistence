@@ -103,11 +103,13 @@ internal sealed record UiColumnDto(
 internal sealed record UiForeignKeyDto(
     string Name,
     IReadOnlyList<string> DependentColumns,
+    IReadOnlyList<string> DependentProperties,
     string PrincipalEntityName,
     string? PrincipalSchema,
     string PrincipalTable,
     string PrincipalQualifiedName,
     IReadOnlyList<string> PrincipalColumns,
+    IReadOnlyList<string> PrincipalProperties,
     string OnDelete,
     bool IsCircular);
 
@@ -118,6 +120,8 @@ internal sealed record UiIndexDto(
     bool IsUnique,
     string? FilterSql,
     IReadOnlyList<string>? IncludedColumns,
+    IReadOnlyList<string>? IncludedProperties,
+    IReadOnlyDictionary<string, string>? OperatorsByColumn,
     string? Method,
     string? Tablespace,
     IReadOnlyDictionary<string, string>? StorageParameters);
@@ -183,3 +187,79 @@ internal sealed record UiDoctorItemDto(
     string Message,
     string? Hint,
     string? EntityName);
+
+internal sealed record UiDependenciesDto(
+    IReadOnlyList<UiDependencyNodeDto> Nodes,
+    IReadOnlyList<UiDependencyEdgeDto> Edges,
+    IReadOnlyList<UiEntityStubDto> Stubs);
+
+internal sealed record UiDependencyNodeDto(
+    int Order,
+    string RegistryName,
+    int EntityCount,
+    int ExcludedCount,
+    IReadOnlyList<string> Schemas,
+    int IncomingCount,
+    int OutgoingCount);
+
+internal sealed record UiDependencyEdgeDto(
+    string Id,
+    string FromRegistry,
+    string ToRegistry,
+    IReadOnlyList<UiDependencyFkDto> ForeignKeys);
+
+internal sealed record UiDependencyFkDto(
+    string ConstraintName,
+    string FromEntity,
+    string FromTable,
+    IReadOnlyList<string> FromColumns,
+    string ToEntity,
+    string ToTable,
+    IReadOnlyList<string> ToColumns,
+    string OnDelete,
+    bool IsCircular);
+
+internal sealed record UiEntityStubDto(
+    string StubEntity,
+    string ShortStubEntity,
+    string TargetEntity,
+    string ShortTargetEntity,
+    string? TargetRegistry,
+    string? TargetTable);
+
+internal sealed record UiDryRunDto(
+    int ChangedRegistryCount,
+    int AddCount,
+    int AlterCount,
+    int DropCount,
+    IReadOnlyList<UiDryRunRegistryDto> Registries);
+
+internal sealed record UiDryRunRegistryDto(
+    string RegistryName,
+    bool HasChanges,
+    bool HasDestructiveChanges,
+    int AddCount,
+    int AlterCount,
+    int DropCount,
+    IReadOnlyList<UiDryRunOperationDto> Operations,
+    string SqlScript,
+    string DeferredSqlScript);
+
+internal sealed record UiDryRunOperationDto(
+    string Kind,
+    string ObjectType,
+    string Target,
+    string Summary);
+
+internal sealed record UiSearchResponseDto(
+    string Query,
+    IReadOnlyList<UiSearchHitDto> Hits);
+
+internal sealed record UiSearchHitDto(
+    string Kind,
+    string Name,
+    string Detail,
+    string RegistryName,
+    string EntityName,
+    string ShortEntityName,
+    string QualifiedName);

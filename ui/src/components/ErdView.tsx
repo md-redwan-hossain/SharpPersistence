@@ -11,6 +11,7 @@ import { Button } from "./ui/button";
 
 interface Props {
   overview: UiOverview;
+  initialRegistry?: string | null;
   onInspectTable: (key: string) => void;
 }
 
@@ -32,13 +33,20 @@ const MAX_ROWS = 10;
 const GAP_X = 88;
 const GAP_Y = 64;
 
-export function ErdView({ overview, onInspectTable }: Props) {
+export function ErdView({ overview, initialRegistry, onInspectTable }: Props) {
   const defaultFilter =
-    overview.totalEntities > 40 && overview.registries.length > 1
+    initialRegistry ??
+    (overview.totalEntities > 40 && overview.registries.length > 1
       ? overview.registries[0].name
-      : "ALL";
+      : "ALL");
 
   const [activeRegistry, setActiveRegistry] = useState<string>(defaultFilter);
+
+  useEffect(() => {
+    if (initialRegistry) {
+      setActiveRegistry(initialRegistry);
+    }
+  }, [initialRegistry]);
   const [erdCache, setErdCache] = useState<Record<string, UiErd>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

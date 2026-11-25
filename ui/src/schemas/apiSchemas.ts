@@ -77,11 +77,13 @@ export const UiColumnSchema = z.object({
 export const UiForeignKeySchema = z.object({
   name: z.string(),
   dependentColumns: z.array(z.string()),
+  dependentProperties: z.array(z.string()),
   principalEntityName: z.string(),
   principalSchema: z.string().nullable(),
   principalTable: z.string(),
   principalQualifiedName: z.string(),
   principalColumns: z.array(z.string()),
+  principalProperties: z.array(z.string()),
   onDelete: z.string(),
   isCircular: z.boolean(),
 });
@@ -93,6 +95,8 @@ export const UiIndexSchema = z.object({
   isUnique: z.boolean(),
   filterSql: z.string().nullable(),
   includedColumns: z.array(z.string()).nullable(),
+  includedProperties: z.array(z.string()).nullable(),
+  operatorsByColumn: z.record(z.string(), z.string()).nullable(),
   method: z.string().nullable(),
   tablespace: z.string().nullable(),
   storageParameters: z.record(z.string(), z.string()).nullable(),
@@ -205,6 +209,92 @@ export const UiDoctorSchema = z.object({
   databaseChecks: z.array(UiDoctorItemSchema),
 });
 
+export const UiDependencyNodeSchema = z.object({
+  order: z.number(),
+  registryName: z.string(),
+  entityCount: z.number(),
+  excludedCount: z.number(),
+  schemas: z.array(z.string()),
+  incomingCount: z.number(),
+  outgoingCount: z.number(),
+});
+
+export const UiDependencyFkSchema = z.object({
+  constraintName: z.string(),
+  fromEntity: z.string(),
+  fromTable: z.string(),
+  fromColumns: z.array(z.string()),
+  toEntity: z.string(),
+  toTable: z.string(),
+  toColumns: z.array(z.string()),
+  onDelete: z.string(),
+  isCircular: z.boolean(),
+});
+
+export const UiDependencyEdgeSchema = z.object({
+  id: z.string(),
+  fromRegistry: z.string(),
+  toRegistry: z.string(),
+  foreignKeys: z.array(UiDependencyFkSchema),
+});
+
+export const UiEntityStubSchema = z.object({
+  stubEntity: z.string(),
+  shortStubEntity: z.string(),
+  targetEntity: z.string(),
+  shortTargetEntity: z.string(),
+  targetRegistry: z.string().nullable(),
+  targetTable: z.string().nullable(),
+});
+
+export const UiDependenciesSchema = z.object({
+  nodes: z.array(UiDependencyNodeSchema),
+  edges: z.array(UiDependencyEdgeSchema),
+  stubs: z.array(UiEntityStubSchema),
+});
+
+export const UiDryRunOperationSchema = z.object({
+  kind: z.enum(["Add", "Alter", "Drop"]),
+  objectType: z.string(),
+  target: z.string(),
+  summary: z.string(),
+});
+
+export const UiDryRunRegistrySchema = z.object({
+  registryName: z.string(),
+  hasChanges: z.boolean(),
+  hasDestructiveChanges: z.boolean(),
+  addCount: z.number(),
+  alterCount: z.number(),
+  dropCount: z.number(),
+  operations: z.array(UiDryRunOperationSchema),
+  sqlScript: z.string(),
+  deferredSqlScript: z.string(),
+});
+
+export const UiDryRunSchema = z.object({
+  changedRegistryCount: z.number(),
+  addCount: z.number(),
+  alterCount: z.number(),
+  dropCount: z.number(),
+  registries: z.array(UiDryRunRegistrySchema),
+});
+
+export const UiSearchHitSchema = z.object({
+  kind: z.enum(["Column", "Index", "ForeignKey", "CheckConstraint", "ExclusionConstraint"]),
+  name: z.string(),
+  detail: z.string(),
+  registryName: z.string(),
+  entityName: z.string(),
+  shortEntityName: z.string(),
+  qualifiedName: z.string(),
+});
+
+export const UiSearchResponseSchema = z.object({
+  query: z.string(),
+  hits: z.array(UiSearchHitSchema),
+});
+
 export type UiOverview = z.infer<typeof UiOverviewSchema>;
 export type UiRegistrySummary = z.infer<typeof UiRegistrySummarySchema>;
 export type UiTableSummary = z.infer<typeof UiTableSummarySchema>;
@@ -216,6 +306,13 @@ export type UiRunlist = z.infer<typeof UiRunlistSchema>;
 export type UiRunlistScript = z.infer<typeof UiRunlistScriptSchema>;
 export type UiDoctor = z.infer<typeof UiDoctorSchema>;
 export type UiDoctorItem = z.infer<typeof UiDoctorItemSchema>;
+export type UiDependencies = z.infer<typeof UiDependenciesSchema>;
+export type UiDependencyNode = z.infer<typeof UiDependencyNodeSchema>;
+export type UiDependencyEdge = z.infer<typeof UiDependencyEdgeSchema>;
+export type UiDryRun = z.infer<typeof UiDryRunSchema>;
+export type UiDryRunRegistry = z.infer<typeof UiDryRunRegistrySchema>;
+export type UiSearchHit = z.infer<typeof UiSearchHitSchema>;
+export type UiSearchResponse = z.infer<typeof UiSearchResponseSchema>;
 
 export async function fetchValidatedJson<T>(
   url: string,

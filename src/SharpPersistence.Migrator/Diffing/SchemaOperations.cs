@@ -92,4 +92,5 @@ internal sealed record SchemaDiffResult(
     bool HasChanges,
     string SqlScript,
     string DeferredSqlScript,
-    string UpdatedSnapshotJson);
+    string UpdatedSnapshotJson,
+    IReadOnlyList<SchemaOperation>? Operations = null);
