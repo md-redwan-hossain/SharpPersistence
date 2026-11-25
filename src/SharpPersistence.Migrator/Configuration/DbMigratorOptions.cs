@@ -11,7 +11,7 @@ internal sealed record PropertyConventionRule(Type TargetClrType, Action<ColumnB
 
 internal sealed record EntityConventionRule(Type TargetType, Action<TableDefinition> Apply);
 
-internal sealed class MigrationManagerOptions
+internal sealed class DbMigratorOptions
 {
     public SqlDialect Dialect { get; internal set; }
     public SqlIdentifierCase IdentifierCase { get; internal set; }

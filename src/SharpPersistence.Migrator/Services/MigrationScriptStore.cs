@@ -7,9 +7,9 @@ namespace SharpPersistence.Migrator.Services;
 
 internal sealed class MigrationScriptStore
 {
-    private readonly MigrationManagerOptions _options;
+    private readonly DbMigratorOptions _options;
 
-    public MigrationScriptStore(MigrationManagerOptions options)
+    public MigrationScriptStore(DbMigratorOptions options)
     {
         _options = options;
     }

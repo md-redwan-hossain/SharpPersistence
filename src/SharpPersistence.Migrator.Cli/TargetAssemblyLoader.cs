@@ -13,7 +13,7 @@ namespace SharpPersistence.Migrator.Cli;
 
 internal sealed record LoadedMigrationContext(
     object? ServiceScopeOwner,
-    MigrationManager Manager,
+    DbMigrator Manager,
     string RootPath,
     string HostName,
     string StartupProjectDisplayPath,
@@ -22,7 +22,7 @@ internal sealed record LoadedMigrationContext(
 
 internal static class TargetAssemblyLoader
 {
-    public static (object? ServiceScopeOwner, MigrationManager Manager, string RootPath) CreateManager(SharedSettings settings)
+    public static (object? ServiceScopeOwner, DbMigrator Manager, string RootPath) CreateManager(SharedSettings settings)
     {
         var ctx = CreateManagerContext(settings);
         return (ctx.ServiceScopeOwner, ctx.Manager, ctx.RootPath);
@@ -83,14 +83,14 @@ internal static class TargetAssemblyLoader
             }
         }
 
-        // Tier 1: Optional IDesignTimeMigrationFactory fallback (for class libraries or custom offline config)
+        // Tier 1: Optional IDesignTimeDbMigratorFactory fallback (for class libraries or custom offline config)
         var factoryType = loadedAssemblies
             .SelectMany(DoctorWiringValidator.GetLoadableTypes)
-            .FirstOrDefault(t => !t.IsAbstract && !t.IsInterface && typeof(IDesignTimeMigrationFactory).IsAssignableFrom(t));
+            .FirstOrDefault(t => !t.IsAbstract && !t.IsInterface && typeof(IDesignTimeDbMigratorFactory).IsAssignableFrom(t));
 
         if (factoryType is not null)
         {
-            var designFactory = (IDesignTimeMigrationFactory)Activator.CreateInstance(factoryType)!;
+            var designFactory = (IDesignTimeDbMigratorFactory)Activator.CreateInstance(factoryType)!;
             var services = new ServiceCollection();
             services.AddDbMigrator(options =>
             {
@@ -99,18 +99,18 @@ internal static class TargetAssemblyLoader
             });
 
             var provider = services.BuildServiceProvider();
-            var manager = (MigrationManager)provider.GetRequiredService<IMigrationManager>();
+            var manager = (DbMigrator)provider.GetRequiredService<IDbMigrator>();
             return new LoadedMigrationContext(provider, manager, outputRoot, hostName, startupDisplayPath, factoryType.Name, loadedAssemblies);
         }
 
         // Tier 2: Resolve IHost / IServiceProvider from Program.Main via Microsoft.Extensions.Hosting DiagnosticListener
         var host = ResolveHostFromEntryPoint(primaryAssembly, startupDir);
-        var hostManager = host.Services.GetService<IMigrationManager>() as MigrationManager
+        var hostManager = host.Services.GetService<IDbMigrator>() as DbMigrator
             ?? throw new InvalidOperationException(
-                $"'{primaryAssembly.GetName().Name}' built an IHost, but IMigrationManager is not registered in DI. " +
-                "Call builder.Services.AddDbMigrator(...) in Program.cs or add an IDesignTimeMigrationFactory.");
+                $"'{primaryAssembly.GetName().Name}' built an IHost, but IDbMigrator is not registered in DI. " +
+                "Call builder.Services.AddDbMigrator(...) in Program.cs or add an IDesignTimeDbMigratorFactory.");
 
-        var options = host.Services.GetRequiredService<MigrationManagerOptions>();
+        var options = host.Services.GetRequiredService<DbMigratorOptions>();
         options.OverrideRootPath(outputRoot);
 
         return new LoadedMigrationContext(host, hostManager, outputRoot, hostName, startupDisplayPath, "Program.cs", loadedAssemblies);

@@ -6,7 +6,7 @@ using SharpPersistence.Migrator.Models;
 namespace SharpPersistence.Migrator.Services;
 
 internal sealed class DoctorCrossRegistryValidator(
-    MigrationManagerOptions options,
+    DbMigratorOptions options,
     ISqlDialectMetadata dialect)
 {
     public void Validate(

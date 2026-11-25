@@ -658,8 +658,8 @@ public sealed class EntityRegistryGenerator : IIncrementalGenerator
         sb.AppendLine();
         sb.AppendLine("public static class GeneratedEntityRegistryExtensions");
         sb.AppendLine("{");
-        sb.AppendLine("    public static global::SharpPersistence.Migrator.Configuration.MigrationManagerOptionsBuilder AddGeneratedEntityRegistries(");
-        sb.AppendLine("        this global::SharpPersistence.Migrator.Configuration.MigrationManagerOptionsBuilder builder)");
+        sb.AppendLine("    public static global::SharpPersistence.Migrator.Configuration.DbMigratorOptionsBuilder AddGeneratedEntityRegistries(");
+        sb.AppendLine("        this global::SharpPersistence.Migrator.Configuration.DbMigratorOptionsBuilder builder)");
         sb.AppendLine("    {");
 
         foreach (var regFullName in registryFullNames.OrderBy(x => x, StringComparer.Ordinal))

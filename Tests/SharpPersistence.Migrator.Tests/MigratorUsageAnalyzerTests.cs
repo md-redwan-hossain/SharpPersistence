@@ -129,7 +129,7 @@ public sealed class MigratorUsageAnalyzerTests
 
             public static class Wiring
             {
-                public static void Setup(MigrationManagerOptionsBuilder opt)
+                public static void Setup(DbMigratorOptionsBuilder opt)
                 {
                     opt.ConfigureEntityStubs(stubs => stubs
                         .Map<RefUser, User>()           // valid

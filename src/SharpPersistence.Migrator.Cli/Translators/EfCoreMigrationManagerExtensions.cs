@@ -7,17 +7,17 @@ namespace SharpPersistence.Migrator.Cli.Translators;
 internal static class EfCoreMigrationManagerExtensions
 {
     public static async Task<IReadOnlyList<GeneratedMigrationItem>> TranslateEfCoreMigrationsAsync(
-        this IMigrationManager manager,
+        this IDbMigrator manager,
         string efCoreMigrationsDirectory,
         bool dryRun = false,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(manager);
 
-        if (manager is not MigrationManager concrete)
+        if (manager is not DbMigrator concrete)
         {
             throw new InvalidOperationException(
-                $"TranslateEfCoreMigrationsAsync requires the default '{nameof(MigrationManager)}' implementation.");
+                $"TranslateEfCoreMigrationsAsync requires the default '{nameof(DbMigrator)}' implementation.");
         }
 
         var translated = EfCoreMigrationTranslator.TranslateFromDirectory(

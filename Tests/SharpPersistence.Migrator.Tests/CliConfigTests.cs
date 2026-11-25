@@ -103,7 +103,7 @@ public sealed class CliConfigTests
             File.WriteAllText(Path.Combine(tempRoot, "src", "HostA", "Program.cs"), "builder.Services.AddDbMigrator(o => {});");
 
             File.WriteAllText(Path.Combine(tempRoot, "src", "HostB", "HostB.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk.Web\" />");
-            File.WriteAllText(Path.Combine(tempRoot, "src", "HostB", "Factory.cs"), "public sealed class F : IDesignTimeMigrationFactory { }");
+            File.WriteAllText(Path.Combine(tempRoot, "src", "HostB", "Factory.cs"), "public sealed class F : IDesignTimeDbMigratorFactory { }");
 
             File.WriteAllText(Path.Combine(tempRoot, "src", "PlainLib", "PlainLib.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\" />");
             File.WriteAllText(Path.Combine(tempRoot, "src", "CustomTool", "CustomTool.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\" />");

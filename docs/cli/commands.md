@@ -8,7 +8,7 @@ dotnet tool install -g SharpPersistence.Migrator.Cli
 
 ## Shared Options
 
-Most commands load your `IServiceProvider` (from `Program.cs`) or `IDesignTimeMigrationFactory`:
+Most commands load your `IServiceProvider` (from `Program.cs`) or `IDesignTimeDbMigratorFactory`:
 
 | Option | Description |
 | --- | --- |

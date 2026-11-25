@@ -1,12 +1,21 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SharpPersistence Migrator UI</title>
-    <script>window.__SHARP_PERSISTENCE_SNAPSHOT__ = null;</script>
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("sp-ui-theme") || "system";
+          var prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          var isDark = stored === "dark" || (stored === "system" && prefersDark);
+          document.documentElement.classList.toggle("dark", isDark);
+        } catch (e) {}
+      })();
+    </script>
   </head>
-  <body class="bg-slate-950 text-slate-100 antialiased selection:bg-sky-500/30">
+  <body class="bg-background text-foreground antialiased selection:bg-primary/20">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

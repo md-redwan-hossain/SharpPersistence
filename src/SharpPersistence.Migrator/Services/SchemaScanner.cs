@@ -57,7 +57,7 @@ internal static class SchemaScanner
 
     public static DatabaseModel ScanRegistry(
         IEntityRegistry registry,
-        MigrationManagerOptions options,
+        DbMigratorOptions options,
         IReadOnlyList<IEntityRegistry>? allRegistries = null) =>
         ScanRegistry(
             registry,

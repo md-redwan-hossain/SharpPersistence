@@ -99,7 +99,7 @@ public sealed class EntityConventionTests
     [Fact]
     public void ConfigureEntities_AppliesInterfaceFks_AllowsEntityOverride_AndSortsRegistries()
     {
-        var optionsBuilder = new MigrationManagerOptionsBuilder();
+        var optionsBuilder = new DbMigratorOptionsBuilder();
         optionsBuilder
             .UsePostgreSql("Host=localhost;Database=test")
             .UseNamingConvention(SqlIdentifierCase.LowerSnakeCase)
@@ -176,7 +176,7 @@ public sealed class EntityConventionTests
     [Fact]
     public void PostgresEnum_UsesConfiguredNamingConvention()
     {
-        var optionsBuilder = new MigrationManagerOptionsBuilder();
+        var optionsBuilder = new DbMigratorOptionsBuilder();
         optionsBuilder
             .UsePostgreSql("Host=localhost;Database=test")
             .HasPostgresEnum<PaymentMethod>();
@@ -205,7 +205,7 @@ public sealed class EntityConventionTests
     [Fact]
     public void DoctorEntityValidator_SkipsPkWarningForExcluded_AndCatchesBrokenComputedColumn()
     {
-        var optionsBuilder = new MigrationManagerOptionsBuilder();
+        var optionsBuilder = new DbMigratorOptionsBuilder();
         optionsBuilder
             .UsePostgreSql("Host=localhost;Database=test")
             .AddRegistry<DoctorTestRegistry>();

@@ -68,7 +68,7 @@ public sealed class OwnsOneTests
     [Fact]
     public void OwnsOne_MapsDualAndNestedColumns_Nullability_Conventions_AndSql()
     {
-        var optionsBuilder = new MigrationManagerOptionsBuilder();
+        var optionsBuilder = new DbMigratorOptionsBuilder();
         optionsBuilder
             .UsePostgreSql("Host=localhost;Database=test")
             .UseNamingConvention(SqlIdentifierCase.LowerSnakeCase)
@@ -161,7 +161,7 @@ public sealed class OwnsOneTests
         Assert.Contains("ShippingAddress.City", ex.Message);
         Assert.Contains("must be nullable", ex.Message);
 
-        var optionsBuilder = new MigrationManagerOptionsBuilder();
+        var optionsBuilder = new DbMigratorOptionsBuilder();
         optionsBuilder
             .UsePostgreSql("Host=localhost;Database=test")
             .AddRegistry<InvalidOptionalOwnedRegistry>();

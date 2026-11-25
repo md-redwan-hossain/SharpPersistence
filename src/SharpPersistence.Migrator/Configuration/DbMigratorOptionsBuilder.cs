@@ -8,11 +8,11 @@ using SharpPersistence.Migrator.Services;
 
 namespace SharpPersistence.Migrator.Configuration;
 
-public class MigrationManagerOptionsBuilder
+public class DbMigratorOptionsBuilder
 {
     internal sealed class BuilderState
     {
-        public MigrationManagerOptions Options { get; } = new();
+        public DbMigratorOptions Options { get; } = new();
         public List<IEntityRegistry> Registries { get; } = [];
         public List<PropertyConventionRule> PropertyConventions { get; } = [];
         public List<EntityConventionRule> EntityConventions { get; } = [];
@@ -26,12 +26,12 @@ public class MigrationManagerOptionsBuilder
 
     internal BuilderState State { get; }
 
-    public MigrationManagerOptionsBuilder()
+    public DbMigratorOptionsBuilder()
     {
         State = new BuilderState();
     }
 
-    internal MigrationManagerOptionsBuilder(BuilderState state)
+    internal DbMigratorOptionsBuilder(BuilderState state)
     {
         State = state;
     }
@@ -45,7 +45,7 @@ public class MigrationManagerOptionsBuilder
         return ConfigurePostgreSqlDefaults();
     }
 
-    public MigrationManagerOptionsBuilder UsePostgreSql(
+    public DbMigratorOptionsBuilder UsePostgreSql(
         string connectionString,
         Action<PostgreSqlOptionsBuilder> configure,
         DbProviderFactory? providerFactory = null)
@@ -62,7 +62,7 @@ public class MigrationManagerOptionsBuilder
         return ConfigurePostgreSqlDefaults();
     }
 
-    public MigrationManagerOptionsBuilder UsePostgreSql(
+    public DbMigratorOptionsBuilder UsePostgreSql(
         Func<IServiceProvider, DbConnection> connectionFactory,
         Action<PostgreSqlOptionsBuilder> configure)
     {
@@ -81,7 +81,7 @@ public class MigrationManagerOptionsBuilder
         return ConfigureOracleDefaults();
     }
 
-    public MigrationManagerOptionsBuilder UseOracle(
+    public DbMigratorOptionsBuilder UseOracle(
         string connectionString,
         Action<OracleOptionsBuilder> configure,
         DbProviderFactory? providerFactory = null)
@@ -98,7 +98,7 @@ public class MigrationManagerOptionsBuilder
         return ConfigureOracleDefaults();
     }
 
-    public MigrationManagerOptionsBuilder UseOracle(
+    public DbMigratorOptionsBuilder UseOracle(
         Func<IServiceProvider, DbConnection> connectionFactory,
         Action<OracleOptionsBuilder> configure)
     {
@@ -137,27 +137,27 @@ public class MigrationManagerOptionsBuilder
         return new OracleOptionsBuilder(State);
     }
 
-    public MigrationManagerOptionsBuilder UseNamingConvention(SqlIdentifierCase namingConvention)
+    public DbMigratorOptionsBuilder UseNamingConvention(SqlIdentifierCase namingConvention)
     {
         State.Options.IdentifierCase = namingConvention;
         State.IdentifierCaseExplicitlySet = true;
         return this;
     }
 
-    public MigrationManagerOptionsBuilder PluralizeTableNames(bool pluralize = true)
+    public DbMigratorOptionsBuilder PluralizeTableNames(bool pluralize = true)
     {
         State.Options.PluralizeTableNames = pluralize;
         return this;
     }
 
-    public MigrationManagerOptionsBuilder UseTableNameConvention(Func<Type, string, string> convention)
+    public DbMigratorOptionsBuilder UseTableNameConvention(Func<Type, string, string> convention)
     {
         ArgumentNullException.ThrowIfNull(convention);
         State.Options.TableNameConvention = convention;
         return this;
     }
 
-    public MigrationManagerOptionsBuilder UseHistoryTable(string tableName, string? schema = null)
+    public DbMigratorOptionsBuilder UseHistoryTable(string tableName, string? schema = null)
     {
         State.Options.HistoryTableName = tableName;
         State.Options.HistorySchema = schema;
@@ -165,34 +165,34 @@ public class MigrationManagerOptionsBuilder
         return this;
     }
 
-    public MigrationManagerOptionsBuilder UseMigrationsDirectory(string migrationsDirectory)
+    public DbMigratorOptionsBuilder UseMigrationsDirectory(string migrationsDirectory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(migrationsDirectory);
         State.Options.MigrationsDirectory = migrationsDirectory;
         return this;
     }
 
-    public MigrationManagerOptionsBuilder UseSnapshotDirectory(string snapshotDirectory)
+    public DbMigratorOptionsBuilder UseSnapshotDirectory(string snapshotDirectory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(snapshotDirectory);
         State.Options.SnapshotDirectory = snapshotDirectory;
         return this;
     }
 
-    public MigrationManagerOptionsBuilder UseRootPath(string rootPath)
+    public DbMigratorOptionsBuilder UseRootPath(string rootPath)
     {
         State.Options.RootPath = rootPath;
         return this;
     }
 
-    public MigrationManagerOptionsBuilder ConfigureProperties<TProperty>(Action<ColumnBuilder> configure)
+    public DbMigratorOptionsBuilder ConfigureProperties<TProperty>(Action<ColumnBuilder> configure)
     {
         ArgumentNullException.ThrowIfNull(configure);
         State.PropertyConventions.Add(new PropertyConventionRule(typeof(TProperty), configure));
         return this;
     }
 
-    public MigrationManagerOptionsBuilder ConfigureEntities<TEntity>(Action<EntityBuilder<TEntity>> configure)
+    public DbMigratorOptionsBuilder ConfigureEntities<TEntity>(Action<EntityBuilder<TEntity>> configure)
         where TEntity : class
     {
         ArgumentNullException.ThrowIfNull(configure);
@@ -202,14 +202,14 @@ public class MigrationManagerOptionsBuilder
         return this;
     }
 
-    public MigrationManagerOptionsBuilder ConfigureEntityStubs(Action<EntityStubBuilder> configure)
+    public DbMigratorOptionsBuilder ConfigureEntityStubs(Action<EntityStubBuilder> configure)
     {
         ArgumentNullException.ThrowIfNull(configure);
         configure(new EntityStubBuilder(State.EntityStubs));
         return this;
     }
 
-    public MigrationManagerOptionsBuilder ConfigureSqlExpressionBuilder(
+    public DbMigratorOptionsBuilder ConfigureSqlExpressionBuilder(
         Action<SqlExpressionBuilderOptionsBuilder> configure)
     {
         ArgumentNullException.ThrowIfNull(configure);
@@ -217,20 +217,20 @@ public class MigrationManagerOptionsBuilder
         return this;
     }
 
-    public MigrationManagerOptionsBuilder AddRegistry<TRegistry>()
+    public DbMigratorOptionsBuilder AddRegistry<TRegistry>()
         where TRegistry : class, IEntityRegistry, new()
     {
         State.Registries.Add(new TRegistry());
         return this;
     }
 
-    public MigrationManagerOptionsBuilder AddRegistry(IEntityRegistry registry)
+    public DbMigratorOptionsBuilder AddRegistry(IEntityRegistry registry)
     {
         State.Registries.Add(registry);
         return this;
     }
 
-    internal MigrationManagerOptions Build()
+    internal DbMigratorOptions Build()
     {
         if (!State.DialectConfigured)
         {
@@ -270,7 +270,7 @@ public class MigrationManagerOptionsBuilder
     }
 }
 
-public sealed class PostgreSqlOptionsBuilder : MigrationManagerOptionsBuilder
+public sealed class PostgreSqlOptionsBuilder : DbMigratorOptionsBuilder
 {
     internal PostgreSqlOptionsBuilder(BuilderState state) : base(state)
     {
@@ -292,7 +292,7 @@ public sealed class PostgreSqlOptionsBuilder : MigrationManagerOptionsBuilder
     }
 }
 
-public sealed class OracleOptionsBuilder : MigrationManagerOptionsBuilder
+public sealed class OracleOptionsBuilder : DbMigratorOptionsBuilder
 {
     internal OracleOptionsBuilder(BuilderState state) : base(state)
     {

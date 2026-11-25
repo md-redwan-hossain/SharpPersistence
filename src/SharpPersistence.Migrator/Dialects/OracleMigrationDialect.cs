@@ -140,7 +140,7 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
 
     public async Task<IAsyncDisposable?> AcquireLockAsync(
         DbConnection conn,
-        MigrationManagerOptions options,
+        DbMigratorOptions options,
         CancellationToken ct)
     {
         var lockId = ComputeLockId(options);
@@ -204,7 +204,7 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
 
     public async Task EnsureHistoryTableAsync(
         DbConnection conn,
-        MigrationManagerOptions options,
+        DbMigratorOptions options,
         CancellationToken ct)
     {
         var table = Qualify(options.HistorySchema, options.HistoryTableName);
@@ -224,7 +224,7 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
 
     public async Task<bool> HistoryTableExistsAsync(
         DbConnection conn,
-        MigrationManagerOptions options,
+        DbMigratorOptions options,
         CancellationToken ct)
     {
         await using var cmd = conn.CreateCommand();
@@ -238,7 +238,7 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
 
     public async Task RecordAppliedAsync(
         DbConnection conn,
-        MigrationManagerOptions options,
+        DbMigratorOptions options,
         string registryName,
         string scriptName,
         string checksum,
@@ -376,7 +376,7 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
         return dataType;
     }
 
-    private static int ComputeLockId(MigrationManagerOptions options)
+    private static int ComputeLockId(DbMigratorOptions options)
     {
         var key = $"SharpPersistence.Migrator:{options.HistorySchema ?? "default"}.{options.HistoryTableName}";
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(key));

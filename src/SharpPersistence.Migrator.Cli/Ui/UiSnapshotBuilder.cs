@@ -1,56 +1,61 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
-using SharpPersistence.Migrator.Diffing;
 using SharpPersistence.Migrator.Models;
 using SharpPersistence.Migrator.Services;
 
 namespace SharpPersistence.Migrator.Cli.Ui;
 
-internal static class UiSnapshotBuilder
+internal sealed class UiDataService
 {
-    public const string SnapshotPlaceholder = "window.__SHARP_PERSISTENCE_SNAPSHOT__ = null;";
-
     public static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = false
     };
 
-    public static async Task<UiSnapshotDto> BuildSnapshotAsync(
-        LoadedMigrationContext loaded,
-        bool checkDatabase,
-        bool includeScriptSql,
-        CancellationToken ct)
-    {
-        var model = BuildModel(loaded.Manager);
-        var runlist = BuildRunlist(loaded.Manager, includeScriptSql);
-        var doctor = await BuildDoctorAsync(loaded, checkDatabase, ct);
+    private readonly LoadedMigrationContext _loaded;
+    private readonly IReadOnlyList<(string RegistryName, DatabaseModel Model)> _scannedRegistries;
+    private readonly Dictionary<(string Registry, string Entity), TableSchema> _tableLookup;
+    private readonly ConcurrentDictionary<(string Registry, string Entity), UiTableDetailDto> _detailCache = new();
 
-        return new UiSnapshotDto(
-            ProjectName: loaded.HostName,
-            StartupProjectPath: loaded.StartupProjectDisplayPath,
-            Dialect: loaded.Manager.Options.Dialect.ToString(),
-            GeneratedAtUtc: DateTimeOffset.UtcNow.ToString("O"),
-            Model: model,
-            Runlist: runlist,
-            Doctor: doctor);
-    }
-
-    public static UiModelDto BuildModel(MigrationManager manager)
+    public UiDataService(LoadedMigrationContext loaded)
     {
-        var options = manager.Options;
+        _loaded = loaded;
+        var options = loaded.Manager.Options;
         var sortedRegistries = RegistryDependencyResolver.SortTopologically(options);
-        var registryDtos = new List<UiRegistryDto>(sortedRegistries.Count);
-        var sequences = new List<UiSequenceDto>();
-        var seenSequences = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var scanned = new List<(string, DatabaseModel)>(sortedRegistries.Count);
+        var lookup = new Dictionary<(string, string), TableSchema>(TupleKeyComparer.Instance);
 
         foreach (var registry in sortedRegistries)
         {
             var registryName = registry.GetType().Name;
-            var regModel = SchemaScanner.ScanRegistry(registry, options, sortedRegistries);
+            var model = SchemaScanner.ScanRegistry(registry, options, sortedRegistries);
+            scanned.Add((registryName, model));
 
-            if (regModel.Sequences is { Count: > 0 })
+            foreach (var table in model.Tables)
             {
-                foreach (var seq in regModel.Sequences)
+                lookup[(registryName, table.EntityName)] = table;
+            }
+        }
+
+        _scannedRegistries = scanned;
+        _tableLookup = lookup;
+    }
+
+    public UiOverviewDto BuildOverview()
+    {
+        var options = _loaded.Manager.Options;
+        var registrySummaries = new List<UiRegistrySummaryDto>(_scannedRegistries.Count);
+        var sequences = new List<UiSequenceDto>();
+        var seenSequences = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var totalEntities = 0;
+
+        foreach (var (registryName, model) in _scannedRegistries)
+        {
+            if (model.Sequences is { Count: > 0 })
+            {
+                foreach (var seq in model.Sequences)
                 {
                     var key = $"{seq.Schema ?? string.Empty}.{seq.Name}";
                     if (seenSequences.Add(key))
@@ -68,13 +73,23 @@ internal static class UiSnapshotBuilder
                 }
             }
 
-            var tableDtos = new List<UiTableDto>(regModel.Tables.Count);
-            foreach (var table in regModel.Tables.OrderBy(static t => t.EntityName, StringComparer.Ordinal))
-            {
-                tableDtos.Add(MapTable(registryName, table, options));
-            }
+            var tableSummaries = model.Tables
+                .OrderBy(static t => GetShortName(t.EntityName), StringComparer.Ordinal)
+                .Select(t => new UiTableSummaryDto(
+                    RegistryName: registryName,
+                    EntityName: t.EntityName,
+                    ShortEntityName: GetShortName(t.EntityName),
+                    TableName: t.TableName,
+                    Schema: t.Schema,
+                    QualifiedName: t.QualifiedName,
+                    ExcludeFromMigrations: t.ExcludeFromMigrations,
+                    ColumnCount: t.Columns.Count,
+                    ForeignKeyCount: t.ForeignKeys.Count,
+                    IndexCount: t.Indexes.Count))
+                .ToList();
 
-            registryDtos.Add(new UiRegistryDto(registryName, tableDtos));
+            totalEntities += tableSummaries.Count;
+            registrySummaries.Add(new UiRegistrySummaryDto(registryName, tableSummaries));
         }
 
         var enums = options.Enums
@@ -82,31 +97,130 @@ internal static class UiSnapshotBuilder
             .Select(static e => new UiPostgresEnumDto(e.Name, e.Schema, [.. e.Labels]))
             .ToList();
 
-        return new UiModelDto(
-            registryDtos,
-            enums,
-            sequences.OrderBy(static s => s.Name, StringComparer.Ordinal).ToList());
+        var runlist = BuildRunlist();
+
+        return new UiOverviewDto(
+            ProjectName: _loaded.HostName,
+            StartupProjectPath: _loaded.StartupProjectDisplayPath,
+            Dialect: options.Dialect.ToString(),
+            TotalEntities: totalEntities,
+            RunlistScriptCount: runlist.Scripts.Count,
+            RunlistError: runlist.Error,
+            Registries: registrySummaries,
+            PostgresEnums: enums,
+            Sequences: sequences.OrderBy(static s => s.Name, StringComparer.Ordinal).ToList());
     }
 
-    public static UiRunlistDto BuildRunlist(MigrationManager manager, bool includeSql)
+    public UiTableDetailDto? GetTableDetail(string registryName, string entityName)
+    {
+        if (!_tableLookup.TryGetValue((registryName, entityName), out var table))
+        {
+            return null;
+        }
+
+        return _detailCache.GetOrAdd(
+            (registryName, entityName),
+            _ => MapTableDetail(registryName, table));
+    }
+
+    public UiErdDto BuildErd(string? registryFilter)
+    {
+        var selectedRegistries = string.IsNullOrWhiteSpace(registryFilter) ||
+                                 string.Equals(registryFilter, "ALL", StringComparison.OrdinalIgnoreCase)
+            ? _scannedRegistries
+            : _scannedRegistries
+                .Where(r => string.Equals(r.RegistryName, registryFilter, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+        var nodes = new List<UiErdNodeDto>();
+        var nodeKeyByTable = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var nodeKeyByEntity = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (registryName, model) in selectedRegistries)
+        {
+            foreach (var t in model.Tables.OrderBy(static x => GetShortName(x.EntityName), StringComparer.Ordinal))
+            {
+                var key = $"{registryName}::{t.EntityName}";
+                var pkCols = new HashSet<string>(t.PrimaryKey?.ColumnNames ?? [], StringComparer.OrdinalIgnoreCase);
+                var fkCols = new HashSet<string>(t.ForeignKeys.SelectMany(static fk => fk.DependentColumns), StringComparer.OrdinalIgnoreCase);
+
+                var cols = t.Columns
+                    .Take(12)
+                    .Select(c => new UiErdColumnDto(
+                        c.ColumnName,
+                        c.SqlType,
+                        pkCols.Contains(c.ColumnName),
+                        fkCols.Contains(c.ColumnName),
+                        c.IsNullable))
+                    .ToList();
+
+                nodes.Add(new UiErdNodeDto(
+                    Key: key,
+                    RegistryName: registryName,
+                    EntityName: t.EntityName,
+                    ShortEntityName: GetShortName(t.EntityName),
+                    QualifiedName: t.QualifiedName,
+                    ExcludeFromMigrations: t.ExcludeFromMigrations,
+                    TotalColumns: t.Columns.Count,
+                    Columns: cols));
+
+                nodeKeyByTable[t.QualifiedName] = key;
+                nodeKeyByEntity[t.EntityName] = key;
+            }
+        }
+
+        var edges = new List<UiErdEdgeDto>();
+        foreach (var (registryName, model) in selectedRegistries)
+        {
+            foreach (var t in model.Tables)
+            {
+                var fromKey = $"{registryName}::{t.EntityName}";
+                foreach (var fk in t.ForeignKeys)
+                {
+                    var principalQualified = string.IsNullOrWhiteSpace(fk.PrincipalSchema)
+                        ? fk.PrincipalTable
+                        : $"{fk.PrincipalSchema}.{fk.PrincipalTable}";
+
+                    if (!nodeKeyByTable.TryGetValue(principalQualified, out var toKey) &&
+                        !nodeKeyByEntity.TryGetValue(fk.PrincipalEntityName, out toKey))
+                    {
+                        continue;
+                    }
+
+                    if (string.Equals(fromKey, toKey, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    edges.Add(new UiErdEdgeDto(
+                        Id: $"{fromKey}->{toKey}::{fk.Name}",
+                        FromKey: fromKey,
+                        ToKey: toKey,
+                        Name: fk.Name,
+                        OnDelete: fk.OnDelete.ToString()));
+                }
+            }
+        }
+
+        return new UiErdDto(registryFilter, nodes, edges);
+    }
+
+    public UiRunlistDto BuildRunlist()
     {
         try
         {
-            var runlist = manager.CreateRunlistManager();
-            var entries = runlist.ResolveEffectiveOrder();
+            var entries = _loaded.Manager.CreateRunlistManager().ResolveEffectiveOrder();
             var scripts = new List<UiRunlistScriptDto>(entries.Count);
 
             for (var i = 0; i < entries.Count; i++)
             {
                 var e = entries[i];
-                var sql = includeSql && File.Exists(e.FullPath) ? File.ReadAllText(e.FullPath) : null;
                 scripts.Add(new UiRunlistScriptDto(
                     Order: i + 1,
                     Id: e.Id.ToString("D"),
                     RegistryName: e.RegistryName,
                     ScriptName: e.ScriptName,
-                    IsOverridden: e.IsOverridden,
-                    Sql: sql));
+                    IsOverridden: e.IsOverridden));
             }
 
             return new UiRunlistDto(Error: null, scripts);
@@ -117,32 +231,26 @@ internal static class UiSnapshotBuilder
         }
     }
 
-    public static string? ReadRunlistScriptSql(MigrationManager manager, string scriptId)
+    public string? ReadRunlistScriptSql(string scriptId)
     {
         if (!Guid.TryParse(scriptId, out var targetId))
         {
             return null;
         }
 
-        var entries = manager.CreateRunlistManager().ResolveEffectiveOrder();
+        var entries = _loaded.Manager.CreateRunlistManager().ResolveEffectiveOrder();
         var match = entries.FirstOrDefault(e => e.Id == targetId);
-        if (match is null || !File.Exists(match.FullPath))
-        {
-            return null;
-        }
-
-        return File.ReadAllText(match.FullPath);
+        return match is not null && File.Exists(match.FullPath)
+            ? File.ReadAllText(match.FullPath)
+            : null;
     }
 
-    public static async Task<UiDoctorDto> BuildDoctorAsync(
-        LoadedMigrationContext loaded,
-        bool checkDatabase,
-        CancellationToken ct)
+    public async Task<UiDoctorDto> BuildDoctorAsync(bool checkDatabase, CancellationToken ct)
     {
-        var report = await loaded.Manager.DiagnoseAsync(
+        var report = await _loaded.Manager.DiagnoseAsync(
             registryFilter: null,
             checkDatabase: checkDatabase,
-            discoveredAssemblies: loaded.LoadedAssemblies,
+            discoveredAssemblies: _loaded.LoadedAssemblies,
             ct: ct);
 
         return new UiDoctorDto(
@@ -166,36 +274,12 @@ internal static class UiSnapshotBuilder
             DatabaseChecks: MapDoctorItems(report.DatabaseChecks));
     }
 
-    public static string InjectSnapshotIntoHtml(string htmlTemplate, UiSnapshotDto snapshot)
-    {
-        var json = JsonSerializer.Serialize(snapshot, JsonOptions)
-            .Replace("</", "<\\/", StringComparison.Ordinal);
-        var replacement = $"window.__SHARP_PERSISTENCE_SNAPSHOT__ = {json};";
-
-        if (htmlTemplate.Contains(SnapshotPlaceholder, StringComparison.Ordinal))
-        {
-            return htmlTemplate.Replace(SnapshotPlaceholder, replacement, StringComparison.Ordinal);
-        }
-
-        var scriptTag = $"<script>{replacement}</script>";
-        var headCloseIdx = htmlTemplate.IndexOf("</head>", StringComparison.OrdinalIgnoreCase);
-        return headCloseIdx >= 0
-            ? htmlTemplate.Insert(headCloseIdx, scriptTag)
-            : scriptTag + htmlTemplate;
-    }
-
-    private static UiTableDto MapTable(
+    private static UiTableDetailDto MapTableDetail(
         string registryName,
-        TableSchema table,
-        Configuration.MigrationManagerOptions options)
+        TableSchema table)
     {
-        var pkCols = new HashSet<string>(
-            table.PrimaryKey?.ColumnNames ?? [],
-            StringComparer.OrdinalIgnoreCase);
-
-        var fkCols = new HashSet<string>(
-            table.ForeignKeys.SelectMany(static fk => fk.DependentColumns),
-            StringComparer.OrdinalIgnoreCase);
+        var pkCols = new HashSet<string>(table.PrimaryKey?.ColumnNames ?? [], StringComparer.OrdinalIgnoreCase);
+        var fkCols = new HashSet<string>(table.ForeignKeys.SelectMany(static fk => fk.DependentColumns), StringComparer.OrdinalIgnoreCase);
 
         var columns = table.Columns
             .Select(c => new UiColumnDto(
@@ -265,11 +349,10 @@ internal static class UiSnapshotBuilder
                 ex.FilterSql))
             .ToList();
 
-        var ddlPreview = GenerateTableDdlPreview(table, options);
-
-        return new UiTableDto(
+        return new UiTableDetailDto(
             RegistryName: registryName,
             EntityName: table.EntityName,
+            ShortEntityName: GetShortName(table.EntityName),
             TableName: table.TableName,
             Schema: table.Schema,
             QualifiedName: table.QualifiedName,
@@ -285,34 +368,21 @@ internal static class UiSnapshotBuilder
             ForeignKeys: fks,
             Indexes: indexes,
             CheckConstraints: checks,
-            ExclusionConstraints: exclusions,
-            DdlPreview: ddlPreview);
+            ExclusionConstraints: exclusions);
     }
 
-    private static string GenerateTableDdlPreview(
-        TableSchema table,
-        Configuration.MigrationManagerOptions options)
+    private static string GetShortName(string fullEntityName)
     {
-        try
+        var plusIdx = fullEntityName.LastIndexOf('+');
+        if (plusIdx >= 0 && plusIdx + 1 < fullEntityName.Length)
         {
-            var singleModel = new DatabaseModel
-            {
-                Tables = [table]
-            };
-
-            var diff = StandaloneSchemaDiffer.GenerateDiff(
-                singleModel,
-                null,
-                options.Dialect,
-                interactiveRenamePrompt: false,
-                options.OracleCompatibility);
-
-            return diff.SqlScript;
+            return fullEntityName[(plusIdx + 1)..];
         }
-        catch
-        {
-            return string.Empty;
-        }
+
+        var dotIdx = fullEntityName.LastIndexOf('.');
+        return dotIdx >= 0 && dotIdx + 1 < fullEntityName.Length
+            ? fullEntityName[(dotIdx + 1)..]
+            : fullEntityName;
     }
 
     private static List<UiDoctorItemDto> MapDoctorItems(IReadOnlyList<DoctorCheckItem> items) =>
@@ -321,4 +391,18 @@ internal static class UiSnapshotBuilder
             Message: i.Message,
             Hint: i.Hint,
             EntityName: i.EntityName)).ToList();
+
+    private sealed class TupleKeyComparer : IEqualityComparer<(string Registry, string Entity)>
+    {
+        public static readonly TupleKeyComparer Instance = new();
+
+        public bool Equals((string Registry, string Entity) x, (string Registry, string Entity) y) =>
+            StringComparer.OrdinalIgnoreCase.Equals(x.Registry, y.Registry) &&
+            StringComparer.OrdinalIgnoreCase.Equals(x.Entity, y.Entity);
+
+        public int GetHashCode((string Registry, string Entity) obj) =>
+            HashCode.Combine(
+                StringComparer.OrdinalIgnoreCase.GetHashCode(obj.Registry),
+                StringComparer.OrdinalIgnoreCase.GetHashCode(obj.Entity));
+    }
 }

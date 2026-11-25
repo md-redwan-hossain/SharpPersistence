@@ -1,46 +1,97 @@
-import { AlertTriangle, CheckCircle2, Database, RefreshCw, XCircle } from "lucide-react";
-import type { UiDoctor, UiDoctorItem } from "../types";
+import { useEffect, useState } from "react";
+import { AlertTriangle, CheckCircle2, Database, Loader2, RefreshCw, XCircle } from "lucide-react";
+import {
+  fetchValidatedJson,
+  UiDoctorSchema,
+  type UiDoctor,
+  type UiDoctorItem,
+} from "../schemas/apiSchemas";
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 
 interface Props {
-  doctor: UiDoctor;
-  isOfflineSnapshot: boolean;
-  isRefreshing: boolean;
-  onRefresh: (checkDb: boolean) => void;
+  doctor: UiDoctor | null;
+  onDoctorLoaded: (doctor: UiDoctor) => void;
 }
 
-export function DoctorView({ doctor, isOfflineSnapshot, isRefreshing, onRefresh }: Props) {
+export function DoctorView({ doctor, onDoctorLoaded }: Props) {
+  const [loading, setLoading] = useState(doctor === null);
+  const [error, setError] = useState<string | null>(null);
+
+  const runCheck = async (checkDb: boolean, signal?: AbortSignal) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await fetchValidatedJson(
+        `/api/doctor?checkDb=${checkDb ? "true" : "false"}`,
+        UiDoctorSchema,
+        signal
+      );
+      onDoctorLoaded(data);
+    } catch (err: unknown) {
+      if (signal?.aborted) return;
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      if (!signal?.aborted) setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (doctor !== null) return;
+    const controller = new AbortController();
+    void runCheck(false, controller.signal);
+    return () => controller.abort();
+  }, [doctor]);
+
+  if (loading && !doctor) {
+    return (
+      <div className="h-64 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+        <Loader2 className="w-4 h-4 animate-spin" />
+        Running doctor checks...
+      </div>
+    );
+  }
+
+  if (error && !doctor) {
+    return (
+      <div className="p-4 sm:p-6 max-w-3xl mx-auto">
+        <Card className="border-rose-500/40">
+          <CardContent className="text-xs text-rose-600 dark:text-rose-400">{error}</CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!doctor) return null;
+
   return (
-    <div className="h-[calc(100vh-3.5rem)] overflow-y-auto p-6">
-      <div className="max-w-5xl mx-auto space-y-6">
-        {/* Top Summary Bar */}
+    <div className="lg:h-[calc(100vh-3.5rem)] overflow-y-auto p-3 sm:p-6">
+      <div className="max-w-5xl mx-auto space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full sm:w-auto">
             <SummaryCard label="Passed" value={doctor.passedCount} tone="emerald" />
             <SummaryCard label="Warnings" value={doctor.warningCount} tone="amber" />
             <SummaryCard label="Errors" value={doctor.errorCount} tone="rose" />
           </div>
 
-          {!isOfflineSnapshot && (
-            <div className="flex items-center gap-2">
-              <button
-                disabled={isRefreshing}
-                onClick={() => onRefresh(false)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
-                Re-run Offline
-              </button>
-              <button
-                disabled={isRefreshing}
-                onClick={() => onRefresh(true)}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium rounded-lg bg-sky-600 text-white hover:bg-sky-500 disabled:opacity-50"
-              >
-                <Database className="w-3.5 h-3.5" />
-                {isRefreshing ? "Checking..." : "Run Live DB Check"}
-              </button>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            <Button variant="outline" disabled={loading} onClick={() => void runCheck(false)}>
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+              Re-run Offline
+            </Button>
+            <Button disabled={loading} onClick={() => void runCheck(true)}>
+              <Database className="w-3.5 h-3.5" />
+              {loading ? "Checking..." : "Run Live DB Check"}
+            </Button>
+          </div>
         </div>
+
+        {error && (
+          <Card className="border-rose-500/40">
+            <CardContent className="text-xs text-rose-600 dark:text-rose-400">{error}</CardContent>
+          </Card>
+        )}
 
         <CheckSection title="DI & Wiring" items={doctor.wiringChecks} />
 
@@ -79,15 +130,15 @@ function SummaryCard({
   tone: "emerald" | "amber" | "rose";
 }) {
   const colors = {
-    emerald: "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-    amber: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
-    rose: "border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400",
+    emerald: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+    amber: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+    rose: "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-400",
   }[tone];
 
   return (
-    <div className={`px-5 py-3 rounded-xl border ${colors} min-w-28`}>
-      <div className="text-2xl font-bold font-mono">{value}</div>
-      <div className="text-[11px] uppercase tracking-wider font-semibold opacity-80">{label}</div>
+    <div className={`px-4 py-2.5 rounded-xl border ${colors} min-w-24`}>
+      <div className="text-xl font-bold font-mono tabular-nums">{value}</div>
+      <div className="text-[10px] uppercase tracking-wider font-semibold opacity-80">{label}</div>
     </div>
   );
 }
@@ -102,37 +153,33 @@ function CheckSection({
   items: UiDoctorItem[];
 }) {
   return (
-    <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/70 overflow-hidden">
-      <div className="px-5 py-3 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-semibold text-sm">{title}</h2>
-        {subtitle && <span className="text-xs font-mono text-slate-400">{subtitle}</span>}
-      </div>
+    <Card className="overflow-hidden">
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        {subtitle && <span className="text-[11px] font-mono text-muted-foreground">{subtitle}</span>}
+      </CardHeader>
       {items.length === 0 ? (
-        <div className="px-5 py-3 text-xs text-slate-400">No issues reported.</div>
+        <div className="px-4 sm:px-5 py-3 text-xs text-muted-foreground">No issues reported.</div>
       ) : (
-        <div className="divide-y divide-slate-200/70 dark:divide-slate-800/80">
+        <div className="divide-y divide-border/70">
           {items.map((item, idx) => (
-            <div key={idx} className="px-5 py-3 flex items-start gap-3 text-sm">
+            <div key={idx} className="px-4 sm:px-5 py-3 flex items-start gap-3 text-xs">
               {item.severity === "Pass" && <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />}
               {item.severity === "Warning" && <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />}
               {item.severity === "Error" && <XCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />}
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  {item.entityName && (
-                    <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-[11px] font-semibold">
-                      {item.entityName}
-                    </span>
-                  )}
-                  <span className="text-slate-800 dark:text-slate-200 text-xs">{item.message}</span>
+                  {item.entityName && <Badge variant="secondary">{item.entityName}</Badge>}
+                  <span className="text-foreground [overflow-wrap:anywhere]">{item.message}</span>
                 </div>
                 {item.hint && (
-                  <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">→ {item.hint}</div>
+                  <div className="mt-1 text-muted-foreground [overflow-wrap:anywhere]">→ {item.hint}</div>
                 )}
               </div>
             </div>
           ))}
         </div>
       )}
-    </section>
+    </Card>
   );
 }

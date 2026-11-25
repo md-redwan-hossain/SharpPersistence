@@ -58,8 +58,7 @@ app.Configure(config =>
     config.AddCommand<UiCommand>("ui")
         .WithDescription("Launch an interactive browser UI for exploring entities, DB metadata, ERD, runlist, and doctor checks.")
         .WithExample("ui")
-        .WithExample("ui", "--port", "5077")
-        .WithExample("ui", "--export", "db-explorer.html");
+        .WithExample("ui", "--port", "5077");
 });
 
 return await app.RunAsync(args);

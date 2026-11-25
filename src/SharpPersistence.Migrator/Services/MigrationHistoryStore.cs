@@ -9,10 +9,10 @@ namespace SharpPersistence.Migrator.Services;
 
 internal sealed class MigrationHistoryStore
 {
-    private readonly MigrationManagerOptions _options;
+    private readonly DbMigratorOptions _options;
     private readonly IMigrationDialect _dialect;
 
-    public MigrationHistoryStore(MigrationManagerOptions options)
+    public MigrationHistoryStore(DbMigratorOptions options)
     {
         _options = options;
         _dialect = MigrationDialectRegistry.Get(options);

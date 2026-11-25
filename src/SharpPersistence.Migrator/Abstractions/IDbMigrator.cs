@@ -2,7 +2,7 @@ using SharpPersistence.Migrator.Models;
 
 namespace SharpPersistence.Migrator.Abstractions;
 
-public interface IMigrationManager
+public interface IDbMigrator
 {
     Task EnsureHistoryTableAsync(CancellationToken ct = default);
 

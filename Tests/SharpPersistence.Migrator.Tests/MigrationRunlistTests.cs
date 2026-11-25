@@ -51,14 +51,14 @@ public sealed class MigrationRunlistTests : IDisposable
         }
     }
 
-    private MigrationManager CreateManager()
+    private DbMigrator CreateManager()
     {
-        var builder = new MigrationManagerOptionsBuilder();
+        var builder = new DbMigratorOptionsBuilder();
         builder.UsePostgreSql("Host=localhost;Database=test")
             .UseRootPath(_tempDir)
             .AddRegistry<OrdersRegistry>()
             .AddRegistry<UsersRegistry>();
-        return new MigrationManager(builder.Build(), new EmptyServiceProvider());
+        return new DbMigrator(builder.Build(), new EmptyServiceProvider());
     }
 
     private sealed class EmptyServiceProvider : IServiceProvider

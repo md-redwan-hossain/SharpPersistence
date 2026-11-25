@@ -7,7 +7,7 @@ using SharpPersistence.Migrator.Models;
 namespace SharpPersistence.Migrator.Services;
 
 internal sealed class DoctorDatabaseValidator(
-    MigrationManagerOptions options,
+    DbMigratorOptions options,
     IMigrationDialect dialect,
     MigrationConnectionOpener connectionOpener,
     MigrationScriptStore scriptStore,

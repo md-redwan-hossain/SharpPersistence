@@ -89,7 +89,7 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
 
     public async Task<IAsyncDisposable?> AcquireLockAsync(
         DbConnection conn,
-        MigrationManagerOptions options,
+        DbMigratorOptions options,
         CancellationToken ct)
     {
         var lockId = ComputeLockId(options);
@@ -108,7 +108,7 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
 
     public async Task EnsureHistoryTableAsync(
         DbConnection conn,
-        MigrationManagerOptions options,
+        DbMigratorOptions options,
         CancellationToken ct)
     {
         var table = Qualify(options.HistorySchema, options.HistoryTableName);
@@ -132,7 +132,7 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
 
     public async Task<bool> HistoryTableExistsAsync(
         DbConnection conn,
-        MigrationManagerOptions options,
+        DbMigratorOptions options,
         CancellationToken ct)
     {
         var table = Qualify(options.HistorySchema, options.HistoryTableName);
@@ -144,7 +144,7 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
 
     public async Task RecordAppliedAsync(
         DbConnection conn,
-        MigrationManagerOptions options,
+        DbMigratorOptions options,
         string registryName,
         string scriptName,
         string checksum,
@@ -231,7 +231,7 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
         return result;
     }
 
-    private static long ComputeLockId(MigrationManagerOptions options)
+    private static long ComputeLockId(DbMigratorOptions options)
     {
         var key = $"SharpPersistence.Migrator:{options.HistorySchema ?? "default"}.{options.HistoryTableName}";
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(key));

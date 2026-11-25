@@ -1,26 +1,36 @@
 namespace SharpPersistence.Migrator.Cli.Ui;
 
-internal sealed record UiSnapshotDto(
+internal sealed record UiOverviewDto(
     string ProjectName,
     string StartupProjectPath,
     string Dialect,
-    string GeneratedAtUtc,
-    UiModelDto Model,
-    UiRunlistDto Runlist,
-    UiDoctorDto Doctor);
-
-internal sealed record UiModelDto(
-    IReadOnlyList<UiRegistryDto> Registries,
+    int TotalEntities,
+    int RunlistScriptCount,
+    string? RunlistError,
+    IReadOnlyList<UiRegistrySummaryDto> Registries,
     IReadOnlyList<UiPostgresEnumDto> PostgresEnums,
     IReadOnlyList<UiSequenceDto> Sequences);
 
-internal sealed record UiRegistryDto(
+internal sealed record UiRegistrySummaryDto(
     string Name,
-    IReadOnlyList<UiTableDto> Tables);
+    IReadOnlyList<UiTableSummaryDto> Tables);
 
-internal sealed record UiTableDto(
+internal sealed record UiTableSummaryDto(
     string RegistryName,
     string EntityName,
+    string ShortEntityName,
+    string TableName,
+    string? Schema,
+    string QualifiedName,
+    bool ExcludeFromMigrations,
+    int ColumnCount,
+    int ForeignKeyCount,
+    int IndexCount);
+
+internal sealed record UiTableDetailDto(
+    string RegistryName,
+    string EntityName,
+    string ShortEntityName,
     string TableName,
     string? Schema,
     string QualifiedName,
@@ -34,8 +44,36 @@ internal sealed record UiTableDto(
     IReadOnlyList<UiForeignKeyDto> ForeignKeys,
     IReadOnlyList<UiIndexDto> Indexes,
     IReadOnlyList<UiCheckConstraintDto> CheckConstraints,
-    IReadOnlyList<UiExclusionConstraintDto> ExclusionConstraints,
-    string DdlPreview);
+    IReadOnlyList<UiExclusionConstraintDto> ExclusionConstraints);
+
+internal sealed record UiErdDto(
+    string? RegistryFilter,
+    IReadOnlyList<UiErdNodeDto> Nodes,
+    IReadOnlyList<UiErdEdgeDto> Edges);
+
+internal sealed record UiErdNodeDto(
+    string Key,
+    string RegistryName,
+    string EntityName,
+    string ShortEntityName,
+    string QualifiedName,
+    bool ExcludeFromMigrations,
+    int TotalColumns,
+    IReadOnlyList<UiErdColumnDto> Columns);
+
+internal sealed record UiErdColumnDto(
+    string ColumnName,
+    string SqlType,
+    bool IsPrimaryKey,
+    bool IsForeignKey,
+    bool IsNullable);
+
+internal sealed record UiErdEdgeDto(
+    string Id,
+    string FromKey,
+    string ToKey,
+    string Name,
+    string OnDelete);
 
 internal sealed record UiPrimaryKeyDto(
     string Name,
@@ -118,8 +156,7 @@ internal sealed record UiRunlistScriptDto(
     string Id,
     string RegistryName,
     string ScriptName,
-    bool IsOverridden,
-    string? Sql);
+    bool IsOverridden);
 
 internal sealed record UiDoctorDto(
     bool CheckedDatabase,

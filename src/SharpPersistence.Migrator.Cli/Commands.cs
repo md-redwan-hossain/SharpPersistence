@@ -9,7 +9,7 @@ namespace SharpPersistence.Migrator.Cli;
 internal class SharedSettings : CommandSettings
 {
     [CommandOption("-s|--startup-project <PATH>")]
-    [Description("Startup .csproj file or directory containing IDesignTimeMigrationFactory (auto-detected from current directory if omitted).")]
+    [Description("Startup .csproj file or directory containing IDesignTimeDbMigratorFactory (auto-detected from current directory if omitted).")]
     public string? StartupProjectPath { get; init; }
 
     [CommandOption("-d|--destination-project <PATH>")]
@@ -432,7 +432,7 @@ internal sealed class DoctorCommand : AsyncCommand<DoctorSettings>
         {
             if (settings.RunlistOnly)
             {
-                var concreteManager = (SharpPersistence.Migrator.Services.MigrationManager)loaded.Manager;
+                var concreteManager = loaded.Manager;
                 IReadOnlyList<AppliedMigrationRecord>? applied = null;
                 if (settings.CheckDb)
                 {
@@ -602,7 +602,7 @@ internal sealed class RunlistShowCommand : AsyncCommand<RunlistShowSettings>
         var (owner, manager, _) = TargetAssemblyLoader.CreateManager(settings);
         try
         {
-            var runlist = ((SharpPersistence.Migrator.Services.MigrationManager)manager).CreateRunlistManager();
+            var runlist = manager.CreateRunlistManager();
             var entries = runlist.ResolveEffectiveOrder();
             if (entries.Count == 0)
             {
@@ -651,7 +651,7 @@ internal sealed class RunlistSyncCommand : AsyncCommand<RunlistSyncSettings>
         var (owner, manager, _) = TargetAssemblyLoader.CreateManager(settings);
         try
         {
-            var runlist = ((SharpPersistence.Migrator.Services.MigrationManager)manager).CreateRunlistManager();
+            var runlist = manager.CreateRunlistManager();
             var result = await runlist.SyncAsync(settings.Prune, settings.DryRun);
 
             var prefix = settings.DryRun ? "[yellow]DRY RUN:[/] " : string.Empty;

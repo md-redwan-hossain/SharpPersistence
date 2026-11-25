@@ -137,7 +137,7 @@ public sealed class PostgresIntegrationTests(PostgresContainerFixture fixture)
         }
     }
 
-    private static MigrationManager BuildManager(
+    private static DbMigrator BuildManager(
         string connectionString,
         string tempRoot,
         IEntityRegistry registry)
@@ -153,7 +153,7 @@ public sealed class PostgresIntegrationTests(PostgresContainerFixture fixture)
         });
 
         var provider = services.BuildServiceProvider();
-        return (MigrationManager)provider.GetRequiredService<IMigrationManager>();
+        return (DbMigrator)provider.GetRequiredService<IDbMigrator>();
     }
 
     [Fact]

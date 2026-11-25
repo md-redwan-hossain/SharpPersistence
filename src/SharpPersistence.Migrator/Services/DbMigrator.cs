@@ -8,16 +8,16 @@ using SharpPersistence.Migrator.Models;
 
 namespace SharpPersistence.Migrator.Services;
 
-internal sealed class MigrationManager : IMigrationManager
+internal sealed class DbMigrator : IDbMigrator
 {
-    private readonly MigrationManagerOptions _options;
+    private readonly DbMigratorOptions _options;
     private readonly IMigrationDialect _dialect;
     private readonly MigrationConnectionOpener _connectionOpener;
     private readonly MigrationScriptStore _scriptStore;
     private readonly MigrationHistoryStore _historyStore;
     private readonly SchemaDriftVerifier _driftVerifier;
 
-    public MigrationManager(MigrationManagerOptions options, IServiceProvider serviceProvider)
+    public DbMigrator(DbMigratorOptions options, IServiceProvider serviceProvider)
     {
         _options = options;
         _dialect = MigrationDialectRegistry.Get(options);
@@ -27,7 +27,7 @@ internal sealed class MigrationManager : IMigrationManager
         _driftVerifier = new SchemaDriftVerifier(options);
     }
 
-    internal MigrationManagerOptions Options => _options;
+    internal DbMigratorOptions Options => _options;
 
     public async Task<IReadOnlyList<GeneratedMigrationItem>> GenerateAsync(
         string migrationName,

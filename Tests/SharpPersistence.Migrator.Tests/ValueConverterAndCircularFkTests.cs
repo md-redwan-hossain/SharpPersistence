@@ -98,7 +98,7 @@ public sealed class ValueConverterAndCircularFkTests
             COMMENT ON TABLE "USERS" IS 'User accounts';
             """;
 
-        var statements = MigrationManager.SplitOracleStatements(script).ToList();
+        var statements = DbMigrator.SplitOracleStatements(script).ToList();
 
         Assert.Equal(2, statements.Count);
         Assert.StartsWith("DECLARE", statements[0]);

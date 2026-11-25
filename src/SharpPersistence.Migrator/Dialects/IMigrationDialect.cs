@@ -32,12 +32,12 @@ internal interface IMigrationDialect : ISqlDialectMetadata
     string FormatEmptyMigration(string migrationName);
     bool TryStripOuterTransaction(string sql, out string innerSql);
 
-    Task<IAsyncDisposable?> AcquireLockAsync(DbConnection conn, MigrationManagerOptions options, CancellationToken ct);
-    Task EnsureHistoryTableAsync(DbConnection conn, MigrationManagerOptions options, CancellationToken ct);
-    Task<bool> HistoryTableExistsAsync(DbConnection conn, MigrationManagerOptions options, CancellationToken ct);
+    Task<IAsyncDisposable?> AcquireLockAsync(DbConnection conn, DbMigratorOptions options, CancellationToken ct);
+    Task EnsureHistoryTableAsync(DbConnection conn, DbMigratorOptions options, CancellationToken ct);
+    Task<bool> HistoryTableExistsAsync(DbConnection conn, DbMigratorOptions options, CancellationToken ct);
     Task RecordAppliedAsync(
         DbConnection conn,
-        MigrationManagerOptions options,
+        DbMigratorOptions options,
         string registryName,
         string scriptName,
         string checksum,
@@ -54,7 +54,7 @@ internal static class MigrationDialectRegistry
 {
     private static readonly PostgresMigrationDialect PostgresInstance = new();
 
-    public static IMigrationDialect Get(MigrationManagerOptions options) =>
+    public static IMigrationDialect Get(DbMigratorOptions options) =>
         Get(options.Dialect, options.OracleCompatibility);
 
     public static IMigrationDialect Get(

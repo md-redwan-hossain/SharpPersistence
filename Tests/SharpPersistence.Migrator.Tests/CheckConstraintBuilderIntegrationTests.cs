@@ -136,7 +136,7 @@ public sealed class CheckConstraintBuilderIntegrationTests
     [Fact]
     public void ConfigureCheckConstraintBuilder_AppliesGlobalDefaultsAndAllowsPartialPerConstraintOverride()
     {
-        var optionsBuilder = new MigrationManagerOptionsBuilder();
+        var optionsBuilder = new DbMigratorOptionsBuilder();
         optionsBuilder
             .UsePostgreSql("Host=localhost;Database=test")
             .ConfigureSqlExpressionBuilder(cc => cc

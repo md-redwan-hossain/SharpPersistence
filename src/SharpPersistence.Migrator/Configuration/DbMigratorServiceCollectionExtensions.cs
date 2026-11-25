@@ -4,27 +4,27 @@ using SharpPersistence.Migrator.Services;
 
 namespace SharpPersistence.Migrator.Configuration;
 
-public static class MigrationManagerServiceCollectionExtensions
+public static class DbMigratorServiceCollectionExtensions
 {
     public static IServiceCollection AddDbMigrator(
         this IServiceCollection services,
-        Action<MigrationManagerOptionsBuilder> configure) =>
+        Action<DbMigratorOptionsBuilder> configure) =>
         services.AddDbMigrator((_, builder) => configure(builder));
 
     public static IServiceCollection AddDbMigrator(
         this IServiceCollection services,
-        Action<IServiceProvider, MigrationManagerOptionsBuilder> configure)
+        Action<IServiceProvider, DbMigratorOptionsBuilder> configure)
     {
         services.AddSingleton(sp =>
         {
-            var builder = new MigrationManagerOptionsBuilder();
+            var builder = new DbMigratorOptionsBuilder();
             configure(sp, builder);
             return builder.Build();
         });
 
         services.AddSingleton(sp =>
         {
-            var options = sp.GetRequiredService<MigrationManagerOptions>();
+            var options = sp.GetRequiredService<DbMigratorOptions>();
             var schema = SchemaScanner.ScanRegistries(
                 options.Dialect,
                 options.IdentifierCase,
@@ -41,7 +41,7 @@ public static class MigrationManagerServiceCollectionExtensions
             return schema;
         });
 
-        services.AddSingleton<IMigrationManager, MigrationManager>();
+        services.AddSingleton<IDbMigrator, DbMigrator>();
 
         return services;
     }

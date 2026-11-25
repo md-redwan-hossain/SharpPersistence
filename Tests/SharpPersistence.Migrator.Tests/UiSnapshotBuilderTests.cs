@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using SharpPersistence.Enums;
 using SharpPersistence.Migrator.Abstractions;
+using SharpPersistence.Migrator.Cli;
 using SharpPersistence.Migrator.Cli.Ui;
 using SharpPersistence.Migrator.Configuration;
 using SharpPersistence.Migrator.Services;
@@ -39,7 +40,7 @@ public sealed class UiSnapshotBuilderTests
     }
 
     [Fact]
-    public void BuildModel_ExportsFullDbMetadataAndDdlPreview()
+    public void UiDataService_BuildsLightweightOverview_LazyTableDetail_AndErd()
     {
         var services = new ServiceCollection();
         services.AddDbMigrator(opt => opt
@@ -48,56 +49,51 @@ public sealed class UiSnapshotBuilderTests
             .AddRegistry<UiBillingRegistry>());
 
         using var sp = services.BuildServiceProvider();
-        var manager = (MigrationManager)sp.GetRequiredService<IMigrationManager>();
+        var manager = (DbMigrator)sp.GetRequiredService<IDbMigrator>();
+        var loaded = new LoadedMigrationContext(sp, manager, Directory.GetCurrentDirectory(), "TestHost", "TestHost.csproj", "Test", []);
 
-        var model = UiSnapshotBuilder.BuildModel(manager);
+        var dataService = new UiDataService(loaded);
+        var overview = dataService.BuildOverview();
 
-        var reg = Assert.Single(model.Registries);
+        Assert.Equal("TestHost", overview.ProjectName);
+        Assert.Equal(1, overview.TotalEntities);
+        var reg = Assert.Single(overview.Registries);
         Assert.Equal(nameof(UiBillingRegistry), reg.Name);
 
-        var table = Assert.Single(reg.Tables);
-        Assert.Equal(nameof(UiInvoice), table.EntityName);
-        Assert.Equal("billing", table.Schema);
-        Assert.Equal("invoices", table.TableName);
-        Assert.Equal("billing.invoices", table.QualifiedName);
-        Assert.Equal("Customer invoices table", table.Comment);
-        Assert.Contains("CREATE TABLE IF NOT EXISTS \"billing\".\"invoices\"", table.DdlPreview);
+        var summary = Assert.Single(reg.Tables);
+        Assert.Equal(nameof(UiInvoice), summary.ShortEntityName);
+        Assert.Equal("billing.invoices", summary.QualifiedName);
+        Assert.Equal(3, summary.ColumnCount);
 
-        var numCol = Assert.Single(table.Columns, c => c.ColumnName == "invoice_number");
+        var detail = dataService.GetTableDetail(reg.Name, summary.EntityName);
+        Assert.NotNull(detail);
+        Assert.Equal("Customer invoices table", detail.Comment);
+
+        var numCol = Assert.Single(detail.Columns, c => c.ColumnName == "invoice_number");
         Assert.Equal("character varying(50)", numCol.SqlType);
         Assert.Equal("Unique human-readable invoice code", numCol.Comment);
         Assert.False(numCol.IsNullable);
 
-        var pkCol = Assert.Single(table.Columns, c => c.ColumnName == "id");
+        var pkCol = Assert.Single(detail.Columns, c => c.ColumnName == "id");
         Assert.True(pkCol.IsPrimaryKey);
 
-        var ix = Assert.Single(table.Indexes);
+        var ix = Assert.Single(detail.Indexes);
         Assert.Equal("ux_invoices_number", ix.Name);
         Assert.True(ix.IsUnique);
 
-        var ck = Assert.Single(table.CheckConstraints);
+        var ck = Assert.Single(detail.CheckConstraints);
         Assert.Equal("ck_invoices_total", ck.Name);
+
+        var erd = dataService.BuildErd(reg.Name);
+        var node = Assert.Single(erd.Nodes);
+        Assert.Equal("UiInvoice", node.ShortEntityName);
+        Assert.Empty(erd.Edges);
     }
 
     [Fact]
-    public void InjectSnapshotIntoHtml_EscapesClosingScriptTag_AndLoadsEmbeddedResource()
+    public void LoadEmbeddedHtml_ReturnsValidHtmlTemplate()
     {
         var embeddedHtml = UiCommand.LoadEmbeddedHtml();
-        Assert.Contains(UiSnapshotBuilder.SnapshotPlaceholder, embeddedHtml);
-
-        var snapshot = new UiSnapshotDto(
-            ProjectName: "Demo</script><script>alert(1)</script>",
-            StartupProjectPath: "Demo.csproj",
-            Dialect: "PostgreSql",
-            GeneratedAtUtc: "2026-11-25T00:00:00Z",
-            Model: new UiModelDto([], [], []),
-            Runlist: new UiRunlistDto(null, []),
-            Doctor: new UiDoctorDto(false, 1, 0, 0, [], [], [], [], []));
-
-        var exported = UiSnapshotBuilder.InjectSnapshotIntoHtml(embeddedHtml, snapshot);
-
-        Assert.DoesNotContain(UiSnapshotBuilder.SnapshotPlaceholder, exported);
-        Assert.DoesNotContain("Demo</script>", exported);
-        Assert.Contains(@"Demo<\/script>", exported);
+        Assert.Contains("<!doctype html>", embeddedHtml, StringComparison.OrdinalIgnoreCase);
     }
 }

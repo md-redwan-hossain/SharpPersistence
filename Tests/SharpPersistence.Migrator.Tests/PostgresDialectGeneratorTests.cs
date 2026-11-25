@@ -274,7 +274,7 @@ public sealed class PostgresDialectGeneratorTests
     [Fact]
     public void EfCoreConventions_KeyBuilderIndexDatabaseNameTypedFilterAndOptions()
     {
-        var optionsBuilder = new MigrationManagerOptionsBuilder();
+        var optionsBuilder = new DbMigratorOptionsBuilder();
         optionsBuilder
             .UsePostgreSql("Host=localhost;Database=test")
             .HasPostgresExtension("btree_gist")
@@ -369,7 +369,7 @@ public sealed class PostgresDialectGeneratorTests
     [Fact]
     public void UsePostgreSql_CallbackOverload_PreservesFluentChainAndConfiguresOptions()
     {
-        var options = new MigrationManagerOptionsBuilder()
+        var options = new DbMigratorOptionsBuilder()
             .UsePostgreSql("Host=localhost;Database=test", pg => pg
                 .HasPostgresExtension("btree_gist")
                 .HasPostgresEnum<BookingStatus>())

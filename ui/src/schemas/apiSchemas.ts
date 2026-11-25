@@ -1,0 +1,241 @@
+import { z } from "zod";
+
+export const UiTableSummarySchema = z.object({
+  registryName: z.string(),
+  entityName: z.string(),
+  shortEntityName: z.string(),
+  tableName: z.string(),
+  schema: z.string().nullable(),
+  qualifiedName: z.string(),
+  excludeFromMigrations: z.boolean(),
+  columnCount: z.number(),
+  foreignKeyCount: z.number(),
+  indexCount: z.number(),
+});
+
+export const UiRegistrySummarySchema = z.object({
+  name: z.string(),
+  tables: z.array(UiTableSummarySchema),
+});
+
+export const UiPostgresEnumSchema = z.object({
+  name: z.string(),
+  schema: z.string().nullable(),
+  labels: z.array(z.string()),
+});
+
+export const UiSequenceSchema = z.object({
+  name: z.string(),
+  schema: z.string().nullable(),
+  clrTypeName: z.string(),
+  startValue: z.number(),
+  incrementBy: z.number(),
+  minValue: z.number().nullable(),
+  maxValue: z.number().nullable(),
+  isCyclic: z.boolean(),
+});
+
+export const UiOverviewSchema = z.object({
+  projectName: z.string(),
+  startupProjectPath: z.string(),
+  dialect: z.string(),
+  totalEntities: z.number(),
+  runlistScriptCount: z.number(),
+  runlistError: z.string().nullable(),
+  registries: z.array(UiRegistrySummarySchema),
+  postgresEnums: z.array(UiPostgresEnumSchema),
+  sequences: z.array(UiSequenceSchema),
+});
+
+export const UiPrimaryKeySchema = z.object({
+  name: z.string(),
+  columns: z.array(z.string()),
+});
+
+export const UiColumnSchema = z.object({
+  columnName: z.string(),
+  propertyName: z.string(),
+  clrTypeName: z.string(),
+  sqlType: z.string(),
+  isNullable: z.boolean(),
+  isPrimaryKey: z.boolean(),
+  isForeignKey: z.boolean(),
+  isIdentity: z.boolean(),
+  isOwnedColumn: z.boolean(),
+  isConcurrencyToken: z.boolean(),
+  isRowVersion: z.boolean(),
+  isSystemColumn: z.boolean(),
+  maxLength: z.number().nullable(),
+  precision: z.number().nullable(),
+  scale: z.number().nullable(),
+  defaultValueSql: z.string().nullable(),
+  computedColumnSql: z.string().nullable(),
+  isComputedStored: z.boolean(),
+  comment: z.string().nullable(),
+});
+
+export const UiForeignKeySchema = z.object({
+  name: z.string(),
+  dependentColumns: z.array(z.string()),
+  principalEntityName: z.string(),
+  principalSchema: z.string().nullable(),
+  principalTable: z.string(),
+  principalQualifiedName: z.string(),
+  principalColumns: z.array(z.string()),
+  onDelete: z.string(),
+  isCircular: z.boolean(),
+});
+
+export const UiIndexSchema = z.object({
+  name: z.string(),
+  columns: z.array(z.string()),
+  isDescending: z.array(z.boolean()).nullable(),
+  isUnique: z.boolean(),
+  filterSql: z.string().nullable(),
+  includedColumns: z.array(z.string()).nullable(),
+  method: z.string().nullable(),
+  tablespace: z.string().nullable(),
+  storageParameters: z.record(z.string(), z.string()).nullable(),
+});
+
+export const UiCheckConstraintSchema = z.object({
+  name: z.string(),
+  sql: z.string(),
+});
+
+export const UiExclusionConstraintSchema = z.object({
+  name: z.string(),
+  method: z.string(),
+  elements: z.array(z.string()),
+  filterSql: z.string().nullable(),
+});
+
+export const UiTableDetailSchema = z.object({
+  registryName: z.string(),
+  entityName: z.string(),
+  shortEntityName: z.string(),
+  tableName: z.string(),
+  schema: z.string().nullable(),
+  qualifiedName: z.string(),
+  comment: z.string().nullable(),
+  excludeFromMigrations: z.boolean(),
+  isUnlogged: z.boolean(),
+  tablespace: z.string().nullable(),
+  storageParameters: z.record(z.string(), z.string()).nullable(),
+  primaryKey: UiPrimaryKeySchema.nullable(),
+  columns: z.array(UiColumnSchema),
+  foreignKeys: z.array(UiForeignKeySchema),
+  indexes: z.array(UiIndexSchema),
+  checkConstraints: z.array(UiCheckConstraintSchema),
+  exclusionConstraints: z.array(UiExclusionConstraintSchema),
+});
+
+export const UiErdColumnSchema = z.object({
+  columnName: z.string(),
+  sqlType: z.string(),
+  isPrimaryKey: z.boolean(),
+  isForeignKey: z.boolean(),
+  isNullable: z.boolean(),
+});
+
+export const UiErdNodeSchema = z.object({
+  key: z.string(),
+  registryName: z.string(),
+  entityName: z.string(),
+  shortEntityName: z.string(),
+  qualifiedName: z.string(),
+  excludeFromMigrations: z.boolean(),
+  totalColumns: z.number(),
+  columns: z.array(UiErdColumnSchema),
+});
+
+export const UiErdEdgeSchema = z.object({
+  id: z.string(),
+  fromKey: z.string(),
+  toKey: z.string(),
+  name: z.string(),
+  onDelete: z.string(),
+});
+
+export const UiErdSchema = z.object({
+  registryFilter: z.string().nullable(),
+  nodes: z.array(UiErdNodeSchema),
+  edges: z.array(UiErdEdgeSchema),
+});
+
+export const UiRunlistScriptSchema = z.object({
+  order: z.number(),
+  id: z.string(),
+  registryName: z.string(),
+  scriptName: z.string(),
+  isOverridden: z.boolean(),
+});
+
+export const UiRunlistSchema = z.object({
+  error: z.string().nullable(),
+  scripts: z.array(UiRunlistScriptSchema),
+});
+
+export const UiDoctorItemSchema = z.object({
+  severity: z.enum(["Pass", "Warning", "Error"]),
+  message: z.string(),
+  hint: z.string().nullable(),
+  entityName: z.string().nullable(),
+});
+
+export const UiDoctorRegistrySchema = z.object({
+  registryName: z.string(),
+  entityCount: z.number(),
+  excludedEntityCount: z.number(),
+  columnCount: z.number(),
+  foreignKeyCount: z.number(),
+  constraintCount: z.number(),
+  items: z.array(UiDoctorItemSchema),
+});
+
+export const UiDoctorSchema = z.object({
+  checkedDatabase: z.boolean(),
+  passedCount: z.number(),
+  warningCount: z.number(),
+  errorCount: z.number(),
+  wiringChecks: z.array(UiDoctorItemSchema),
+  registryReports: z.array(UiDoctorRegistrySchema),
+  crossRegistryChecks: z.array(UiDoctorItemSchema),
+  migrationCoverageChecks: z.array(UiDoctorItemSchema),
+  databaseChecks: z.array(UiDoctorItemSchema),
+});
+
+export type UiOverview = z.infer<typeof UiOverviewSchema>;
+export type UiRegistrySummary = z.infer<typeof UiRegistrySummarySchema>;
+export type UiTableSummary = z.infer<typeof UiTableSummarySchema>;
+export type UiTableDetail = z.infer<typeof UiTableDetailSchema>;
+export type UiErd = z.infer<typeof UiErdSchema>;
+export type UiErdNode = z.infer<typeof UiErdNodeSchema>;
+export type UiErdEdge = z.infer<typeof UiErdEdgeSchema>;
+export type UiRunlist = z.infer<typeof UiRunlistSchema>;
+export type UiRunlistScript = z.infer<typeof UiRunlistScriptSchema>;
+export type UiDoctor = z.infer<typeof UiDoctorSchema>;
+export type UiDoctorItem = z.infer<typeof UiDoctorItemSchema>;
+
+export async function fetchValidatedJson<T>(
+  url: string,
+  schema: z.ZodType<T>,
+  signal?: AbortSignal
+): Promise<T> {
+  const res = await fetch(url, { signal });
+  if (!res.ok) {
+    throw new Error(`Request to ${url} failed with HTTP ${res.status}`);
+  }
+
+  const raw: unknown = await res.json();
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    const firstIssues = parsed.error.issues
+      .slice(0, 3)
+      .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+      .join("; ");
+    throw new Error(`API schema validation failed for ${url}: ${firstIssues}`);
+  }
+
+  return parsed.data;
+}

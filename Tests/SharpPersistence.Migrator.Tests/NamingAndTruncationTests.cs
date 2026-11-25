@@ -73,7 +73,7 @@ public sealed class NamingAndTruncationTests
     [Fact]
     public void UseNamingConvention_And_PluralizeTableNames_ApplyGloballyWithoutOverridingExplicitToTable()
     {
-        var builder = new MigrationManagerOptionsBuilder();
+        var builder = new DbMigratorOptionsBuilder();
         builder.UsePostgreSql("Host=localhost;Database=test");
         builder.UseNamingConvention(SqlIdentifierCase.LowerSnakeCase)
             .PluralizeTableNames();

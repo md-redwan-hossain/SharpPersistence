@@ -83,7 +83,7 @@ public sealed class EntityStubTests
     [Fact]
     public void ConfigureEntityStubs_ResolvesCrossAndOwningModuleFks_AndSortsRegistries()
     {
-        var optionsBuilder = new MigrationManagerOptionsBuilder();
+        var optionsBuilder = new DbMigratorOptionsBuilder();
         optionsBuilder
             .UsePostgreSql("Host=localhost;Database=test")
             .UseNamingConvention(SqlIdentifierCase.LowerSnakeCase)
@@ -141,7 +141,7 @@ public sealed class EntityStubTests
     [Fact]
     public void ExcludedStubFallback_OrdersOwningRegistryBeforeDependent_WithoutConfigureEntityStubs()
     {
-        var optionsBuilder = new MigrationManagerOptionsBuilder();
+        var optionsBuilder = new DbMigratorOptionsBuilder();
         optionsBuilder
             .UsePostgreSql("Host=localhost;Database=test")
             .UseNamingConvention(SqlIdentifierCase.LowerSnakeCase)
@@ -173,7 +173,7 @@ public sealed class EntityStubTests
     [Fact]
     public void EntityStubBuilder_ThrowsWhenMappingTypeToItself()
     {
-        var optionsBuilder = new MigrationManagerOptionsBuilder();
+        var optionsBuilder = new DbMigratorOptionsBuilder();
         Assert.Throws<ArgumentException>(() =>
             optionsBuilder.ConfigureEntityStubs(stubs => stubs.Map<User, User>()));
     }
@@ -181,7 +181,7 @@ public sealed class EntityStubTests
     [Fact]
     public void DoctorCrossRegistryValidator_FlagsChainedUnregisteredAndExcludedStubTargets()
     {
-        var optionsBuilder = new MigrationManagerOptionsBuilder();
+        var optionsBuilder = new DbMigratorOptionsBuilder();
         optionsBuilder
             .UsePostgreSql("Host=localhost;Database=test")
             .ConfigureEntityStubs(stubs => stubs
@@ -234,7 +234,7 @@ public sealed class EntityStubTests
             File.WriteAllText(Path.Combine(accessDir, "20261124000001_Initial.sql"), "BEGIN;\nCOMMIT;\n");
             File.WriteAllText(Path.Combine(billingDir, "20261124000001_Initial.sql"), "BEGIN;\nCOMMIT;\n");
 
-            var optionsBuilder = new MigrationManagerOptionsBuilder();
+            var optionsBuilder = new DbMigratorOptionsBuilder();
             optionsBuilder
                 .UsePostgreSql("Host=localhost;Database=test")
                 .UseRootPath(tempRoot)

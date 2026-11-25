@@ -9,7 +9,7 @@ namespace SharpPersistence.Migrator.Services;
 
 internal static class RegistryDependencyResolver
 {
-    public static IReadOnlyList<IEntityRegistry> SortTopologically(MigrationManagerOptions options) =>
+    public static IReadOnlyList<IEntityRegistry> SortTopologically(DbMigratorOptions options) =>
         SortTopologically(
             options.Registries,
             options.Dialect,

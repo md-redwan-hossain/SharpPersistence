@@ -388,8 +388,8 @@ internal static partial class SolutionProjectScanner
                     if (!isMigratorRoot &&
                         (line.Contains("[assembly: EntityRegistryRoot", StringComparison.Ordinal) ||
                          line.Contains(".AddDbMigrator(", StringComparison.Ordinal) ||
-                         line.Contains(": IDesignTimeMigrationFactory", StringComparison.Ordinal) ||
-                         line.Contains(", IDesignTimeMigrationFactory", StringComparison.Ordinal)))
+                         line.Contains(": IDesignTimeDbMigratorFactory", StringComparison.Ordinal) ||
+                         line.Contains(", IDesignTimeDbMigratorFactory", StringComparison.Ordinal)))
                     {
                         isMigratorRoot = true;
                     }

@@ -7,12 +7,12 @@ namespace SharpPersistence.Migrator.Services;
 
 internal sealed class MigrationConnectionOpener
 {
-    private readonly MigrationManagerOptions _options;
+    private readonly DbMigratorOptions _options;
     private readonly IServiceProvider _serviceProvider;
     private readonly IMigrationDialect _dialect;
 
     public MigrationConnectionOpener(
-        MigrationManagerOptions options,
+        DbMigratorOptions options,
         IServiceProvider serviceProvider,
         IMigrationDialect dialect)
     {

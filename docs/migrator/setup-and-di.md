@@ -1,6 +1,6 @@
 # Setup, DI & Runtime Execution
 
-`SharpPersistence.Migrator` is configured once in your startup project through `AddDbMigrator(...)`, which registers `IMigrationManager` so both your application and the `db-migrator` CLI share the exact same configuration.
+`SharpPersistence.Migrator` is configured once in your startup project through `AddDbMigrator(...)`, which registers `IDbMigrator` so both your application and the `db-migrator` CLI share the exact same configuration.
 
 > **Prerequisite:** Add `[assembly: EntityRegistryRoot]` to your startup project's `AssemblyInfo.cs` so `.AddGeneratedEntityRegistries()` is generated for you.
 
@@ -45,7 +45,7 @@ builder.Services.AddDbMigrator(opt =>
 
 :::
 
-## All `MigrationManagerOptionsBuilder` Options
+## All `DbMigratorOptionsBuilder` Options
 
 | Method | Default | Purpose |
 | --- | --- | --- |
@@ -109,15 +109,15 @@ builder.Services.AddDbMigrator((sp, opt) =>
 
 ## Design-Time Factory (Class Libraries)
 
-If your migrations live in a class library without `Program.cs`, implement `IDesignTimeMigrationFactory`:
+If your migrations live in a class library without `Program.cs`, implement `IDesignTimeDbMigratorFactory`:
 
 ```csharp
 using SharpPersistence.Migrator.Abstractions;
 using SharpPersistence.Migrator.Configuration;
 
-public sealed class DesignTimeMigrationFactory : IDesignTimeMigrationFactory
+public sealed class DesignTimeDbMigratorFactory : IDesignTimeDbMigratorFactory
 {
-    public void Configure(MigrationManagerOptionsBuilder options, string[] args)
+    public void Configure(DbMigratorOptionsBuilder options, string[] args)
     {
         options.UsePostgreSql("Host=localhost;Database=app_dev;Username=postgres;Password=postgres")
             .AddRegistry<AppEntityRegistry>();
@@ -125,15 +125,15 @@ public sealed class DesignTimeMigrationFactory : IDesignTimeMigrationFactory
 }
 ```
 
-## Runtime `IMigrationManager`
+## Runtime `IDbMigrator`
 
-Inject `IMigrationManager` to check status or apply migrations on startup:
+Inject `IDbMigrator` to check status or apply migrations on startup:
 
 ```csharp
 using SharpPersistence.Migrator.Abstractions;
 
 await using var scope = app.Services.CreateAsyncScope();
-var migrator = scope.ServiceProvider.GetRequiredService<IMigrationManager>();
+var migrator = scope.ServiceProvider.GetRequiredService<IDbMigrator>();
 
 IReadOnlyList<string> pending = await migrator.GetPendingMigrationsAsync(ct);
 if (pending.Count > 0)

@@ -159,12 +159,12 @@ public sealed class MigrationDoctorTests
         }
     }
 
-    private static MigrationManager BuildManager(Action<MigrationManagerOptionsBuilder> configure)
+    private static DbMigrator BuildManager(Action<DbMigratorOptionsBuilder> configure)
     {
         var services = new ServiceCollection();
         services.AddDbMigrator(configure);
         var provider = services.BuildServiceProvider();
-        return (MigrationManager)provider.GetRequiredService<IMigrationManager>();
+        return (DbMigrator)provider.GetRequiredService<IDbMigrator>();
     }
 
     private static DbConnection ThrowOnCall(IServiceProvider _) =>
@@ -173,7 +173,7 @@ public sealed class MigrationDoctorTests
     [Fact]
     public void DefaultHistoryTableName_IsDbMigrationLogs()
     {
-        var options = new MigrationManagerOptions();
+        var options = new DbMigratorOptions();
         options.HistoryTableName.ShouldBe("__db_migration_logs");
     }
 

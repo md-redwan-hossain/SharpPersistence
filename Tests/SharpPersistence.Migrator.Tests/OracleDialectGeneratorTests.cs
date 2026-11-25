@@ -156,7 +156,7 @@ public sealed class OracleDialectGeneratorTests
     [Fact]
     public void UseOracle_CallbackOverload_PreservesFluentChainAndConfiguresCompatibility()
     {
-        var options = new MigrationManagerOptionsBuilder()
+        var options = new DbMigratorOptionsBuilder()
             .UseOracle("Data Source=localhost/XEPDB1", oracle => oracle
                 .UseSqlCompatibility(OracleDbCompatibility.Oracle23))
             .UseNamingConvention(SqlIdentifierCase.UpperSnakeCase)

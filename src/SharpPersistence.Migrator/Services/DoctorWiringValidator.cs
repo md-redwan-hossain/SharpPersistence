@@ -7,7 +7,7 @@ using SharpPersistence.Migrator.Models;
 namespace SharpPersistence.Migrator.Services;
 
 internal sealed class DoctorWiringValidator(
-    MigrationManagerOptions options,
+    DbMigratorOptions options,
     ISqlDialectMetadata dialect,
     MigrationConnectionOpener connectionOpener)
 {

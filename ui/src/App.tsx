@@ -3,152 +3,201 @@ import {
   Database,
   FileCode2,
   GitFork,
+  Loader2,
+  Monitor,
   Moon,
+  Search,
   Stethoscope,
   Sun,
   Table2,
 } from "lucide-react";
-import type { UiDoctor, UiSnapshot } from "./types";
-import { EntityExplorer } from "./components/EntityExplorer";
+import {
+  fetchValidatedJson,
+  UiOverviewSchema,
+  type UiDoctor,
+  type UiOverview,
+} from "./schemas/apiSchemas";
+import { useTheme } from "./hooks/useTheme";
+import { EntityExplorer, tableKey } from "./components/EntityExplorer";
 import { ErdView } from "./components/ErdView";
 import { RunlistView } from "./components/RunlistView";
 import { DoctorView } from "./components/DoctorView";
+import { Badge } from "./components/ui/badge";
+import { Button } from "./components/ui/button";
+import { Card, CardContent } from "./components/ui/card";
+import {
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "./components/ui/command";
+import { Tabs, TabsList, TabsTrigger } from "./components/ui/tabs";
 
 type Tab = "entities" | "erd" | "runlist" | "doctor";
 
 export function App() {
-  const [snapshot, setSnapshot] = useState<UiSnapshot | null>(
-    () => window.__SHARP_PERSISTENCE_SNAPSHOT__ ?? null
-  );
-  const [isOffline] = useState(() => Boolean(window.__SHARP_PERSISTENCE_SNAPSHOT__));
+  const { mode: themeMode, cycleTheme } = useTheme();
+  const [overview, setOverview] = useState<UiOverview | null>(null);
+  const [doctor, setDoctor] = useState<UiDoctor | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("entities");
   const [selectedTableKey, setSelectedTableKey] = useState<string | null>(null);
-  const [dark, setDark] = useState(true);
-  const [refreshingDoctor, setRefreshingDoctor] = useState(false);
+  const [cmdOpen, setCmdOpen] = useState(false);
 
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", dark);
-  }, [dark]);
+    const controller = new AbortController();
+    fetchValidatedJson("/api/overview", UiOverviewSchema, controller.signal)
+      .then(setOverview)
+      .catch((err: unknown) => {
+        if (controller.signal.aborted) return;
+        setError(err instanceof Error ? err.message : String(err));
+      });
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
-    if (snapshot) return;
-    fetch("/api/snapshot")
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json() as Promise<UiSnapshot>;
-      })
-      .then(setSnapshot)
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
-  }, [snapshot]);
-
-  const handleRefreshDoctor = async (checkDb: boolean) => {
-    if (!snapshot) return;
-    setRefreshingDoctor(true);
-    try {
-      const res = await fetch(`/api/doctor?checkDb=${checkDb ? "true" : "false"}`);
-      if (res.ok) {
-        const updatedDoctor = (await res.json()) as UiDoctor;
-        setSnapshot({ ...snapshot, doctor: updatedDoctor });
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setCmdOpen((open) => !open);
       }
-    } finally {
-      setRefreshingDoctor(false);
-    }
-  };
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
-        <div className="max-w-md rounded-xl border border-rose-500/40 bg-rose-500/10 p-5 text-sm">
-          <div className="font-semibold text-rose-500">Failed to load migrator snapshot</div>
-          <p className="mt-1 opacity-80">{error}</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center p-6 bg-background text-foreground">
+        <Card className="max-w-md border-rose-500/40">
+          <CardContent className="space-y-1 text-xs">
+            <div className="font-semibold text-rose-500">Failed to load migrator overview</div>
+            <p className="text-muted-foreground">{error}</p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
-  if (!snapshot) {
+  if (!overview) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 text-slate-400 text-sm">
-        Loading schema &amp; diagnostics...
+      <div className="min-h-screen flex items-center justify-center gap-2 bg-background text-muted-foreground text-xs">
+        <Loader2 className="w-4 h-4 animate-spin" />
+        Loading schema overview...
       </div>
     );
   }
 
-  const totalTables = snapshot.model.registries.reduce((sum, r) => sum + r.tables.length, 0);
+  const ThemeIcon = themeMode === "system" ? Monitor : themeMode === "dark" ? Moon : Sun;
+  const themeTitle = `Theme: ${themeMode} (click to cycle)`;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+    <div className="min-h-screen bg-background text-foreground">
       {/* Top Navigation Bar */}
-      <header className="h-14 px-4 border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur flex items-center justify-between gap-4 sticky top-0 z-20">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center text-white shrink-0">
+      <header className="min-h-14 px-3 sm:px-4 py-2 lg:py-0 border-b border-border bg-background/95 backdrop-blur flex flex-wrap items-center justify-between gap-2 sm:gap-4 sticky top-0 z-20">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1 sm:flex-initial">
+          <div className="w-7 h-7 rounded-md bg-primary text-primary-foreground flex items-center justify-center shrink-0">
             <Database className="w-4 h-4" />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="font-bold text-sm truncate">{snapshot.projectName}</span>
-              <span className="px-2 py-0.5 text-[10px] font-mono font-semibold rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/30">
-                {snapshot.dialect}
-              </span>
-              {isOffline && (
-                <span className="px-2 py-0.5 text-[10px] font-mono rounded-full bg-slate-200 dark:bg-slate-800 text-slate-500">
-                  offline snapshot
-                </span>
-              )}
+              <span className="font-semibold text-sm truncate">{overview.projectName}</span>
+              <Badge variant="info">{overview.dialect}</Badge>
             </div>
-            <div className="text-[11px] text-slate-400 font-mono truncate">
-              {snapshot.model.registries.length} registries · {totalTables} entities · {snapshot.runlist.scripts.length} scripts
+            <div className="hidden sm:block text-[11px] text-muted-foreground font-mono truncate">
+              {overview.registries.length} registries · {overview.totalEntities} entities · {overview.runlistScriptCount} scripts
             </div>
           </div>
         </div>
 
-        <nav className="flex items-center gap-1">
-          <TabButton
-            active={tab === "entities"}
-            onClick={() => setTab("entities")}
-            icon={<Table2 className="w-4 h-4" />}
-            label="Entities"
-          />
-          <TabButton
-            active={tab === "erd"}
-            onClick={() => setTab("erd")}
-            icon={<GitFork className="w-4 h-4" />}
-            label="ERD"
-          />
-          <TabButton
-            active={tab === "runlist"}
-            onClick={() => setTab("runlist")}
-            icon={<FileCode2 className="w-4 h-4" />}
-            label="Runlist"
-          />
-          <TabButton
-            active={tab === "doctor"}
-            onClick={() => setTab("doctor")}
-            icon={<Stethoscope className="w-4 h-4" />}
-            label="Doctor"
-            badge={
-              snapshot.doctor.errorCount > 0
-                ? { count: snapshot.doctor.errorCount, tone: "rose" }
-                : snapshot.doctor.warningCount > 0
-                  ? { count: snapshot.doctor.warningCount, tone: "amber" }
-                  : undefined
-            }
-          />
-        </nav>
+        <div className="flex items-center gap-1.5 lg:order-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCmdOpen(true)}
+            className="text-muted-foreground gap-2"
+          >
+            <Search className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Search...</span>
+            <kbd className="hidden sm:inline-flex h-4 items-center rounded border border-border bg-muted px-1 font-mono text-[10px]">
+              ⌘K
+            </kbd>
+          </Button>
+          <Button variant="outline" size="icon" onClick={cycleTheme} title={themeTitle}>
+            <ThemeIcon className="w-3.5 h-3.5" />
+          </Button>
+        </div>
 
-        <button
-          onClick={() => setDark((d) => !d)}
-          className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
-          title="Toggle theme"
+        <Tabs
+          value={tab}
+          onValueChange={(v) => setTab(v as Tab)}
+          className="w-full lg:w-auto lg:order-2 overflow-x-auto"
         >
-          {dark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
-        </button>
+          <TabsList className="w-full lg:w-auto justify-start">
+            <TabsTrigger value="entities">
+              <Table2 className="w-3.5 h-3.5" />
+              Entities
+            </TabsTrigger>
+            <TabsTrigger value="erd">
+              <GitFork className="w-3.5 h-3.5" />
+              ERD
+            </TabsTrigger>
+            <TabsTrigger value="runlist">
+              <FileCode2 className="w-3.5 h-3.5" />
+              Runlist
+            </TabsTrigger>
+            <TabsTrigger value="doctor">
+              <Stethoscope className="w-3.5 h-3.5" />
+              Doctor
+              {doctor && doctor.errorCount > 0 && (
+                <Badge variant="destructive" className="ml-0.5 px-1 py-0 text-[9px]">
+                  {doctor.errorCount}
+                </Badge>
+              )}
+              {doctor && doctor.errorCount === 0 && doctor.warningCount > 0 && (
+                <Badge variant="warning" className="ml-0.5 px-1 py-0 text-[9px]">
+                  {doctor.warningCount}
+                </Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
       </header>
+
+      {/* Ctrl/Cmd + K Command Palette */}
+      <CommandDialog open={cmdOpen} onOpenChange={setCmdOpen}>
+        <CommandInput placeholder="Jump to entity or DB table..." />
+        <CommandList>
+          <CommandEmpty>No matching entities found.</CommandEmpty>
+          {overview.registries.map((reg) => (
+            <CommandGroup key={reg.name} heading={reg.name}>
+              {reg.tables.map((t) => (
+                <CommandItem
+                  key={tableKey(t)}
+                  value={`${t.shortEntityName} ${t.qualifiedName} ${reg.name}`}
+                  onSelect={() => {
+                    setSelectedTableKey(tableKey(t));
+                    setTab("entities");
+                    setCmdOpen(false);
+                  }}
+                >
+                  <span className="flex items-center gap-2 font-medium">
+                    <Table2 className="w-3.5 h-3.5 text-muted-foreground" />
+                    {t.shortEntityName}
+                  </span>
+                  <span className="font-mono text-[11px] text-muted-foreground">{t.qualifiedName}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          ))}
+        </CommandList>
+      </CommandDialog>
 
       {tab === "entities" && (
         <EntityExplorer
-          model={snapshot.model}
+          overview={overview}
           selectedKey={selectedTableKey}
           onSelectTable={setSelectedTableKey}
         />
@@ -156,7 +205,7 @@ export function App() {
 
       {tab === "erd" && (
         <ErdView
-          model={snapshot.model}
+          overview={overview}
           onInspectTable={(key) => {
             setSelectedTableKey(key);
             setTab("entities");
@@ -164,57 +213,9 @@ export function App() {
         />
       )}
 
-      {tab === "runlist" && (
-        <RunlistView runlist={snapshot.runlist} isOfflineSnapshot={isOffline} />
-      )}
+      {tab === "runlist" && <RunlistView />}
 
-      {tab === "doctor" && (
-        <DoctorView
-          doctor={snapshot.doctor}
-          isOfflineSnapshot={isOffline}
-          isRefreshing={refreshingDoctor}
-          onRefresh={handleRefreshDoctor}
-        />
-      )}
+      {tab === "doctor" && <DoctorView doctor={doctor} onDoctorLoaded={setDoctor} />}
     </div>
-  );
-}
-
-function TabButton({
-  active,
-  onClick,
-  icon,
-  label,
-  badge,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
-  label: string;
-  badge?: { count: number; tone: "rose" | "amber" };
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition ${
-        active
-          ? "bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/30"
-          : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-transparent"
-      }`}
-    >
-      {icon}
-      <span>{label}</span>
-      {badge && (
-        <span
-          className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
-            badge.tone === "rose"
-              ? "bg-rose-500 text-white"
-              : "bg-amber-500 text-slate-950"
-          }`}
-        >
-          {badge.count}
-        </span>
-      )}
-    </button>
   );
 }

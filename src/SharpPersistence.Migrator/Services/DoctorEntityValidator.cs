@@ -7,7 +7,7 @@ using SharpPersistence.Migrator.Models;
 namespace SharpPersistence.Migrator.Services;
 
 internal sealed class DoctorEntityValidator(
-    MigrationManagerOptions options,
+    DbMigratorOptions options,
     ISqlDialectMetadata dialect)
 {
     public void ValidateTable(

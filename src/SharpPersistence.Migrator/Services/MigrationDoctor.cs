@@ -10,7 +10,7 @@ namespace SharpPersistence.Migrator.Services;
 
 internal sealed class MigrationDoctor
 {
-    private readonly MigrationManagerOptions _options;
+    private readonly DbMigratorOptions _options;
     private readonly MigrationScriptStore _scriptStore;
     private readonly DoctorWiringValidator _wiringValidator;
     private readonly DoctorEntityValidator _entityValidator;
@@ -18,7 +18,7 @@ internal sealed class MigrationDoctor
     private readonly DoctorDatabaseValidator _databaseValidator;
 
     public MigrationDoctor(
-        MigrationManagerOptions options,
+        DbMigratorOptions options,
         IMigrationDialect dialect,
         MigrationConnectionOpener connectionOpener,
         MigrationScriptStore scriptStore,

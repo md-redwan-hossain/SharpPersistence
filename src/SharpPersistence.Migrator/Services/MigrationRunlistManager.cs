@@ -28,10 +28,10 @@ internal sealed class MigrationRunlistManager
         AllowTrailingCommas = true
     };
 
-    private readonly MigrationManagerOptions _options;
+    private readonly DbMigratorOptions _options;
     private readonly MigrationScriptStore _scriptStore;
 
-    public MigrationRunlistManager(MigrationManagerOptions options, MigrationScriptStore scriptStore)
+    public MigrationRunlistManager(DbMigratorOptions options, MigrationScriptStore scriptStore)
     {
         _options = options;
         _scriptStore = scriptStore;
