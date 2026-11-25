@@ -19,5 +19,10 @@ export default defineConfig({
     emptyOutDir: false,
     cssCodeSplit: false,
     assetsInlineLimit: 100000000,
+    sourcemap: false,
+    minify: "terser",
+    terserOptions: {
+      compress: { pure_funcs: ["console.log", "console.debug"], passes: 2 },
+    },
   },
 });
