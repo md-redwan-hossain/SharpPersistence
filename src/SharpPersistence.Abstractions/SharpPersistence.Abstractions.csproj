@@ -6,16 +6,9 @@
         <Nullable>enable</Nullable>
         <Version>2.1.0</Version>
         <Title>SharpPersistence.Abstractions</Title>
-        <Authors>Md. Redwan Hossain</Authors>
-        <Copyright>Copyright (c) Md. Redwan Hossain</Copyright>
-        <PackageProjectUrl>https://github.com/md-redwan-hossain/SharpPersistence</PackageProjectUrl>
-        <PackageIcon>logo.png</PackageIcon>
-        <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-        <RepositoryUrl>https://github.com/md-redwan-hossain/SharpPersistence</RepositoryUrl>
         <PackageTags>sql database repository generic-repository unit-of-work check-constraint</PackageTags>
         <NoWarn>CS1591</NoWarn>
-        <PackageReadmeFile>README.md</PackageReadmeFile>
-        <DocumentationFile Condition="'$(Configuration)'=='Release'">bin\$(Configuration)\$(TargetFramework)\SharpPersistence.xml</DocumentationFile>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <Description>SharpPersistence.Abstractions contains the Dependencies for SharpPersistence</Description>
     </PropertyGroup>
     
@@ -34,22 +27,6 @@
               Pack="true"
               PackagePath="buildTransitive\SharpPersistence.Abstractions.props"
               Visible="false" />
-    </ItemGroup>
-
-    <ItemGroup>
-        <None Include="..\..\logo.png">
-            <Pack>True</Pack>
-            <PackagePath>.</PackagePath>
-            <Link>logo.png</Link>
-        </None>
-    </ItemGroup>
-
-    <ItemGroup>
-        <None Include="..\..\README.md">
-            <Pack>True</Pack>
-            <Link>README.md</Link>
-            <PackagePath>.</PackagePath>
-        </None>
     </ItemGroup>
 
     <ItemGroup>

@@ -39,7 +39,7 @@ internal sealed class MigrationScriptStore
 
         foreach (var (registryName, scriptName, fullPath) in discovered)
         {
-            var content = await File.ReadAllTextAsync(fullPath, ct);
+            var content = await File.ReadAllTextAsync(fullPath, ct).ConfigureAwait(false);
             var checksum = ComputeSha256(content);
 
             if (appliedMap.TryGetValue((registryName, scriptName), out var record))

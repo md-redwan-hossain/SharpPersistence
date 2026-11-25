@@ -48,38 +48,87 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
 
     public bool TryStripOuterTransaction(string sql, out string innerSql)
     {
-        var lines = sql.Replace("\r\n", "\n").Split('\n');
-        var firstIdx = -1;
-        for (var i = 0; i < lines.Length; i++)
+        var span = sql.AsSpan();
+        var pos = 0;
+        var firstEnd = -1;
+        var hasBegin = false;
+
+        while (pos < span.Length)
         {
-            var trimmed = lines[i].Trim();
-            if (trimmed.Length == 0 || trimmed.StartsWith("--", StringComparison.Ordinal))
+            var lineStart = pos;
+            var nlRel = span[pos..].IndexOfAny('\r', '\n');
+            var lineEnd = nlRel < 0 ? span.Length : pos + nlRel;
+            var nextPos = lineEnd;
+            if (nextPos < span.Length && span[nextPos] == '\r')
             {
-                continue;
+                nextPos++;
             }
 
-            firstIdx = i;
-            break;
-        }
-
-        var lastIdx = -1;
-        for (var i = lines.Length - 1; i >= 0; i--)
-        {
-            var trimmed = lines[i].Trim();
-            if (trimmed.Length == 0 || trimmed.StartsWith("--", StringComparison.Ordinal))
+            if (nextPos < span.Length && span[nextPos] == '\n')
             {
-                continue;
+                nextPos++;
             }
 
-            lastIdx = i;
-            break;
+            var trimmed = span[lineStart..lineEnd].Trim();
+            if (trimmed.Length > 0 && !trimmed.StartsWith("--", StringComparison.Ordinal))
+            {
+                hasBegin = trimmed.Equals("BEGIN;", StringComparison.OrdinalIgnoreCase);
+                firstEnd = nextPos;
+                break;
+            }
+
+            pos = nextPos;
         }
 
-        if (firstIdx >= 0 && lastIdx > firstIdx &&
-            string.Equals(lines[firstIdx].Trim(), "BEGIN;", StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(lines[lastIdx].Trim(), "COMMIT;", StringComparison.OrdinalIgnoreCase))
+        if (!hasBegin || firstEnd < 0)
         {
-            innerSql = string.Join(Environment.NewLine, lines.Skip(firstIdx + 1).Take(lastIdx - firstIdx - 1));
+            innerSql = sql;
+            return false;
+        }
+
+        var endPos = span.Length;
+        var lastStart = -1;
+        var hasCommit = false;
+
+        while (endPos > firstEnd)
+        {
+            var lineEnd = endPos;
+            if (lineEnd > firstEnd && span[lineEnd - 1] == '\n')
+            {
+                lineEnd--;
+            }
+
+            if (lineEnd > firstEnd && span[lineEnd - 1] == '\r')
+            {
+                lineEnd--;
+            }
+
+            var prevNl = span[..lineEnd].LastIndexOfAny('\r', '\n');
+            var lineStart = prevNl < 0 ? 0 : prevNl + 1;
+            var trimmed = span[lineStart..lineEnd].Trim();
+            if (trimmed.Length > 0 && !trimmed.StartsWith("--", StringComparison.Ordinal))
+            {
+                hasCommit = trimmed.Equals("COMMIT;", StringComparison.OrdinalIgnoreCase);
+                lastStart = lineStart;
+                break;
+            }
+
+            endPos = lineStart;
+        }
+
+        if (hasCommit && lastStart >= firstEnd)
+        {
+            var body = span[firstEnd..lastStart];
+            if (body.EndsWith("\r\n", StringComparison.Ordinal))
+            {
+                body = body[..^2];
+            }
+            else if (body.EndsWith("\n", StringComparison.Ordinal) || body.EndsWith("\r", StringComparison.Ordinal))
+            {
+                body = body[..^1];
+            }
+
+            innerSql = body.ToString();
             return true;
         }
 
@@ -100,7 +149,7 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
             p.ParameterName = "@lockId";
             p.Value = lockId;
             cmd.Parameters.Add(p);
-            await cmd.ExecuteNonQueryAsync(ct);
+            await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         }
 
         return new MigrationDialectRegistry.AsyncDisposableLock(() => ReleaseLockAsync(conn, lockId));
@@ -127,7 +176,7 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
                 CONSTRAINT "pk_{options.HistoryTableName}" PRIMARY KEY ("registry_name", "script_name")
             );
             """;
-        await cmd.ExecuteNonQueryAsync(ct);
+        await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
     }
 
     public async Task<bool> HistoryTableExistsAsync(
@@ -138,7 +187,7 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
         var table = Qualify(options.HistorySchema, options.HistoryTableName);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = $"SELECT to_regclass('{EscapeLiteral(table)}') IS NOT NULL;";
-        var result = await cmd.ExecuteScalarAsync(ct);
+        var result = await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false);
         return result is true;
     }
 
@@ -172,7 +221,7 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
         p3.Value = checksum;
         cmd.Parameters.Add(p3);
 
-        await cmd.ExecuteNonQueryAsync(ct);
+        await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyList<string>> ReadEfCoreMigrationIdsAsync(DbConnection conn, CancellationToken ct)
@@ -180,7 +229,7 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
         await using (var existsCmd = conn.CreateCommand())
         {
             existsCmd.CommandText = "SELECT to_regclass('\"__EFMigrationsHistory\"') IS NOT NULL;";
-            if (await existsCmd.ExecuteScalarAsync(ct) is not true)
+            if (await existsCmd.ExecuteScalarAsync(ct).ConfigureAwait(false) is not true)
             {
                 return [];
             }
@@ -189,8 +238,8 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
         var ids = new List<string>();
         await using var readCmd = conn.CreateCommand();
         readCmd.CommandText = "SELECT \"MigrationId\" FROM \"__EFMigrationsHistory\" ORDER BY \"MigrationId\"";
-        await using var reader = await readCmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
+        await using var reader = await readCmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+        while (await reader.ReadAsync(ct).ConfigureAwait(false))
         {
             ids.Add(reader.GetString(0));
         }
@@ -203,9 +252,17 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
         IReadOnlyList<(string RegistryName, TableSchema Table)> expectedTables,
         CancellationToken ct)
     {
+        var schemas = expectedTables
+            .Select(t => NormalizeSchemaName(t.Table.Schema))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        var schemaFilter = schemas.Count > 0
+            ? $"AND n.nspname IN ({string.Join(", ", schemas.Select(s => $"'{EscapeLiteral(s)}'"))})"
+            : "AND n.nspname NOT IN ('pg_catalog', 'information_schema')";
+
         var result = new Dictionary<(string Schema, string Table), Dictionary<string, LiveColumnInfo>>();
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = """
+        cmd.CommandText = $"""
             SELECT n.nspname, c.relname, a.attname, NOT a.attnotnull, pg_catalog.format_type(a.atttypid, a.atttypmod)
             FROM pg_catalog.pg_attribute a
             JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
@@ -213,11 +270,11 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
             WHERE a.attnum > 0
               AND NOT a.attisdropped
               AND c.relkind IN ('r', 'p')
-              AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+              {schemaFilter}
             """;
 
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
+        await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+        while (await reader.ReadAsync(ct).ConfigureAwait(false))
         {
             MigrationDialectRegistry.AddLiveColumn(
                 result,
@@ -248,7 +305,7 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
             p.ParameterName = "@lockId";
             p.Value = lockId;
             cmd.Parameters.Add(p);
-            await cmd.ExecuteNonQueryAsync(CancellationToken.None);
+            await cmd.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
         }
         catch
         {

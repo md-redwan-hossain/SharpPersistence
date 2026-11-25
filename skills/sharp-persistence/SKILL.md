@@ -151,3 +151,22 @@ builder.HasCheckConstraint(
 | `cc.Math([(nameof(T.A), SqlMathOperator.Add), (nameof(T.B), null)], SqlComparisonOperator.Equal, 50)` | `entity.Column(x => x.A).Math().Plus(x => x.B).EqualTo(50)` |
 | `cc.Case().When(cond, then).EndWithElse(1)` | `cc.If(cond).Then(then)` *(preferred for conditional rules, Oracle-safe)* or `cc.Case().When(cond).Then(then).EndWithElse(1)` |
 | `delimitLeftOperand: false` / `delimitColumnName: true` | `.WithoutDelimiter()` / `.WithDelimiter()` |
+
+## SQL File Auto-Copy & Generated `IParsedSqlStorage` Extensions
+
+`SharpPersistence` (`2.1.0+`) automatically copies non-migration `.sql` files to `sharp_persistence_sql_files/<AssemblyName>/` in the build/publish output and runs `SqlStorageExtensionGenerator` to emit strongly typed `Get<PascalTag>Sql()` extension methods on `IParsedSqlStorage`:
+
+```sql
+-- Queries/Orders.sql
+-- #start# get_active_orders
+SELECT id, total FROM orders WHERE status = 'active';
+-- #end#
+```
+
+```csharp
+// Compile-time generated extension method (no magic strings):
+string sql = parsedSqlStorage.GetActiveOrdersSql();
+```
+
+- **Diagnostics (`SPSQL001`–`SPSQL006`):** Flags empty/unclosed blocks, duplicate `#end#`, duplicate tags across files, and unknown constant string tags passed to `IParsedSqlStorage[string]` / `TryGetParsedSql(...)` (`SPSQL006`, including cross-assembly tag checks).
+- **MSBuild opt-outs:** Set `<SharpPersistenceAutoCopySqlFiles>false</SharpPersistenceAutoCopySqlFiles>` or `<SharpPersistenceGenerateSqlExtensions>false</SharpPersistenceGenerateSqlExtensions>` in your `.csproj` if needed.

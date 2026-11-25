@@ -40,7 +40,7 @@ internal sealed class SchemaDriftVerifier
             return [];
         }
 
-        var liveTables = await _dialect.ReadLiveColumnsAsync(conn, expectedTables, ct);
+        var liveTables = await _dialect.ReadLiveColumnsAsync(conn, expectedTables, ct).ConfigureAwait(false);
         var drift = new List<SchemaDriftItem>();
 
         foreach (var (registryName, table) in expectedTables)

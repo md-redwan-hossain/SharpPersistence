@@ -68,7 +68,7 @@ internal sealed class DbMigrator : IDbMigrator
 
         if (_dialect.SupportsGlobalExtensionsAndEnums && string.IsNullOrWhiteSpace(registryFilter))
         {
-            var globalItem = await GenerateGlobalObjectsAsync(migrationName, timestamp, stateDir, sqlRootDir, dryRun, ct);
+            var globalItem = await GenerateGlobalObjectsAsync(migrationName, timestamp, stateDir, sqlRootDir, dryRun, ct).ConfigureAwait(false);
             if (globalItem is { } g)
             {
                 generated.Add(g.Item);
@@ -81,7 +81,7 @@ internal sealed class DbMigrator : IDbMigrator
             var registryName = registry.GetType().Name;
             var snapshotPath = Path.Combine(stateDir, $"{registryName}.json");
             var previousJson = File.Exists(snapshotPath)
-                ? await File.ReadAllTextAsync(snapshotPath, ct)
+                ? await File.ReadAllTextAsync(snapshotPath, ct).ConfigureAwait(false)
                 : null;
 
             var currentSchema = SchemaScanner.ScanRegistry(registry, _options, sortedRegistries);
@@ -108,7 +108,7 @@ internal sealed class DbMigrator : IDbMigrator
                 if (!dryRun)
                 {
                     Directory.CreateDirectory(emptyDir);
-                    await File.WriteAllTextAsync(emptySqlPath, emptySql, ct);
+                    await File.WriteAllTextAsync(emptySqlPath, emptySql, ct).ConfigureAwait(false);
                 }
 
                 generated.Add(new GeneratedMigrationItem(registryName, emptySqlPath, null, emptySql, string.Empty, true));
@@ -129,7 +129,7 @@ internal sealed class DbMigrator : IDbMigrator
                 if (!dryRun)
                 {
                     Directory.CreateDirectory(registrySqlDir);
-                    await File.WriteAllTextAsync(mainPath, mainSql, ct);
+                    await File.WriteAllTextAsync(mainPath, mainSql, ct).ConfigureAwait(false);
                 }
 
                 generatedScriptIds.Add(mainId);
@@ -142,7 +142,7 @@ internal sealed class DbMigrator : IDbMigrator
                 if (!dryRun)
                 {
                     Directory.CreateDirectory(deferredDir);
-                    await File.WriteAllTextAsync(deferredPath, deferredSql, ct);
+                    await File.WriteAllTextAsync(deferredPath, deferredSql, ct).ConfigureAwait(false);
                 }
 
                 deferredScriptIds.Add(deferredId);
@@ -150,7 +150,7 @@ internal sealed class DbMigrator : IDbMigrator
 
             if (!dryRun)
             {
-                await File.WriteAllTextAsync(snapshotPath, result.UpdatedSnapshotJson, ct);
+                await File.WriteAllTextAsync(snapshotPath, result.UpdatedSnapshotJson, ct).ConfigureAwait(false);
             }
 
             generated.Add(new GeneratedMigrationItem(
@@ -168,7 +168,7 @@ internal sealed class DbMigrator : IDbMigrator
             var allNewIds = new List<Guid>(generatedScriptIds.Count + deferredScriptIds.Count);
             allNewIds.AddRange(generatedScriptIds);
             allNewIds.AddRange(deferredScriptIds);
-            await runlist.AppendNewScriptsAsync(allNewIds, ct);
+            await runlist.AppendNewScriptsAsync(allNewIds, ct).ConfigureAwait(false);
         }
 
         return generated;
@@ -176,65 +176,65 @@ internal sealed class DbMigrator : IDbMigrator
 
     public async Task EnsureHistoryTableAsync(CancellationToken ct = default)
     {
-        var (conn, ownsConnection) = await _connectionOpener.OpenAsync(ct);
+        var (conn, ownsConnection) = await _connectionOpener.OpenAsync(ct).ConfigureAwait(false);
         try
         {
-            await _historyStore.EnsureHistoryTableAsync(conn, ct);
+            await _historyStore.EnsureHistoryTableAsync(conn, ct).ConfigureAwait(false);
         }
         finally
         {
             if (ownsConnection)
             {
-                await conn.DisposeAsync();
+                await conn.DisposeAsync().ConfigureAwait(false);
             }
         }
     }
 
     public async Task<IReadOnlyList<AppliedMigrationRecord>> GetAppliedMigrationsAsync(CancellationToken ct = default)
     {
-        var (conn, ownsConnection) = await _connectionOpener.OpenAsync(ct);
+        var (conn, ownsConnection) = await _connectionOpener.OpenAsync(ct).ConfigureAwait(false);
         try
         {
-            await _historyStore.EnsureHistoryTableAsync(conn, ct);
-            return await _historyStore.ReadAppliedAsync(conn, ct);
+            await _historyStore.EnsureHistoryTableAsync(conn, ct).ConfigureAwait(false);
+            return await _historyStore.ReadAppliedAsync(conn, ct).ConfigureAwait(false);
         }
         finally
         {
             if (ownsConnection)
             {
-                await conn.DisposeAsync();
+                await conn.DisposeAsync().ConfigureAwait(false);
             }
         }
     }
 
     public async Task<IReadOnlyList<string>> GetPendingMigrationsAsync(CancellationToken ct = default)
     {
-        var status = await GetStatusAsync(ct);
+        var status = await GetStatusAsync(ct).ConfigureAwait(false);
         return status.Where(s => !s.IsApplied).Select(s => $"{s.RegistryName}/{s.ScriptName}").ToList();
     }
 
     public async Task<IReadOnlyList<MigrationStatusItem>> GetStatusAsync(CancellationToken ct = default)
     {
-        var applied = await GetAppliedMigrationsAsync(ct);
-        return await _scriptStore.BuildStatusItemsAsync(applied, ct);
+        var applied = await GetAppliedMigrationsAsync(ct).ConfigureAwait(false);
+        return await _scriptStore.BuildStatusItemsAsync(applied, ct).ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyList<string>> MigrateAsync(bool dryRun = false, CancellationToken ct = default)
     {
         if (dryRun)
         {
-            return await GetPendingMigrationsAsync(ct);
+            return await GetPendingMigrationsAsync(ct).ConfigureAwait(false);
         }
 
-        var (conn, ownsConnection) = await _connectionOpener.OpenAsync(ct);
+        var (conn, ownsConnection) = await _connectionOpener.OpenAsync(ct).ConfigureAwait(false);
         IAsyncDisposable? migrationLock = null;
 
         try
         {
-            migrationLock = await _dialect.AcquireLockAsync(conn, _options, ct);
-            await _historyStore.EnsureHistoryTableAsync(conn, ct);
+            migrationLock = await _dialect.AcquireLockAsync(conn, _options, ct).ConfigureAwait(false);
+            await _historyStore.EnsureHistoryTableAsync(conn, ct).ConfigureAwait(false);
 
-            var applied = await _historyStore.ReadAppliedAsync(conn, ct);
+            var applied = await _historyStore.ReadAppliedAsync(conn, ct).ConfigureAwait(false);
             var appliedMap = applied.ToDictionary(a => (a.RegistryName, a.ScriptName));
 
             var scripts = _scriptStore.DiscoverScripts();
@@ -243,7 +243,7 @@ internal sealed class DbMigrator : IDbMigrator
             {
                 if (appliedMap.TryGetValue((registryName, scriptName), out var record))
                 {
-                    var existingSql = await File.ReadAllTextAsync(fullPath, ct);
+                    var existingSql = await File.ReadAllTextAsync(fullPath, ct).ConfigureAwait(false);
                     var currentChecksum = MigrationScriptStore.ComputeSha256(existingSql);
                     if (!string.Equals(record.ChecksumSha256, currentChecksum, StringComparison.OrdinalIgnoreCase))
                     {
@@ -268,12 +268,12 @@ internal sealed class DbMigrator : IDbMigrator
                     continue;
                 }
 
-                var sql = await File.ReadAllTextAsync(fullPath, ct);
+                var sql = await File.ReadAllTextAsync(fullPath, ct).ConfigureAwait(false);
                 var checksum = MigrationScriptStore.ComputeSha256(sql);
 
                 if (_dialect.TryStripOuterTransaction(sql, out var innerSql))
                 {
-                    await using var tx = await conn.BeginTransactionAsync(ct);
+                    await using var tx = await conn.BeginTransactionAsync(ct).ConfigureAwait(false);
                     try
                     {
                         foreach (var stmt in _dialect.SplitScriptStatements(innerSql))
@@ -286,15 +286,15 @@ internal sealed class DbMigrator : IDbMigrator
                             await using var execCmd = conn.CreateCommand();
                             execCmd.Transaction = tx;
                             execCmd.CommandText = stmt;
-                            await execCmd.ExecuteNonQueryAsync(ct);
+                            await execCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
                         }
 
-                        await _historyStore.RecordAppliedAsync(conn, registryName, scriptName, checksum, ct, tx);
-                        await tx.CommitAsync(ct);
+                        await _historyStore.RecordAppliedAsync(conn, registryName, scriptName, checksum, ct, tx).ConfigureAwait(false);
+                        await tx.CommitAsync(ct).ConfigureAwait(false);
                     }
                     catch
                     {
-                        await tx.RollbackAsync(CancellationToken.None);
+                        await tx.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
                         throw;
                     }
                 }
@@ -309,10 +309,10 @@ internal sealed class DbMigrator : IDbMigrator
 
                         await using var execCmd = conn.CreateCommand();
                         execCmd.CommandText = stmt;
-                        await execCmd.ExecuteNonQueryAsync(ct);
+                        await execCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
                     }
 
-                    await _historyStore.RecordAppliedAsync(conn, registryName, scriptName, checksum, ct);
+                    await _historyStore.RecordAppliedAsync(conn, registryName, scriptName, checksum, ct).ConfigureAwait(false);
                 }
 
                 executed.Add($"{registryName}/{scriptName}");
@@ -324,12 +324,12 @@ internal sealed class DbMigrator : IDbMigrator
         {
             if (migrationLock is not null)
             {
-                await migrationLock.DisposeAsync();
+                await migrationLock.DisposeAsync().ConfigureAwait(false);
             }
 
             if (ownsConnection)
             {
-                await conn.DisposeAsync();
+                await conn.DisposeAsync().ConfigureAwait(false);
             }
         }
     }
@@ -356,17 +356,17 @@ internal sealed class DbMigrator : IDbMigrator
             return [];
         }
 
-        var (conn, ownsConnection) = await _connectionOpener.OpenAsync(ct);
+        var (conn, ownsConnection) = await _connectionOpener.OpenAsync(ct).ConfigureAwait(false);
         try
         {
-            await _historyStore.EnsureHistoryTableAsync(conn, ct);
-            var efAppliedIds = await _historyStore.ReadEfCoreMigrationIdsAsync(conn, ct);
+            await _historyStore.EnsureHistoryTableAsync(conn, ct).ConfigureAwait(false);
+            var efAppliedIds = await _historyStore.ReadEfCoreMigrationIdsAsync(conn, ct).ConfigureAwait(false);
             if (efAppliedIds.Count == 0)
             {
                 return [];
             }
 
-            var existingApplied = (await _historyStore.ReadAppliedAsync(conn, ct))
+            var existingApplied = (await _historyStore.ReadAppliedAsync(conn, ct).ConfigureAwait(false))
                 .Select(a => (a.RegistryName, a.ScriptName))
                 .ToHashSet();
 
@@ -381,9 +381,9 @@ internal sealed class DbMigrator : IDbMigrator
 
                 if (!dryRun)
                 {
-                    var sql = await File.ReadAllTextAsync(match.FullPath, ct);
+                    var sql = await File.ReadAllTextAsync(match.FullPath, ct).ConfigureAwait(false);
                     var checksum = MigrationScriptStore.ComputeSha256(sql);
-                    await _historyStore.RecordAppliedAsync(conn, "_translated", match.ScriptName, checksum, ct);
+                    await _historyStore.RecordAppliedAsync(conn, "_translated", match.ScriptName, checksum, ct).ConfigureAwait(false);
                 }
 
                 synced.Add($"_translated/{match.ScriptName}");
@@ -395,7 +395,7 @@ internal sealed class DbMigrator : IDbMigrator
         {
             if (ownsConnection)
             {
-                await conn.DisposeAsync();
+                await conn.DisposeAsync().ConfigureAwait(false);
             }
         }
     }
@@ -433,7 +433,7 @@ internal sealed class DbMigrator : IDbMigrator
     {
         var globalSnapshotPath = Path.Combine(stateDir, "_global.json");
         var prevGlobalJson = File.Exists(globalSnapshotPath)
-            ? await File.ReadAllTextAsync(globalSnapshotPath, ct)
+            ? await File.ReadAllTextAsync(globalSnapshotPath, ct).ConfigureAwait(false)
             : null;
 
         var globalSchema = new DatabaseModel
@@ -471,13 +471,13 @@ internal sealed class DbMigrator : IDbMigrator
             if (!dryRun)
             {
                 Directory.CreateDirectory(globalDir);
-                await File.WriteAllTextAsync(globalSqlPath, globalSql, ct);
+                await File.WriteAllTextAsync(globalSqlPath, globalSql, ct).ConfigureAwait(false);
             }
         }
 
         if (!dryRun)
         {
-            await File.WriteAllTextAsync(globalSnapshotPath, globalDiff.UpdatedSnapshotJson, ct);
+            await File.WriteAllTextAsync(globalSnapshotPath, globalDiff.UpdatedSnapshotJson, ct).ConfigureAwait(false);
         }
 
         return (new GeneratedMigrationItem(

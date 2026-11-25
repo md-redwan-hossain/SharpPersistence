@@ -139,7 +139,7 @@ internal sealed class MigrationRunlistManager
         }
 
         var json = JsonSerializer.Serialize(updated, WriteJsonOptions);
-        await File.WriteAllTextAsync(RunlistPath, json, ct);
+        await File.WriteAllTextAsync(RunlistPath, json, ct).ConfigureAwait(false);
     }
 
     public async Task<RunlistSyncResult> SyncAsync(
@@ -154,14 +154,14 @@ internal sealed class MigrationRunlistManager
 
         foreach (var (registryName, scriptName, fullPath) in diskFiles)
         {
-            var sql = await File.ReadAllTextAsync(fullPath, ct);
+            var sql = await File.ReadAllTextAsync(fullPath, ct).ConfigureAwait(false);
             var (stampedSql, id, alreadyHad) = MigrationScriptHeader.StampHeader(sql);
             if (!alreadyHad)
             {
                 stampedCount++;
                 if (!dryRun)
                 {
-                    await File.WriteAllTextAsync(fullPath, stampedSql, ct);
+                    await File.WriteAllTextAsync(fullPath, stampedSql, ct).ConfigureAwait(false);
                 }
             }
 
@@ -220,7 +220,7 @@ internal sealed class MigrationRunlistManager
             }
 
             var json = JsonSerializer.Serialize(finalIds, WriteJsonOptions);
-            await File.WriteAllTextAsync(RunlistPath, json, ct);
+            await File.WriteAllTextAsync(RunlistPath, json, ct).ConfigureAwait(false);
         }
 
         var staleOverrideIds = FindStaleOverrideIds(scriptsById);
@@ -276,7 +276,9 @@ internal sealed class MigrationRunlistManager
         }
     }
 
-    public List<DoctorCheckItem> Validate(IReadOnlyList<AppliedMigrationRecord>? applied = null)
+    public List<DoctorCheckItem> Validate(
+        IReadOnlyList<AppliedMigrationRecord>? applied = null,
+        bool includeDdlValidation = true)
     {
         var checks = new List<DoctorCheckItem>();
         var (scriptsById, missingHeaders, duplicateIds) = ScanDiskScripts();
@@ -365,8 +367,11 @@ internal sealed class MigrationRunlistManager
                 var baseOrder = runlistIds.Select(id => scriptsById[id]).ToList();
                 var effectiveOrder = ApplyOverrides(baseOrder, overrides);
 
-                var ddlChecks = SqlScriptDependencyAnalyzer.ValidateOrder(effectiveOrder);
-                checks.AddRange(ddlChecks);
+                if (includeDdlValidation)
+                {
+                    var ddlChecks = SqlScriptDependencyAnalyzer.ValidateOrder(effectiveOrder);
+                    checks.AddRange(ddlChecks);
+                }
 
                 if (applied is { Count: > 0 })
                 {
@@ -427,8 +432,7 @@ internal sealed class MigrationRunlistManager
 
         foreach (var (registryName, scriptName, fullPath) in files)
         {
-            var sql = File.ReadAllText(fullPath);
-            if (!MigrationScriptHeader.TryParseId(sql, out var id))
+            if (!MigrationScriptHeader.TryParseIdFromFile(fullPath, out var id))
             {
                 missingHeaders.Add($"{registryName}/{scriptName}");
                 continue;
@@ -594,9 +598,13 @@ internal sealed class MigrationRunlistManager
         }
 
         // Preserve relative base order (i -> i+1) whenever it does not conflict with explicit override edges
+        var visitedGen = new int[n];
+        var currentGen = 0;
+        var stack = new Stack<int>();
         for (var i = 0; i + 1 < n; i++)
         {
-            if (!CanReach(adj, i + 1, i) && adj[i].Add(i + 1))
+            var canReachBack = adj[i + 1].Count > 0 && CanReach(adj, i + 1, i, visitedGen, ++currentGen, stack);
+            if (!canReachBack && adj[i].Add(i + 1))
             {
                 inDegree[i + 1]++;
             }
@@ -638,17 +646,22 @@ internal sealed class MigrationRunlistManager
         return result;
     }
 
-    private static bool CanReach(HashSet<int>[] adj, int start, int target)
+    private static bool CanReach(
+        HashSet<int>[] adj,
+        int start,
+        int target,
+        int[] visitedGen,
+        int gen,
+        Stack<int> stack)
     {
         if (start == target)
         {
             return true;
         }
 
-        var visited = new bool[adj.Length];
-        var stack = new Stack<int>();
+        stack.Clear();
         stack.Push(start);
-        visited[start] = true;
+        visitedGen[start] = gen;
 
         while (stack.Count > 0)
         {
@@ -660,9 +673,9 @@ internal sealed class MigrationRunlistManager
                     return true;
                 }
 
-                if (!visited[next])
+                if (visitedGen[next] != gen)
                 {
-                    visited[next] = true;
+                    visitedGen[next] = gen;
                     stack.Push(next);
                 }
             }

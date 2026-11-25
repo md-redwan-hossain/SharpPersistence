@@ -13,9 +13,29 @@ internal static class MigrationScriptHeader
         }
 
         using var reader = new StringReader(sql.TrimStart('\uFEFF'));
+        return TryParseIdFromReader(reader, out id);
+    }
+
+    public static bool TryParseIdFromFile(string fullPath, out Guid id)
+    {
+        using var reader = new StreamReader(fullPath);
+        return TryParseIdFromReader(reader, out id);
+    }
+
+    private static bool TryParseIdFromReader(TextReader reader, out Guid id)
+    {
+        id = Guid.Empty;
+        var isFirstLine = true;
         while (reader.ReadLine() is { } line)
         {
-            var trimmed = line.Trim();
+            var span = line.AsSpan();
+            if (isFirstLine)
+            {
+                isFirstLine = false;
+                span = span.TrimStart('\uFEFF');
+            }
+
+            var trimmed = span.Trim();
             if (trimmed.Length == 0)
             {
                 continue;

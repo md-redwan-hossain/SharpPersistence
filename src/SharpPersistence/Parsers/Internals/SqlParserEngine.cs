@@ -1,11 +1,9 @@
-using System.Collections.Concurrent;
 using System.Text;
-using System.Text.RegularExpressions;
 using SharpPersistence.Abstractions.ValueObjects;
 
 namespace SharpPersistence.Parsers.Internals;
 
-internal partial class SqlParserEngine
+internal sealed class SqlParserEngine
 {
     private static readonly string[] NewLineSeparators = ["\r\n", "\n", "\r"];
     private const string StartPrefix = "#start#";
@@ -26,18 +24,19 @@ internal partial class SqlParserEngine
         }
 
         var lines = source.Split(NewLineSeparators, StringSplitOptions.None);
-        var sqlBlocks = new ConcurrentDictionary<string, SqlBlockInfo>(StringComparer.OrdinalIgnoreCase);
+        var sqlBlocks = new Dictionary<string, SqlBlockInfo>(StringComparer.OrdinalIgnoreCase);
 
         for (var i = 0; i < lines.Length; i++)
         {
-            var line = new SqlLine { Number = i + 1, Text = lines[i] };
-
-            if (string.IsNullOrWhiteSpace(line.Text))
+            var lineText = lines[i];
+            if (string.IsNullOrWhiteSpace(lineText))
             {
                 continue;
             }
 
-            if (IsStartBlock(ref line))
+            var line = new SqlLine { Number = i + 1, Text = lineText };
+
+            if (IsBlockTag(lineText, StartPrefix))
             {
                 var uniqueTag = ExtractUniqueName(ref line, StartPrefix);
                 switch (string.IsNullOrEmpty(uniqueTag))
@@ -59,7 +58,7 @@ internal partial class SqlParserEngine
                         break;
                 }
             }
-            else if (IsEndBlock(ref line))
+            else if (IsBlockTag(lineText, EndPrefix))
             {
                 var uniqueTag = ExtractUniqueName(ref line, EndPrefix);
                 switch (string.IsNullOrEmpty(uniqueTag))
@@ -140,21 +139,17 @@ internal partial class SqlParserEngine
         }
     }
 
-    private static bool IsStartBlock(ref SqlLine sqlLine)
+    private static bool IsBlockTag(ReadOnlySpan<char> lineText, ReadOnlySpan<char> prefix)
     {
-        return StartBlockRegex().IsMatch(sqlLine.Text);
+        var trimmed = lineText.TrimStart();
+        if (!trimmed.StartsWith("--", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        trimmed = trimmed[2..].TrimStart();
+        return trimmed.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
     }
-
-    private static bool IsEndBlock(ref SqlLine sqlLine)
-    {
-        return EndBlockRegex().IsMatch(sqlLine.Text);
-    }
-
-    [GeneratedRegex(@"^\s*--\s*#start#", RegexOptions.IgnoreCase)]
-    private static partial Regex StartBlockRegex();
-
-    [GeneratedRegex(@"^\s*--\s*#end#", RegexOptions.IgnoreCase)]
-    private static partial Regex EndBlockRegex();
 
     private string ExtractUniqueName(ref SqlLine sqlLine, string prefix)
     {
@@ -205,12 +200,12 @@ internal partial class SqlParserEngine
     {
         var formattedMessage = actualValue is not null ? string.Format(message, actualValue) : message;
 
-        if (AreNotNull(sqlSource, lineNumber, column))
+        if (sqlSource is not null && lineNumber is not null && column is not null)
         {
             return $"{sqlSource}:(line {lineNumber}, col {column}): error: {formattedMessage}";
         }
 
-        if (AreNotNull(lineNumber, column))
+        if (lineNumber is not null && column is not null)
         {
             return $"Parsing error (line {lineNumber}, col {column}): error: {formattedMessage}";
         }
@@ -231,10 +226,5 @@ internal partial class SqlParserEngine
         }
 
         return $"Parsing error: {formattedMessage}";
-    }
-
-    private static bool AreNotNull(params object?[] elements)
-    {
-        return elements.All(x => x is not null);
     }
 }

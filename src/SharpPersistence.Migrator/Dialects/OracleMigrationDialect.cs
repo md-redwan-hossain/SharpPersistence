@@ -75,11 +75,11 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
 
     internal static IEnumerable<string> SplitStatements(string sql)
     {
-        var lines = sql.Replace("\r\n", "\n").Split('\n');
+        using var reader = new StringReader(sql);
         var current = new StringBuilder();
         var inPlSqlBlock = false;
 
-        foreach (var rawLine in lines)
+        while (reader.ReadLine() is { } rawLine)
         {
             var trimmed = rawLine.Trim();
             if (trimmed.StartsWith("--", StringComparison.Ordinal) || string.IsNullOrEmpty(trimmed))
@@ -178,7 +178,7 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
             pRes.Direction = ParameterDirection.Output;
             cmd.Parameters.Add(pRes);
 
-            await cmd.ExecuteNonQueryAsync(ct);
+            await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
 
             var res = Convert.ToInt32(pRes.Value, CultureInfo.InvariantCulture);
             switch (res)
@@ -192,7 +192,7 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
                         throw new TimeoutException($"Timed out waiting for Oracle migration lock (id={lockId}).");
                     }
 
-                    await Task.Delay(500, ct);
+                    await Task.Delay(500, ct).ConfigureAwait(false);
                     break;
                 case 2:
                     throw new InvalidOperationException($"Deadlock detected acquiring Oracle migration lock (id={lockId}).");
@@ -219,7 +219,7 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
         await using var oracleCmd = conn.CreateCommand();
         oracleCmd.CommandText =
             $"BEGIN EXECUTE IMMEDIATE '{EscapeLiteral(createSql)}'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -955 THEN RAISE; END IF; END;";
-        await oracleCmd.ExecuteNonQueryAsync(ct);
+        await oracleCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
     }
 
     public async Task<bool> HistoryTableExistsAsync(
@@ -232,7 +232,7 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
             ? $"SELECT COUNT(*) FROM USER_TABLES WHERE TABLE_NAME = '{EscapeLiteral(options.HistoryTableName)}'"
             : $"SELECT COUNT(*) FROM ALL_TABLES WHERE OWNER = '{EscapeLiteral(options.HistorySchema)}' AND TABLE_NAME = '{EscapeLiteral(options.HistoryTableName)}'";
 
-        var count = Convert.ToInt32(await cmd.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture);
+        var count = Convert.ToInt32(await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false), CultureInfo.InvariantCulture);
         return count > 0;
     }
 
@@ -271,7 +271,7 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
         p3.Value = checksum;
         cmd.Parameters.Add(p3);
 
-        await cmd.ExecuteNonQueryAsync(ct);
+        await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyList<string>> ReadEfCoreMigrationIdsAsync(DbConnection conn, CancellationToken ct)
@@ -279,7 +279,7 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
         await using (var existsCmd = conn.CreateCommand())
         {
             existsCmd.CommandText = "SELECT COUNT(*) FROM USER_TABLES WHERE TABLE_NAME = '__EFMigrationsHistory'";
-            var count = Convert.ToInt32(await existsCmd.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture);
+            var count = Convert.ToInt32(await existsCmd.ExecuteScalarAsync(ct).ConfigureAwait(false), CultureInfo.InvariantCulture);
             if (count == 0)
             {
                 return [];
@@ -289,8 +289,8 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
         var ids = new List<string>();
         await using var readCmd = conn.CreateCommand();
         readCmd.CommandText = "SELECT \"MigrationId\" FROM \"__EFMigrationsHistory\" ORDER BY \"MigrationId\"";
-        await using var reader = await readCmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
+        await using var reader = await readCmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+        while (await reader.ReadAsync(ct).ConfigureAwait(false))
         {
             ids.Add(reader.GetString(0));
         }
@@ -313,10 +313,18 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
 
         if (hasUnqualified)
         {
+            var unqualifiedTables = expectedTables
+                .Where(t => string.IsNullOrWhiteSpace(t.Table.Schema))
+                .Select(t => t.Table.TableName)
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+
             await using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT TABLE_NAME, COLUMN_NAME, NULLABLE, DATA_TYPE, CHAR_LENGTH, DATA_PRECISION, DATA_SCALE FROM USER_TAB_COLUMNS";
-            await using var reader = await cmd.ExecuteReaderAsync(ct);
-            while (await reader.ReadAsync(ct))
+            cmd.CommandText = unqualifiedTables.Count is > 0 and <= 1000
+                ? $"SELECT TABLE_NAME, COLUMN_NAME, NULLABLE, DATA_TYPE, CHAR_LENGTH, DATA_PRECISION, DATA_SCALE FROM USER_TAB_COLUMNS WHERE TABLE_NAME IN ({string.Join(", ", unqualifiedTables.Select(t => $"'{EscapeLiteral(t)}'"))})"
+                : "SELECT TABLE_NAME, COLUMN_NAME, NULLABLE, DATA_TYPE, CHAR_LENGTH, DATA_PRECISION, DATA_SCALE FROM USER_TAB_COLUMNS";
+            await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+            while (await reader.ReadAsync(ct).ConfigureAwait(false))
             {
                 MigrationDialectRegistry.AddLiveColumn(
                     result,
@@ -338,8 +346,8 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
             p.Value = owner;
             cmd.Parameters.Add(p);
 
-            await using var reader = await cmd.ExecuteReaderAsync(ct);
-            while (await reader.ReadAsync(ct))
+            await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+            while (await reader.ReadAsync(ct).ConfigureAwait(false))
             {
                 MigrationDialectRegistry.AddLiveColumn(
                     result,
@@ -403,7 +411,7 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
             pId.Value = lockId;
             cmd.Parameters.Add(pId);
 
-            await cmd.ExecuteNonQueryAsync(CancellationToken.None);
+            await cmd.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
         }
         catch
         {

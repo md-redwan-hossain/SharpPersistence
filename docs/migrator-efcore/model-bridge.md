@@ -34,6 +34,35 @@ public sealed class AppDbContext(
 * Primary keys, column names, types, nullability, max length, precision/scale, defaults, identity, computed columns, concurrency tokens (`IsRowVersion`), and `ValueConverter`s
 * Foreign keys (with `OnDelete` behavior), indexes (unique, filtered, included columns), and check constraints
 
+## Compile-Time `DbContext` Registry Binding (`[BindEntityRegistry<TRegistry>]`)
+
+Instead of manually declaring `DbSet<T>` properties and filtering entities per `DbContext`, decorate a `partial` `DbContext` with `[BindEntityRegistry<TRegistry>]`. The Roslyn generator emits `DbSet<T>` (or `IQueryable<T>` with `.AsNoTracking()` when `ReadOnly = true`) properties and a scoped `ApplyBoundRegistries(modelBuilder, model)` method:
+
+```csharp
+using Microsoft.EntityFrameworkCore;
+using SharpPersistence.Migrator.EfCore.Attributes;
+using SharpPersistence.Migrator.Models;
+
+[BindEntityRegistry<SalesRegistry>]
+[BindEntityRegistry<IdentityRegistry>(ReadOnly = true)] // emits IQueryable<User> Users => Set<User>().AsNoTracking();
+[EntityRegistryItem<AuditLog>(Exclude = true)]          // omit specific entity from this DbContext
+[EntityRegistryItem<Order>(Pluralize = false)]          // override property name (Order instead of Orders)
+public sealed partial class SalesDbContext(
+    DbContextOptions<SalesDbContext> options,
+    DatabaseModel model) : DbContext(options)
+{
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+        ApplyBoundRegistries(modelBuilder, model);
+    }
+}
+```
+
+- **Registry-level options**: `[BindEntityRegistry<TRegistry>(ReadOnly = false, Pluralize = true)]`.
+- **Per-entity overrides**: `[EntityRegistryItem<TEntity>(ReadOnly = ..., Pluralize = ..., Exclude = ...)]`.
+- **Compile-time diagnostics (`SPM008`-`SPM013`)**: Validates that the `DbContext` is `partial` and inherits `DbContext`, checks for duplicate bindings/items, and flags unknown entities in `[EntityRegistryItem<TEntity>]`.
+
 ## Value Converters (`HasConversion`)
 
 `HasConversion<TProvider>()` and `HasConversion(Type)` are built directly into `ColumnBuilder` (`SharpPersistence.Migrator`). When you also need an EF Core `ValueConverter` at runtime, `SharpPersistence.Migrator.EfCore` adds `HasConversion(ValueConverter)` so both SQL generation and `DbContext` stay in sync:

@@ -2,8 +2,9 @@
 name: sharp-persistence-migrator
 description: >-
   Configure C#-first database migrations, entity registries, fluent table/FK/index/check/exclusion
-  builders, compile-time Roslyn entity discovery, EF Core model bridging, and db-migrator CLI commands
-  for PostgreSQL and Oracle using SharpPersistence.Migrator.
+  builders, compile-time Roslyn entity discovery, EF Core model bridging, DbContext registry binding,
+  and db-migrator CLI commands (including config and browser UI) for PostgreSQL and Oracle using
+  SharpPersistence.Migrator.
 ---
 
 # SharpPersistence.Migrator
@@ -53,8 +54,8 @@ builder.Services.AddDbMigrator(opt =>
 });
 ```
 
-- Implement `IDesignTimeMigrationFactory` in class-library projects without `Program.cs`.
-- Inject `IMigrationManager` at runtime (`MigrateAsync`, `GetStatusAsync`, `GetPendingMigrationsAsync`, `GetAppliedMigrationsAsync`, `EnsureHistoryTableAsync`).
+- Implement `IDesignTimeDbMigratorFactory` in class-library projects without `Program.cs`.
+- Inject `IDbMigrator` at runtime (`MigrateAsync`, `GetStatusAsync`, `GetPendingMigrationsAsync`, `GetAppliedMigrationsAsync`, `EnsureHistoryTableAsync`).
 
 ## Entity Registries & Fluent Builders
 
@@ -118,29 +119,53 @@ public sealed partial class SalesRegistry : IEntityRegistry
 - Use `OwnsOne(x => x.Nav, a => ...)` for inline table-split owned value objects (supports `Property`, `Ignore`, `HasIndex`, and nested `OwnsOne`; nullable navigations automatically make all owned columns nullable and reject `.IsRequired()`).
 - Use `HasDatabaseName(...)` on `IndexBuilder` and `HasName(...)` on `KeyBuilder`.
 
-## Global Conventions & Cross-Module Stubs
+## Global Conventions & Entity Stubs
 
 - Use `ConfigureEntities<T>` (works with interfaces and base classes) instead of reflection loops for shared FKs, keys, identity columns, and lookup indexes. It runs before `IEntityConfiguration<T>`, so per-entity configs can override a conventional FK or unnamed index without duplicates.
 - Use `UseTableNameConvention((entityType, defaultName) => ...)` for custom table prefixes (e.g., `lk_` for lookup entities).
-- In modular monoliths, point module/shared FKs to local `Ref*` stubs (`References<RefUser>(u => u.Id)`) and wire `ConfigureEntityStubs(stubs => stubs.Map<RefUser, User>())` once in the startup project so registries sort accurately and FKs target the owning table without leaking domain entities across modules.
+- Point external FKs to local `Ref*` stubs (`[Entity(ReadOnly = true)]` + `References<RefUser>(u => u.Id)`) and wire `ConfigureEntityStubs(stubs => stubs.Map<RefUser, User>())` once in the startup project so registries sort accurately and FKs target the owning table without leaking domain entities across assemblies.
 
 ## Compile-Time Discovery Attributes & Diagnostics
 
-- **Domain (`SharpPersistence.Abstractions`):** `[Entity]`, custom `EntityMarkerAttribute` + `[assembly: DiscoverEntitiesBy<TMarker>]`, `[assembly: DisableEntityDiscovery]` (or `<DisableEntityDiscovery>true</DisableEntityDiscovery>`).
+- **Domain (`SharpPersistence.Abstractions`):** `[Entity]` (supports `ReadOnly = true` to auto-exclude stub/view entities from migrations), custom `EntityMarkerAttribute` + `[assembly: DiscoverEntitiesBy<TMarker>]`, `[assembly: DisableEntityDiscovery]` (or `<DisableEntityDiscovery>true</DisableEntityDiscovery>`).
 - **Migrator (`SharpPersistence.Migrator`):** `[EntityRegistry]`, `[EntityRegistry<TMarker>]`, `[EntityConfiguration<TEntity>]`, `[assembly: EntityRegistryRoot]` (or `<EntityRegistryRoot>true</EntityRegistryRoot>`).
-- **Diagnostics:** `SPM001` (sealed partial `IEntityRegistry`), `SPM002` (valid `IEntityConfiguration<T>`), `SPM003` (duplicate config), `SPM004` (missing `public void Configure`), `SPM005` (entity matched by multiple registries), `SPM006` (non-public entity/marker), `SPM007` (orphan config warning).
+- **Diagnostics:**
+  - `SPM001`-`SPM007`: registry/configuration declaration, duplicate config, missing `Configure`, duplicate entity across registries, non-public entity/marker, orphan config warning.
+  - `SPM008`-`SPM013`: `[BindEntityRegistry<TRegistry>]` / `[EntityRegistryItem<TEntity>]` validation (partial `DbContext`, valid registry type, duplicate bindings/items, unknown item).
+  - `SPM014`: `.IsRequired()` inside an optional `OwnsOne(...)`.
+  - `SPM015`: self-mapped or `ReadOnly = true` target in `ConfigureEntityStubs(...)`.
 
-## EF Core Bridge (`SharpPersistence.Migrator.EfCore`)
+## EF Core Bridge & `DbContext` Registry Binding (`SharpPersistence.Migrator.EfCore`)
 
-- Inject `DatabaseModel` into `DbContext` and call `modelBuilder.ApplySchemaToEfCore(model);` in `OnModelCreating`.
+- Inject `DatabaseModel` into `DbContext` and call `modelBuilder.ApplySchemaToEfCore(model);` in `OnModelCreating` (or use `[BindEntityRegistry<TRegistry>]` below).
+- Decorate a `partial` `DbContext` with `[BindEntityRegistry<TRegistry>]` to generate `DbSet<T>` / `IQueryable<T>` properties and `ApplyBoundRegistries(modelBuilder, model)` at compile time:
+
+```csharp
+[BindEntityRegistry<SalesRegistry>]
+[BindEntityRegistry<IdentityRegistry>(ReadOnly = true)] // generates IQueryable<T> (.AsNoTracking())
+[EntityRegistryItem<AuditLog>(Exclude = true)]
+public sealed partial class SalesDbContext(
+    DbContextOptions<SalesDbContext> options,
+    DatabaseModel model) : DbContext(options)
+{
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+        ApplyBoundRegistries(modelBuilder, model);
+    }
+}
+```
+
 - `HasConversion<TProvider>()` and `HasConversion(Type)` are built into `ColumnBuilder` (`SharpPersistence.Migrator`); use `SharpPersistence.Migrator.EfCore`'s `.HasConversion(ValueConverter)` when you need a custom EF Core `ValueConverter` at runtime.
 
 ## `db-migrator` CLI Commands
 
-- `db-migrator doctor [--registry <Name>] [--check-db] [--runlist]` — validates DI wiring, entity configs, FK types, cross-registry collisions, runlist/override integrity, SQL DDL dependencies, and migration script coverage (read-only).
-- `db-migrator generate --name <Name> [--registry <Name>] [--dry-run] [--ci] [--allow-empty]` — generates idempotent SQL scripts stamped with `-- migration-script-id: <uuidv7>` and appends them to `db-migration-runlist.json`.
-- `db-migrator runlist show [--recent <N>]` & `db-migrator runlist sync [--prune] [--dry-run]` — inspects the effective execution order (including `db-migration-runlist.overrides.json`) or stamps headers / repairs `db-migration-runlist.json`.
-- `db-migrator migrate [--dry-run] [--sync-ef-history]` — applies pending scripts under distributed lock.
-- `db-migrator status` / `db-migrator pending` — inspects migration history and pending scripts.
-- `db-migrator translate-ef-configs <CONFIGS_DIR> [-o <DIR>] [--dry-run] [--no-attribute]` — converts `IEntityTypeConfiguration<T>` to `IEntityConfiguration<T>`.
-- `db-migrator translate-ef-migration <MIGRATIONS_DIR>` & `db-migrator sync-ef-history` — translates EF Core migrations 1-to-1 and syncs `__EFMigrationsHistory`.
+- `db-migrator config --generate` - scans the solution and writes `db-migrator.config.json` (qualifying startup projects, registry projects, and defaults for the searchable interactive project picker; pass `--ci` to disable prompts).
+- `db-migrator ui [--port <PORT>] [--no-open]` - launches the local browser UI (Entities explorer, Table ERD, Registry Dependencies & Stubs graph, Migrations Runlist + Dry Run diff, Doctor, and `Ctrl/Cmd+K` search).
+- `db-migrator doctor [--registry <Name>] [--check-db] [--runlist]` - validates DI wiring, entity configs, FK types, cross-registry collisions, runlist/override integrity, SQL DDL dependencies, and migration script coverage (read-only).
+- `db-migrator generate --name <Name> [--registry <Name>] [--dry-run] [--ci] [--allow-empty]` - generates idempotent SQL scripts stamped with `-- migration-script-id: <uuidv7>` and appends them to `db-migration-runlist.json`.
+- `db-migrator runlist show [--recent <N>]` & `db-migrator runlist sync [--prune] [--dry-run]` - inspects the effective execution order (including `db-migration-runlist.overrides.json`) or stamps headers / repairs `db-migration-runlist.json`.
+- `db-migrator migrate [--dry-run] [--sync-ef-history]` - applies pending scripts under distributed lock.
+- `db-migrator status` / `db-migrator pending` - inspects migration history and pending scripts.
+- `db-migrator translate-ef-configs <CONFIGS_DIR> [-o <DIR>] [--dry-run] [--no-attribute]` - converts `IEntityTypeConfiguration<T>` to `IEntityConfiguration<T>`.
+- `db-migrator translate-ef-migration <MIGRATIONS_DIR>` & `db-migrator sync-ef-history` - translates EF Core migrations 1-to-1 and syncs `__EFMigrationsHistory`.

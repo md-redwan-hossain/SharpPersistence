@@ -2,7 +2,8 @@
 name: sharp-persistence-abstractions
 description: >-
   Use SharpPersistence.Abstractions IRepositoryCore<TEntity> and IEntityQuery<T> for composable,
-  type-safe repository queries, projections, pagination, and write/tracking operations in C#.
+  type-safe repository queries, projections, pagination, write/tracking operations, and
+  compile-time entity discovery attributes in C#.
 ---
 
 # SharpPersistence.Abstractions (`IRepositoryCore<TEntity>`)
@@ -100,20 +101,27 @@ DateTime? latestOrderAt = await orderRepo.Query()
 
 `SharpPersistence.Abstractions` provides zero-dependency domain attributes (and transitively includes the Roslyn entity manifest generator):
 
-- `[Entity]` — built-in marker for single-registry projects.
-- `EntityMarkerAttribute` + `[assembly: DiscoverEntitiesBy<TMarkerAttribute>]` — custom per-module marker attributes for modular monoliths.
-- `[assembly: DisableEntityDiscovery]` (or MSBuild `<DisableEntityDiscovery>true</DisableEntityDiscovery>`) — opts an assembly out of source generation.
+- `[Entity]` - built-in marker for single-registry projects. Set `[Entity(ReadOnly = true)]` to automatically exclude read-only stub/view entities from migrations.
+- `EntityMarkerAttribute` + `[assembly: DiscoverEntitiesBy<TMarkerAttribute>]` - custom per-assembly marker attributes (also supports `ReadOnly = true`).
+- `[assembly: DisableEntityDiscovery]` (or MSBuild `<DisableEntityDiscovery>true</DisableEntityDiscovery>`) - opts an assembly out of source generation.
 
 ```csharp
 using SharpPersistence.Abstractions;
 
-// Custom module marker in Billing.Domain
+// Custom marker in Billing.Domain
 public sealed class BillingEntityAttribute : EntityMarkerAttribute;
 
 [assembly: DiscoverEntitiesBy<BillingEntityAttribute>]
 
 [BillingEntity]
 public sealed class Invoice
+{
+    public Guid Id { get; set; }
+}
+
+// Read-only reference stub (automatically excluded from migrations)
+[BillingEntity(ReadOnly = true)]
+public sealed class RefUser
 {
     public Guid Id { get; set; }
 }

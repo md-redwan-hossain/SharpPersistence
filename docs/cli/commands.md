@@ -16,8 +16,53 @@ Most commands load your `IServiceProvider` (from `Program.cs`) or `IDesignTimeDb
 | `-d`, `--destination-project <PATH>` | Project where `MigrationScripts` and `EntityChangelogs` live |
 | `-o`, `--output-dir <DIR>` | Override output directory for scripts and snapshots |
 | `--no-build` | Skip `dotnet build` before loading the startup assembly |
+| `--ci`, `--non-interactive` | Disable interactive prompts (project pickers and rename prompts) |
 
 ## Commands
+
+### `config`
+
+Scans your solution (`.slnx` / `.sln`) and generates or refreshes `db-migrator.config.json` at the solution root so you don't need to pass `-s` / `-d` on every command.
+
+```powershell
+# Generate or refresh db-migrator.config.json at the solution root
+db-migrator config --generate
+```
+
+```json
+{
+  "defaultStartupProject": "src/WebApi/WebApi.csproj",
+  "defaultDestinationProject": "src/Infrastructure/Infrastructure.csproj",
+  "startupProjects": [
+    "src/WebApi/WebApi.csproj"
+  ],
+  "projects": [
+    "src/Infrastructure/Infrastructure.csproj"
+  ],
+  "otherProjects": []
+}
+```
+
+- When `defaultStartupProject` or `defaultDestinationProject` is omitted and multiple projects exist, CLI commands open a searchable interactive picker (pass `--ci` in CI pipelines to fail fast instead of prompting).
+
+### `ui`
+
+Starts a local browser UI (`http://127.0.0.1:5077`) backed by your compiled registries without running your Web API host or touching the database until you click **Run Live DB Check**.
+
+```powershell
+# Launch and open browser automatically
+db-migrator ui
+
+# Custom port, without auto-opening a browser tab
+db-migrator ui --port 5099 --no-open --startup-project WebApi/WebApi.csproj
+```
+
+Includes 5 views plus `Ctrl/Cmd + K` global search across entities, columns, indexes, foreign keys, and constraints:
+- **Entities**: Tables, columns, index counts, foreign keys (`1:1` / `N:1`, required/optional), indexes (ordering, operators, included columns, filters, storage), and check/exclusion constraints.
+- **ERD**: Interactive table-level relationship graph with pan/zoom and per-registry filtering.
+- **Dependencies**: Topological registry dependency graph, cross-registry FK inspector, and `ConfigureEntityStubs` mappings.
+- **Migrations**: **Runlist** (effective execution order + syntax-highlighted SQL) and **Dry Run** (read-only pending schema diff vs. `EntityChangelogs/*.json`).
+- **Doctor**: Offline wiring/schema checks plus on-demand **Run Live DB Check**.
 
 ### `doctor`
 

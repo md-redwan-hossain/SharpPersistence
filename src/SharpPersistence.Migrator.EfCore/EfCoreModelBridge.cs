@@ -13,6 +13,9 @@ public static class EfCoreModelBridge
         DatabaseModel schema,
         IEnumerable<Type>? includedEntityTypes = null)
     {
+        ArgumentNullException.ThrowIfNull(modelBuilder);
+        ArgumentNullException.ThrowIfNull(schema);
+
         HashSet<Type>? includedSet = includedEntityTypes is null ? null : [.. includedEntityTypes];
         if (schema.Sequences is { Count: > 0 })
         {

@@ -6,37 +6,14 @@
         <Nullable>enable</Nullable>
         <Version>2.1.0</Version>
         <Title>SharpPersistence</Title>
-        <Authors>Md. Redwan Hossain</Authors>
-        <Copyright>Copyright (c) Md. Redwan Hossain</Copyright>
-        <PackageProjectUrl>https://github.com/md-redwan-hossain/SharpPersistence</PackageProjectUrl>
-        <PackageIcon>logo.png</PackageIcon>
-        <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-        <RepositoryUrl>https://github.com/md-redwan-hossain/SharpPersistence</RepositoryUrl>
         <PackageTags>sql database repository generic-repository unit-of-work check-constraint</PackageTags>
-        <PackageReadmeFile>README.md</PackageReadmeFile>
         <NoWarn>CS1591</NoWarn>
-        <DocumentationFile Condition="'$(Configuration)'=='Release'">bin\$(Configuration)\$(TargetFramework)\SharpPersistence.xml</DocumentationFile>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <Description>SharpPersistence is a collection of robust, extensible, and thoroughly tested .NET libraries for working with database systems.</Description>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="Humanizer" />
-    </ItemGroup>
-
-    <ItemGroup>
-        <None Include="..\..\logo.png">
-            <Pack>True</Pack>
-            <PackagePath>.</PackagePath>
-            <Link>logo.png</Link>
-        </None>
-    </ItemGroup>
-
-    <ItemGroup>
-        <None Include="..\..\README.md">
-            <Pack>True</Pack>
-            <Link>README.md</Link>
-            <PackagePath>.</PackagePath>
-        </None>
     </ItemGroup>
 
     <ItemGroup>

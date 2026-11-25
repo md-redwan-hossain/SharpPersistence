@@ -31,8 +31,8 @@ internal sealed class MigrationHistoryStore
         cmd.CommandText =
             $"SELECT \"registry_name\", \"script_name\", \"checksum_sha256\", \"applied_at\" FROM {Qualify(_options.HistorySchema, _options.HistoryTableName)} ORDER BY \"applied_at\", \"registry_name\", \"script_name\"";
 
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
+        await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+        while (await reader.ReadAsync(ct).ConfigureAwait(false))
         {
             var reg = reader.GetString(0);
             var script = reader.GetString(1);

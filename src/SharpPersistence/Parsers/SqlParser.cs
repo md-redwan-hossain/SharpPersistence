@@ -24,6 +24,7 @@ public class SqlParser
         }
 
         ThrowExceptionIfErrorsExist();
+        _parser.ParsedSqlStatements.Freeze();
         return _parser.ParsedSqlStatements;
     }
 
@@ -35,6 +36,7 @@ public class SqlParser
 
         _parser.Parse(sqlContent, "sql from string");
         ThrowExceptionIfErrorsExist();
+        _parser.ParsedSqlStatements.Freeze();
         return _parser.ParsedSqlStatements;
     }
 

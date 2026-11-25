@@ -55,7 +55,7 @@ internal sealed class MigrationConnectionOpener
 
         if (conn.State != ConnectionState.Open)
         {
-            await conn.OpenAsync(ct);
+            await conn.OpenAsync(ct).ConfigureAwait(false);
         }
 
         return (conn, ownsConnection);

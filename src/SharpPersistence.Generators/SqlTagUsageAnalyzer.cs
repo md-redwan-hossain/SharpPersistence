@@ -39,50 +39,46 @@ public sealed class SqlTagUsageAnalyzer : DiagnosticAnalyzer
 
             var knownTags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var hasAnySqlSource = false;
+            var hasLocalGeneratedTags = false;
 
-            // 1. Local .sql AdditionalFiles
-            foreach (var file in compilationContext.Options.AdditionalFiles)
-            {
-                if (!file.Path.EndsWith(".sql", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                hasAnySqlSource = true;
-                var text = file.GetText(compilationContext.CancellationToken)?.ToString();
-                foreach (var tag in SqlStorageExtensionGenerator.ExtractValidTags(text))
-                {
-                    knownTags.Add(tag);
-                }
-            }
-
-            // 2. Cross-project tags exposed via [assembly: AssemblyMetadata("SharpPersistence.SqlTag", "...")]
+            // 1. Read tags already emitted onto the current assembly by SqlStorageExtensionGenerator
+            //    to avoid re-reading and re-parsing all .sql AdditionalFiles on every IDE keystroke.
             var asmMetaAttr = compilation.GetTypeByMetadataName(AssemblyMetadataAttributeName);
             if (asmMetaAttr is not null)
             {
+                if (CollectAssemblySqlTags(compilation.Assembly, asmMetaAttr, knownTags))
+                {
+                    hasAnySqlSource = true;
+                    hasLocalGeneratedTags = true;
+                }
+
+                // 2. Cross-project tags exposed via [assembly: AssemblyMetadata("SharpPersistence.SqlTag", "...")]
                 foreach (var reference in compilation.References)
                 {
-                    if (compilation.GetAssemblyOrModuleSymbol(reference) is not IAssemblySymbol asm)
+                    if (compilation.GetAssemblyOrModuleSymbol(reference) is IAssemblySymbol asm &&
+                        CollectAssemblySqlTags(asm, asmMetaAttr, knownTags))
+                    {
+                        hasAnySqlSource = true;
+                    }
+                }
+            }
+
+            // 3. Fallback to local .sql AdditionalFiles only when the generator did not emit metadata
+            //    (e.g. SharpPersistenceGenerateSqlExtensions=false or standalone analyzer tests).
+            if (!hasLocalGeneratedTags)
+            {
+                foreach (var file in compilationContext.Options.AdditionalFiles)
+                {
+                    if (!file.Path.EndsWith(".sql", StringComparison.OrdinalIgnoreCase))
                     {
                         continue;
                     }
 
-                    foreach (var attr in asm.GetAttributes())
+                    hasAnySqlSource = true;
+                    var text = file.GetText(compilationContext.CancellationToken)?.ToString();
+                    foreach (var tag in SqlStorageExtensionGenerator.ExtractValidTags(text))
                     {
-                        if (!SymbolEqualityComparer.Default.Equals(attr.AttributeClass, asmMetaAttr) ||
-                            attr.ConstructorArguments.Length != 2)
-                        {
-                            continue;
-                        }
-
-                        if (attr.ConstructorArguments[0].Value is string key &&
-                            string.Equals(key, SqlTagMetadataKey, StringComparison.Ordinal) &&
-                            attr.ConstructorArguments[1].Value is string tag &&
-                            !string.IsNullOrWhiteSpace(tag))
-                        {
-                            hasAnySqlSource = true;
-                            knownTags.Add(tag);
-                        }
+                        knownTags.Add(tag);
                     }
                 }
             }
@@ -120,6 +116,33 @@ public sealed class SqlTagUsageAnalyzer : DiagnosticAnalyzer
                 }
             }, OperationKind.PropertyReference, OperationKind.Invocation);
         });
+    }
+
+    private static bool CollectAssemblySqlTags(
+        IAssemblySymbol asm,
+        INamedTypeSymbol asmMetaAttr,
+        HashSet<string> knownTags)
+    {
+        var found = false;
+        foreach (var attr in asm.GetAttributes())
+        {
+            if (!SymbolEqualityComparer.Default.Equals(attr.AttributeClass, asmMetaAttr) ||
+                attr.ConstructorArguments.Length != 2)
+            {
+                continue;
+            }
+
+            if (attr.ConstructorArguments[0].Value is string key &&
+                string.Equals(key, SqlTagMetadataKey, StringComparison.Ordinal) &&
+                attr.ConstructorArguments[1].Value is string tag &&
+                !string.IsNullOrWhiteSpace(tag))
+            {
+                found = true;
+                knownTags.Add(tag);
+            }
+        }
+
+        return found;
     }
 
     private static void CheckTagArgument(

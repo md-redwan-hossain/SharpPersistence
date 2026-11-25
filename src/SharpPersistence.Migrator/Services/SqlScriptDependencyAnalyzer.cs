@@ -185,9 +185,20 @@ internal static partial class SqlScriptDependencyAnalyzer
         var n = orderedByTimestamp.Count;
         var adj = new HashSet<int>[n];
         var inDegree = new int[n];
+        var requirersByTable = new Dictionary<string, List<int>>(StringComparer.OrdinalIgnoreCase);
         for (var i = 0; i < n; i++)
         {
             adj[i] = [];
+            foreach (var reqTable in profiles[orderedByTimestamp[i].Id].RequiresTables)
+            {
+                if (!requirersByTable.TryGetValue(reqTable, out var list))
+                {
+                    list = [];
+                    requirersByTable[reqTable] = list;
+                }
+
+                list.Add(i);
+            }
         }
 
         for (var i = 0; i < n; i++)
@@ -217,11 +228,11 @@ internal static partial class SqlScriptDependencyAnalyzer
 
             foreach (var dropTable in profile.DropsTables)
             {
-                for (var j = 0; j < n; j++)
+                if (requirersByTable.TryGetValue(dropTable, out var requirers))
                 {
-                    if (j != i && profiles[orderedByTimestamp[j].Id].RequiresTables.Contains(dropTable))
+                    foreach (var j in requirers)
                     {
-                        if (adj[j].Add(i))
+                        if (j != i && adj[j].Add(i))
                         {
                             inDegree[i]++;
                         }
@@ -345,15 +356,35 @@ internal static partial class SqlScriptDependencyAnalyzer
         Dictionary<Guid, string> strippedByScript,
         HashSet<string> allCreatedObjects)
     {
-        var createdTypes = allCreatedObjects
-            .Where(o => o.StartsWith("type:", StringComparison.Ordinal))
-            .Select(o => (Key: o, Name: o["type:".Length..]))
-            .ToList();
+        var keysByShortName = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var obj in allCreatedObjects)
+        {
+            if (!obj.StartsWith("type:", StringComparison.Ordinal))
+            {
+                continue;
+            }
 
-        if (createdTypes.Count == 0)
+            var typeName = obj["type:".Length..];
+            var shortName = typeName.Contains('.', StringComparison.Ordinal)
+                ? typeName[(typeName.LastIndexOf('.') + 1)..]
+                : typeName;
+
+            if (!keysByShortName.TryGetValue(shortName, out var keys))
+            {
+                keys = [];
+                keysByShortName[shortName] = keys;
+            }
+
+            keys.Add(obj);
+        }
+
+        if (keysByShortName.Count == 0)
         {
             return;
         }
+
+        var pattern = $@"(?<![\w""])(?:{string.Join("|", keysByShortName.Keys.Select(Regex.Escape))})(?![\w""])";
+        var combinedTypeRegex = new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         foreach (var (scriptId, profile) in profiles)
         {
@@ -362,20 +393,19 @@ internal static partial class SqlScriptDependencyAnalyzer
                 continue;
             }
 
-            foreach (var (key, typeName) in createdTypes)
+            foreach (Match match in combinedTypeRegex.Matches(stripped))
             {
-                if (profile.ProvidesObjects.Contains(key))
+                if (!keysByShortName.TryGetValue(match.Value, out var keys))
                 {
                     continue;
                 }
 
-                var shortName = typeName.Contains('.', StringComparison.Ordinal)
-                    ? typeName[(typeName.LastIndexOf('.') + 1)..]
-                    : typeName;
-
-                if (Regex.IsMatch(stripped, $@"(?<![\w""]){Regex.Escape(shortName)}(?![\w""])", RegexOptions.IgnoreCase))
+                foreach (var key in keys)
                 {
-                    profile.RequiresObjects.Add(key);
+                    if (!profile.ProvidesObjects.Contains(key))
+                    {
+                        profile.RequiresObjects.Add(key);
+                    }
                 }
             }
         }

@@ -113,6 +113,6 @@ internal static class MigrationDialectRegistry
 
     internal sealed class AsyncDisposableLock(Func<Task> release) : IAsyncDisposable
     {
-        public async ValueTask DisposeAsync() => await release();
+        public async ValueTask DisposeAsync() => await release().ConfigureAwait(false);
     }
 }

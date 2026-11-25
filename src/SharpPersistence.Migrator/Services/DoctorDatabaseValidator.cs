@@ -26,12 +26,12 @@ internal sealed class DoctorDatabaseValidator(
         try
         {
             var sw = Stopwatch.StartNew();
-            (conn, ownsConnection) = await connectionOpener.OpenAsync(ct);
+            (conn, ownsConnection) = await connectionOpener.OpenAsync(ct).ConfigureAwait(false);
 
             await using (var pingCmd = conn.CreateCommand())
             {
                 pingCmd.CommandText = dialect.PingSql;
-                _ = await pingCmd.ExecuteScalarAsync(ct);
+                _ = await pingCmd.ExecuteScalarAsync(ct).ConfigureAwait(false);
             }
 
             sw.Stop();
@@ -50,7 +50,7 @@ internal sealed class DoctorDatabaseValidator(
                 Hint: "Verify your connection string, credentials, and network access."));
             if (ownsConnection && conn is not null)
             {
-                await conn.DisposeAsync();
+                await conn.DisposeAsync().ConfigureAwait(false);
             }
 
             return checks;
@@ -58,11 +58,11 @@ internal sealed class DoctorDatabaseValidator(
 
         try
         {
-            await CheckHistoryTableAsync(conn, registryFilter, checks, ct);
+            await CheckHistoryTableAsync(conn, registryFilter, checks, ct).ConfigureAwait(false);
 
             if (!hasSchemaErrors)
             {
-                await CheckLiveSchemaSyncAsync(conn, registryFilter, checks, ct);
+                await CheckLiveSchemaSyncAsync(conn, registryFilter, checks, ct).ConfigureAwait(false);
             }
         }
         catch (Exception ex)
@@ -76,7 +76,7 @@ internal sealed class DoctorDatabaseValidator(
         {
             if (ownsConnection)
             {
-                await conn.DisposeAsync();
+                await conn.DisposeAsync().ConfigureAwait(false);
             }
         }
 
@@ -89,7 +89,7 @@ internal sealed class DoctorDatabaseValidator(
         List<DoctorCheckItem> checks,
         CancellationToken ct)
     {
-        var historyExists = await historyStore.HistoryTableExistsAsync(conn, ct);
+        var historyExists = await historyStore.HistoryTableExistsAsync(conn, ct).ConfigureAwait(false);
         if (!historyExists)
         {
             checks.Add(new DoctorCheckItem(
@@ -99,10 +99,10 @@ internal sealed class DoctorDatabaseValidator(
             return;
         }
 
-        var applied = await historyStore.ReadAppliedAsync(conn, ct);
+        var applied = await historyStore.ReadAppliedAsync(conn, ct).ConfigureAwait(false);
         try
         {
-            var statuses = await scriptStore.BuildStatusItemsAsync(applied, ct);
+            var statuses = await scriptStore.BuildStatusItemsAsync(applied, ct).ConfigureAwait(false);
             if (!string.IsNullOrWhiteSpace(registryFilter))
             {
                 statuses = statuses
@@ -136,7 +136,7 @@ internal sealed class DoctorDatabaseValidator(
             }
 
             var orderWarnings = new MigrationRunlistManager(options, scriptStore)
-                .Validate(applied)
+                .Validate(applied, includeDdlValidation: false)
                 .Where(c => c.Severity == DoctorSeverity.Warning);
             checks.AddRange(orderWarnings);
         }
@@ -155,7 +155,7 @@ internal sealed class DoctorDatabaseValidator(
         List<DoctorCheckItem> checks,
         CancellationToken ct)
     {
-        var diffs = await driftVerifier.VerifyAsync(conn, ct);
+        var diffs = await driftVerifier.VerifyAsync(conn, ct).ConfigureAwait(false);
         if (!string.IsNullOrWhiteSpace(registryFilter))
         {
             diffs = diffs

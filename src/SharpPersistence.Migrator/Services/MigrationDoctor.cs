@@ -127,14 +127,14 @@ internal sealed class MigrationDoctor
 
         if (!hasSchemaErrors && targetRegistries.Count > 0)
         {
-            await RunMigrationCoverageChecksAsync(targetRegistries, migrationCoverageChecks, ct);
+            await RunMigrationCoverageChecksAsync(targetRegistries, migrationCoverageChecks, ct).ConfigureAwait(false);
         }
 
         var runlistChecks = new MigrationRunlistManager(_options, _scriptStore).Validate();
         migrationCoverageChecks.AddRange(runlistChecks);
 
         var databaseChecks = checkDatabase
-            ? await _databaseValidator.ValidateAsync(registryFilter, hasSchemaErrors, ct)
+            ? await _databaseValidator.ValidateAsync(registryFilter, hasSchemaErrors, ct).ConfigureAwait(false)
             : [];
 
         return new DoctorReport(
@@ -235,7 +235,7 @@ internal sealed class MigrationDoctor
             var registryName = registry.GetType().Name;
             var snapshotPath = Path.Combine(stateDir, $"{registryName}.json");
             var previousJson = File.Exists(snapshotPath)
-                ? await File.ReadAllTextAsync(snapshotPath, ct)
+                ? await File.ReadAllTextAsync(snapshotPath, ct).ConfigureAwait(false)
                 : null;
 
             var currentSchema = SchemaScanner.ScanRegistry(registry, _options);

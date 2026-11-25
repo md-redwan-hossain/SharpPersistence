@@ -26,7 +26,7 @@ public class DbMigratorOptionsBuilder
 
     internal BuilderState State { get; }
 
-    public DbMigratorOptionsBuilder()
+    internal DbMigratorOptionsBuilder()
     {
         State = new BuilderState();
     }

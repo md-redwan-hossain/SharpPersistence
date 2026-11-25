@@ -98,8 +98,8 @@ internal sealed class UiCommand : AsyncCommand<UiSettings>
             });
 
             AnsiConsole.MarkupLine(
-                $"[bold]db-migrator ui[/] [grey]({Markup.Escape(loaded.HostName)} · {loaded.Manager.Options.Dialect} · {overview.TotalEntities} entities)[/]");
-            AnsiConsole.MarkupLine($"  [green]●[/] Serving at [link={url}][cyan]{url}[/][/]");
+                $"[bold]db-migrator ui[/] [grey]({Markup.Escape(loaded.HostName)} \u00b7 {loaded.Manager.Options.Dialect} \u00b7 {overview.TotalEntities} entities)[/]");
+            AnsiConsole.MarkupLine($"  [green]\u25cf[/] Serving at [link={url}][cyan]{url}[/][/]");
             AnsiConsole.MarkupLine("  [grey]Press Ctrl+C to stop.[/]");
 
             if (!settings.NoOpen)

@@ -4,6 +4,13 @@
         <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
         <DisableTransitiveProjectReferences>false</DisableTransitiveProjectReferences>
         <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+        <Authors>Md. Redwan Hossain</Authors>
+        <Copyright>Copyright (c) Md. Redwan Hossain</Copyright>
+        <PackageProjectUrl>https://github.com/md-redwan-hossain/SharpPersistence</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/md-redwan-hossain/SharpPersistence</RepositoryUrl>
+        <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+        <PackageIcon>logo.png</PackageIcon>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
         <DefaultItemExcludes>
             $(DefaultItemExcludes);out/**;publish/**;bin/**;obj/**
         </DefaultItemExcludes>
