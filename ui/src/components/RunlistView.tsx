@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, FileCode2, Loader2, Search } from "lucide-react";
+import { API_ROUTES } from "../lib/apiRoutes";
 import {
   fetchValidatedJson,
   UiRunlistSchema,
@@ -23,7 +24,7 @@ export function RunlistView() {
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
-    fetchValidatedJson("/api/runlist", UiRunlistSchema, controller.signal)
+    fetchValidatedJson(API_ROUTES.runlist, UiRunlistSchema, controller.signal)
       .then((data) => {
         setRunlist(data);
         setSelectedId((prev) => prev ?? data.scripts[0]?.id ?? null);
@@ -65,7 +66,7 @@ export function RunlistView() {
 
     const controller = new AbortController();
     setLoadingSql(true);
-    fetch(`/api/runlist/${encodeURIComponent(activeScript.id)}/sql`, { signal: controller.signal })
+    fetch(API_ROUTES.runlistSql(activeScript.id), { signal: controller.signal })
       .then((res) => (res.ok ? res.text() : "-- Failed to load SQL script"))
       .then((text) => setSqlCache((prev) => ({ ...prev, [activeScript.id]: text })))
       .catch(() => {

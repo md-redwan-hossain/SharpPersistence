@@ -16,6 +16,7 @@ import {
   SlidersHorizontal,
   Table2,
 } from "lucide-react";
+import { API_ROUTES } from "../lib/apiRoutes";
 import {
   fetchValidatedJson,
   UiTableDetailSchema,
@@ -126,7 +127,7 @@ export function EntityExplorer({ overview, selectedKey, onSelectTable }: Props) 
     setLoadingDetail(true);
     setDetailError(null);
 
-    const url = `/api/tables/${encodeURIComponent(activeSummary.registryName)}/${encodeURIComponent(activeSummary.entityName)}`;
+    const url = API_ROUTES.tableDetail(activeSummary.registryName, activeSummary.entityName);
     fetchValidatedJson(url, UiTableDetailSchema, controller.signal)
       .then((detail) => {
         setDetailCache((prev) => ({ ...prev, [activeKey]: detail }));

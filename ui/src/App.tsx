@@ -27,6 +27,7 @@ import {
   type UiSearchHit,
 } from "./schemas/apiSchemas";
 import { useTheme } from "./hooks/useTheme";
+import { API_ROUTES } from "./lib/apiRoutes";
 import { EntityExplorer, tableKey } from "./components/EntityExplorer";
 import { ErdView } from "./components/ErdView";
 import { DependenciesView } from "./components/DependenciesView";
@@ -66,7 +67,7 @@ export function App() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetchValidatedJson("/api/overview", UiOverviewSchema, controller.signal)
+    fetchValidatedJson(API_ROUTES.overview, UiOverviewSchema, controller.signal)
       .then(setOverview)
       .catch((err: unknown) => {
         if (controller.signal.aborted) return;
@@ -98,7 +99,7 @@ export function App() {
     setSearching(true);
     const timer = window.setTimeout(() => {
       fetchValidatedJson(
-        `/api/search?q=${encodeURIComponent(q)}&limit=40`,
+        API_ROUTES.search(q),
         UiSearchResponseSchema,
         controller.signal
       )

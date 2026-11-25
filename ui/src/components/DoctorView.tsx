@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, Check, CheckCircle2, Database, Loader2, RefreshCw, X, XCircle } from "lucide-react";
+import { API_ROUTES } from "../lib/apiRoutes";
 import {
   fetchValidatedJson,
   UiDoctorSchema,
@@ -25,7 +26,7 @@ export function DoctorView({ doctor, onDoctorLoaded }: Props) {
     setError(null);
     try {
       const data = await fetchValidatedJson(
-        `/api/doctor?checkDb=${checkDb ? "true" : "false"}`,
+        API_ROUTES.doctor(checkDb),
         UiDoctorSchema,
         signal
       );

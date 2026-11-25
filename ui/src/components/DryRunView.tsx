@@ -7,6 +7,7 @@ import {
   PanelLeft,
   RefreshCw,
 } from "lucide-react";
+import { API_ROUTES } from "../lib/apiRoutes";
 import {
   fetchValidatedJson,
   UiDryRunSchema,
@@ -34,7 +35,7 @@ export function DryRunView({ dryRun, onLoaded }: Props) {
   const loadDryRun = (signal?: AbortSignal) => {
     setLoading(true);
     setError(null);
-    fetchValidatedJson("/api/migrations/dry-run", UiDryRunSchema, signal)
+    fetchValidatedJson(API_ROUTES.dryRun, UiDryRunSchema, signal)
       .then((data) => {
         onLoaded(data);
         setSelectedRegistry((prev) => {

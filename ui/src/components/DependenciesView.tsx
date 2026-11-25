@@ -11,6 +11,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
+import { API_ROUTES } from "../lib/apiRoutes";
 import {
   fetchValidatedJson,
   UiDependenciesSchema,
@@ -49,7 +50,7 @@ export function DependenciesView({ dependencies, onLoaded, onOpenInErd, onOpenIn
     const controller = new AbortController();
     setLoading(true);
     setError(null);
-    fetchValidatedJson("/api/dependencies", UiDependenciesSchema, controller.signal)
+    fetchValidatedJson(API_ROUTES.dependencies, UiDependenciesSchema, controller.signal)
       .then(onLoaded)
       .catch((err: unknown) => {
         if (controller.signal.aborted) return;

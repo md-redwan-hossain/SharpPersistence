@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Loader2, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
+import { API_ROUTES } from "../lib/apiRoutes";
 import {
   fetchValidatedJson,
   UiErdSchema,
@@ -71,10 +72,7 @@ export function ErdView({ overview, initialRegistry, onInspectTable }: Props) {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
-    const url =
-      activeRegistry === "ALL"
-        ? "/api/erd"
-        : `/api/erd?registry=${encodeURIComponent(activeRegistry)}`;
+    const url = API_ROUTES.erd(activeRegistry);
 
     fetchValidatedJson(url, UiErdSchema, controller.signal)
       .then((data) => setErdCache((prev) => ({ ...prev, [activeRegistry]: data })))
