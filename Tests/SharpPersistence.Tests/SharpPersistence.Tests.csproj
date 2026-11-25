@@ -13,6 +13,7 @@
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
         <PackageReference Include="Shouldly" />
@@ -40,6 +41,7 @@
     <ItemGroup>
       <ProjectReference Include="..\..\src\SharpPersistence.Abstractions\SharpPersistence.Abstractions.csproj" />
       <ProjectReference Include="..\..\src\SharpPersistence.EfCore\SharpPersistence.EfCore.csproj" />
+      <ProjectReference Include="..\..\src\SharpPersistence.Generators\SharpPersistence.Generators.csproj" />
       <ProjectReference Include="..\..\src\SharpPersistence\SharpPersistence.csproj" />
     </ItemGroup>
 

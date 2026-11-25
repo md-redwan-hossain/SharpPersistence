@@ -1,0 +1,7 @@
+<Project>
+  <ItemGroup>
+    <CompilerVisibleProperty Include="SharpPersistenceGenerateSqlExtensions" />
+    <CompilerVisibleProperty Include="RootNamespace" />
+    <CompilerVisibleProperty Include="ProjectDir" />
+  </ItemGroup>
+</Project>

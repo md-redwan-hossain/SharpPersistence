@@ -1,12 +1,13 @@
 <Project>
   <PropertyGroup>
     <SharpPersistenceAutoCopySqlFiles Condition="'$(SharpPersistenceAutoCopySqlFiles)' == ''">true</SharpPersistenceAutoCopySqlFiles>
+    <SharpPersistenceGenerateSqlExtensions Condition="'$(SharpPersistenceGenerateSqlExtensions)' == ''">true</SharpPersistenceGenerateSqlExtensions>
     <SharpPersistenceSqlOutputFolder Condition="'$(SharpPersistenceSqlOutputFolder)' == ''">sharp_persistence_sql_files</SharpPersistenceSqlOutputFolder>
   </PropertyGroup>
 
-  <Target Name="_SharpPersistenceIncludeSqlFiles"
-          BeforeTargets="AssignTargetPaths;CollectUpToDateCheckInputDesignTime"
-          Condition="'$(SharpPersistenceAutoCopySqlFiles)' == 'true'">
+  <Target Name="_SharpPersistenceDiscoverSqlFiles"
+          BeforeTargets="AssignTargetPaths;BeforeCompile;CollectUpToDateCheckInputDesignTime"
+          Condition="'$(SharpPersistenceAutoCopySqlFiles)' == 'true' Or '$(SharpPersistenceGenerateSqlExtensions)' == 'true'">
     <ItemGroup>
       <_SharpPersistenceSqlRunlistFiles Include="$(MSBuildProjectDirectory)\**\db-migration-runlist.json"
                                         Exclude="$(MSBuildProjectDirectory)\bin\**;$(MSBuildProjectDirectory)\obj\**;$(MSBuildProjectDirectory)\out\**;$(MSBuildProjectDirectory)\publish\**" />
@@ -18,22 +19,29 @@
     </ItemGroup>
 
     <ItemGroup>
-      <_SharpPersistenceSqlCustomItems Include="@(Content)" Condition="'%(Content.TargetPath)' != ''" />
-      <_SharpPersistenceSqlCustomItems Include="@(None)" Condition="'%(None.TargetPath)' != ''" />
-      <_SharpPersistenceSqlFiles Include="**\*.sql"
-                                 Exclude="$(DefaultItemExcludes);$(DefaultExcludesInProjectFolder);out\**;publish\**;bin\**;obj\**;MigrationScripts\**;@(EmbeddedResource);$(SharpPersistenceSqlExclude)" />
-      <_SharpPersistenceSqlFiles Remove="@(_SharpPersistenceSqlMigrationExcludes)" />
-      <_SharpPersistenceSqlFiles Remove="@(_SharpPersistenceSqlCustomItems)" />
+      <_SharpPersistenceSqlDiscovered Include="**\*.sql"
+                                      Exclude="$(DefaultItemExcludes);$(DefaultExcludesInProjectFolder);out\**;publish\**;bin\**;obj\**;MigrationScripts\**;@(EmbeddedResource);$(SharpPersistenceSqlExclude)" />
+      <_SharpPersistenceSqlDiscovered Remove="@(_SharpPersistenceSqlMigrationExcludes)" />
     </ItemGroup>
 
-    <ItemGroup Condition="'@(_SharpPersistenceSqlFiles)' != ''">
-      <Content Remove="@(_SharpPersistenceSqlFiles)" />
-      <None Remove="@(_SharpPersistenceSqlFiles)" />
-      <None Include="@(_SharpPersistenceSqlFiles)"
+    <ItemGroup Condition="'$(SharpPersistenceAutoCopySqlFiles)' == 'true' And '@(_SharpPersistenceSqlDiscovered)' != ''">
+      <_SharpPersistenceSqlCustomItems Include="@(Content)" Condition="'%(Content.TargetPath)' != ''" />
+      <_SharpPersistenceSqlCustomItems Include="@(None)" Condition="'%(None.TargetPath)' != ''" />
+      <_SharpPersistenceSqlCopyFiles Include="@(_SharpPersistenceSqlDiscovered)" />
+      <_SharpPersistenceSqlCopyFiles Remove="@(_SharpPersistenceSqlCustomItems)" />
+
+      <Content Remove="@(_SharpPersistenceSqlCopyFiles)" />
+      <None Remove="@(_SharpPersistenceSqlCopyFiles)" />
+      <None Include="@(_SharpPersistenceSqlCopyFiles)"
             CopyToOutputDirectory="PreserveNewest"
             CopyToPublishDirectory="PreserveNewest"
-            TargetPath="$(SharpPersistenceSqlOutputFolder)\$(AssemblyName)\%(_SharpPersistenceSqlFiles.RecursiveDir)%(_SharpPersistenceSqlFiles.Filename)%(_SharpPersistenceSqlFiles.Extension)" />
-      <UpToDateCheckInput Include="@(_SharpPersistenceSqlFiles)" Set="SharpPersistenceSql" />
+            TargetPath="$(SharpPersistenceSqlOutputFolder)\$(AssemblyName)\%(_SharpPersistenceSqlCopyFiles.RecursiveDir)%(_SharpPersistenceSqlCopyFiles.Filename)%(_SharpPersistenceSqlCopyFiles.Extension)" />
+      <UpToDateCheckInput Include="@(_SharpPersistenceSqlCopyFiles)" Set="SharpPersistenceSql" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(SharpPersistenceGenerateSqlExtensions)' == 'true' And '@(_SharpPersistenceSqlDiscovered)' != ''">
+      <AdditionalFiles Remove="@(_SharpPersistenceSqlDiscovered)" />
+      <AdditionalFiles Include="@(_SharpPersistenceSqlDiscovered)" />
     </ItemGroup>
   </Target>
 </Project>

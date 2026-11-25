@@ -48,11 +48,26 @@
     </ItemGroup>
 
     <ItemGroup>
-        <None Update="buildTransitive\SharpPersistence.targets" Pack="True" PackagePath="buildTransitive\SharpPersistence.targets" />
+        <None Update="buildTransitive\SharpPersistence.props"
+              Pack="True"
+              PackagePath="buildTransitive\SharpPersistence.props"
+              Visible="false" />
+        <None Update="buildTransitive\SharpPersistence.targets"
+              Pack="True"
+              PackagePath="buildTransitive\SharpPersistence.targets"
+              Visible="false" />
+        <None Include="..\SharpPersistence.Generators\bin\$(Configuration)\netstandard2.0\SharpPersistence.Generators.dll"
+              Pack="True"
+              PackagePath="analyzers/dotnet/cs"
+              Visible="false" />
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\SharpPersistence.Abstractions\SharpPersistence.Abstractions.csproj" />
+        <ProjectReference Include="..\SharpPersistence.Generators\SharpPersistence.Generators.csproj"
+                          ReferenceOutputAssembly="false"
+                          OutputItemType="Analyzer"
+                          PrivateAssets="all" />
     </ItemGroup>
 
 </Project>

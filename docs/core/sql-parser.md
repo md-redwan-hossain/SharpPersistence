@@ -47,6 +47,9 @@ You do **not** need to configure `Directory.Build.props` or set `CopyToOutputDir
   <!-- Disable automatic .sql copying for a project -->
   <SharpPersistenceAutoCopySqlFiles>false</SharpPersistenceAutoCopySqlFiles>
 
+  <!-- Disable compile-time Get<Tag>Sql() extension method generation -->
+  <SharpPersistenceGenerateSqlExtensions>false</SharpPersistenceGenerateSqlExtensions>
+
   <!-- Optional: change output root folder (default: sharp_persistence_sql_files) -->
   <SharpPersistenceSqlOutputFolder>sharp_persistence_sql_files</SharpPersistenceSqlOutputFolder>
 
@@ -84,7 +87,16 @@ IParsedSqlStorage storage = new SqlParser().ParseFromString("""
     """);
 ```
 
-## 3. Look Up Queries by Tag
+## 3. Look Up Queries by Tag (Strongly-Typed or String Key)
+
+`SharpPersistence` includes a compile-time source generator that scans your `.sql` files and generates strongly-typed `Get<Tag>Sql()` extension methods on `IParsedSqlStorage` in your project's `RootNamespace`:
+
+- `get_customer_balance` → `sqlStorage.GetCustomerBalanceSql()`
+- `monthly_revenue` → `sqlStorage.GetMonthlyRevenueSql()`
+- `insert_order` → `sqlStorage.GetInsertOrderSql()`
+- `get_balance_sql` → `sqlStorage.GetBalanceSql()` (never duplicates `Get` or `Sql`)
+
+Each generated method delegates directly to `storage["<tag>"]` at runtime—so you get compile-time safety and IDE hover previews **while still keeping `.sql` files on disk for hot-swapping without rebuilding**.
 
 Inject `IParsedSqlStorage` into your repository or query service:
 
@@ -93,8 +105,8 @@ public sealed class ReportingService(IParsedSqlStorage sqlStorage, NpgsqlDataSou
 {
     public async Task<decimal> GetCustomerBalanceAsync(Guid customerId, CancellationToken ct)
     {
-        // Indexer throws if the tag is missing
-        string sql = sqlStorage["get_customer_balance"];
+        // Compile-time generated extension method (delegates to sqlStorage["get_customer_balance"])
+        string sql = sqlStorage.GetCustomerBalanceSql();
 
         // Or use TryGetParsedSql for optional queries
         if (!sqlStorage.TryGetParsedSql("get_customer_balance", out var optionalSql))
@@ -110,5 +122,15 @@ public sealed class ReportingService(IParsedSqlStorage sqlStorage, NpgsqlDataSou
     }
 }
 ```
+
+### Compile-Time Diagnostics
+
+| Rule | Severity | Meaning |
+|------|----------|---------|
+| `SPSQL001` | Error | Missing tag name or unclosed `-- #start# <tag>` block |
+| `SPSQL002` | Error | Missing tag name, orphan `-- #end# <tag>`, or duplicate `-- #end#` |
+| `SPSQL003` | Error | Empty SQL block between `#start#` and `#end#` |
+| `SPSQL004` | Error | Duplicate SQL tag within a file or across `.sql` files |
+| `SPSQL005` | Error | Two different tags normalize to the same `Get<Tag>Sql()` method name |
 
 `IParsedSqlStorage` also implements `IEnumerable<ParsedSql>`, so you can iterate over every loaded query for diagnostics or startup checks.
