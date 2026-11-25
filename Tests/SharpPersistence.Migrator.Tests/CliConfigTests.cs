@@ -169,19 +169,34 @@ public sealed class CliConfigTests
             config.Save(Path.Combine(tempRoot, MigratorCliConfig.FileName));
 
             var promptsShown = new List<string>();
+            var fakePicker = new FakeProjectPicker((title, choices) =>
+            {
+                promptsShown.Add(title);
+                return choices.First(c => c.RelativePath.Contains("Sales.csproj", StringComparison.OrdinalIgnoreCase));
+            });
+
             var resolved = ProjectResolutionService.Resolve(
                 new SharedSettings(),
                 startDirectory: nestedDir,
-                picker: (title, choices) =>
-                {
-                    promptsShown.Add(title);
-                    return choices.First(c => c.RelativePath.Contains("Sales.csproj", StringComparison.OrdinalIgnoreCase));
-                });
+                picker: fakePicker);
 
             Assert.Equal(Path.GetFullPath(hostProj), resolved.StartupProjectPath);
             Assert.Equal(Path.GetFullPath(salesProj), resolved.DestinationProjectPath);
             Assert.Single(promptsShown); // Only destination picker shown since defaultStartupProject was set
             Assert.Equal("Select destination project", promptsShown[0]);
+
+            // 3. When defaultDestinationProject is set, zero prompts are shown
+            config.DefaultDestinationProject = "src/Sales/Sales.csproj";
+            config.Save(Path.Combine(tempRoot, MigratorCliConfig.FileName));
+            promptsShown.Clear();
+
+            var resolvedNoPrompt = ProjectResolutionService.Resolve(
+                new SharedSettings(),
+                startDirectory: nestedDir,
+                picker: fakePicker);
+
+            Assert.Empty(promptsShown);
+            Assert.Equal(Path.GetFullPath(salesProj), resolvedNoPrompt.DestinationProjectPath);
         }
         finally
         {
@@ -190,5 +205,11 @@ public sealed class CliConfigTests
                 Directory.Delete(tempRoot, recursive: true);
             }
         }
+    }
+
+    private sealed class FakeProjectPicker(Func<string, IReadOnlyList<ProjectChoice>, ProjectChoice> pick) : IProjectPicker
+    {
+        public bool IsInteractive(bool nonInteractiveFlag) => !nonInteractiveFlag;
+        public ProjectChoice PickProject(string title, IReadOnlyList<ProjectChoice> choices) => pick(title, choices);
     }
 }

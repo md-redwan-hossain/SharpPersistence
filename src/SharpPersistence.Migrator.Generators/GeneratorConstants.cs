@@ -37,6 +37,10 @@ internal static class GeneratorConstants
     public const string EfCoreDbSetMetadataName = "Microsoft.EntityFrameworkCore.DbSet`1";
     public const string EfCoreModelBuilderMetadataName = "Microsoft.EntityFrameworkCore.ModelBuilder";
     public const string SystemQueryableMetadataName = "System.Linq.IQueryable`1";
+    public const string EntityStubBuilderMetadataName = "SharpPersistence.Migrator.Configuration.EntityStubBuilder";
+    public const string EntityBuilderMetadataName = "SharpPersistence.Migrator.Builders.EntityBuilder`1";
+    public const string OwnedEntityBuilderMetadataName = "SharpPersistence.Migrator.Builders.OwnedEntityBuilder`2";
+    public const string ColumnBuilderBaseMetadataName = "SharpPersistence.Migrator.Builders.ColumnBuilderBase`1";
 
     public const string DiagnosticCategory = "SharpPersistence.Migrator";
 
@@ -140,6 +144,22 @@ internal static class GeneratorConstants
         id: "SPM013",
         title: "DatabaseModel schema is not wired into EF Core",
         messageFormat: "DbContext '{0}' {1}",
+        category: DiagnosticCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor RequiredColumnInsideOptionalOwnedNavigation = new(
+        id: "SPM014",
+        title: "IsRequired() cannot be used inside an optional OwnsOne navigation",
+        messageFormat: "Cannot call IsRequired() inside optional OwnsOne navigation '{0}'; columns under a nullable owned navigation must remain nullable in the database",
+        category: DiagnosticCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor InvalidEntityStubMapping = new(
+        id: "SPM015",
+        title: "Invalid ConfigureEntityStubs mapping",
+        messageFormat: "{0}",
         category: DiagnosticCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);

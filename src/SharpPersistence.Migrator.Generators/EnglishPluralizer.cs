@@ -58,6 +58,8 @@ internal static class EnglishPluralizer
         ["passerby"] = "passersby"
     };
 
+    private static readonly HashSet<string> IrregularPlurals = new(Irregulars.Values, StringComparer.OrdinalIgnoreCase);
+
     // Ordered from most-specific to general (applied in reverse, matching Humanizer's Vocabularies.Default)
     private static readonly PluralRule[] Rules =
     [
@@ -111,8 +113,8 @@ internal static class EnglishPluralizer
             return MatchCasing(word, irregular);
         }
 
-        // Already plural check for common irregular targets
-        if (Irregulars.Values.Contains(word, StringComparer.OrdinalIgnoreCase))
+        // Already plural check for common irregular targets (O(1) lookup)
+        if (IrregularPlurals.Contains(word))
         {
             return word;
         }

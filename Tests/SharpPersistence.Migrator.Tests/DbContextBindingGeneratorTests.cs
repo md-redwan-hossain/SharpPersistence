@@ -309,4 +309,49 @@ public sealed class DbContextBindingGeneratorTests
         var table = Assert.Single(model.Tables);
         Assert.True(table.ExcludeFromMigrations);
     }
+
+    [Fact]
+    public void InheritedBaseDbContextWithOnModelCreating_DoesNotReportSpm013()
+    {
+        const string source = """
+            using Microsoft.EntityFrameworkCore;
+            using SharpPersistence.Abstractions.Attributes;
+            using SharpPersistence.Migrator.Abstractions;
+            using SharpPersistence.Migrator.Attributes;
+            using SharpPersistence.Migrator.EfCore;
+            using SharpPersistence.Migrator.EfCore.Attributes;
+            using SharpPersistence.Migrator.Models;
+
+            namespace BaseCtxDemo;
+
+            [Entity]
+            public sealed class Invoice { public Guid Id { get; set; } }
+
+            [EntityRegistry]
+            public sealed partial class BillingRegistry : IEntityRegistry
+            {
+                public void Configure(IEntityRegistryBuilder registry) { }
+            }
+
+            public abstract class AppBaseDbContext<TContext>(DbContextOptions<TContext> options, DatabaseModel schema)
+                : DbContext(options) where TContext : DbContext
+            {
+                protected override void OnModelCreating(ModelBuilder modelBuilder)
+                {
+                    base.OnModelCreating(modelBuilder);
+                    modelBuilder.ApplySchemaToEfCore(schema);
+                }
+            }
+
+            [BindEntityRegistry<BillingRegistry>]
+            public sealed partial class BillingDbContext(DbContextOptions<BillingDbContext> options, DatabaseModel schema)
+                : AppBaseDbContext<BillingDbContext>(options, schema);
+            """;
+
+        var (outputComp, diags, _) = RunGenerators("BaseCtxDemo", source);
+
+        Assert.Empty(diags);
+        Assert.Empty(outputComp.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error));
+    }
 }

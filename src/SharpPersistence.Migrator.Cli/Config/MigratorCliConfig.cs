@@ -22,6 +22,7 @@ internal sealed class MigratorCliConfig
     };
 
     public string? DefaultStartupProject { get; set; }
+    public string? DefaultDestinationProject { get; set; }
     public List<string> StartupProjects { get; set; } = [];
     public List<string> Projects { get; set; } = [];
     public List<string> OtherProjects { get; set; } = [];

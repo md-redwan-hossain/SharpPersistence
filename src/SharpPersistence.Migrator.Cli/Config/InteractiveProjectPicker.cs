@@ -4,14 +4,22 @@ namespace SharpPersistence.Migrator.Cli.Config;
 
 internal sealed record ProjectChoice(string DisplayName, string RelativePath, string FullPath, string Tag);
 
-internal static class InteractiveProjectPicker
+internal interface IProjectPicker
 {
-    public static bool IsInteractive(bool nonInteractiveFlag) =>
+    bool IsInteractive(bool nonInteractiveFlag);
+    ProjectChoice PickProject(string title, IReadOnlyList<ProjectChoice> choices);
+}
+
+internal sealed class SpectreProjectPicker : IProjectPicker
+{
+    public static readonly SpectreProjectPicker Instance = new();
+
+    public bool IsInteractive(bool nonInteractiveFlag) =>
         !nonInteractiveFlag &&
         !Console.IsInputRedirected &&
         AnsiConsole.Profile.Capabilities.Interactive;
 
-    public static ProjectChoice PickProject(string title, IReadOnlyList<ProjectChoice> choices)
+    public ProjectChoice PickProject(string title, IReadOnlyList<ProjectChoice> choices)
     {
         var prompt = new SelectionPrompt<ProjectChoice>()
             .Title($"[bold]{Markup.Escape(title)}[/]")

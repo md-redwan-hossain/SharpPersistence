@@ -14,6 +14,10 @@ internal sealed class ConfigSettings : CommandSettings
     [Description("Set defaultStartupProject in db-migrator-config.json (omit PATH to pick interactively).")]
     public FlagValue<string>? SetDefaultStartup { get; init; }
 
+    [CommandOption("--set-default-destination [PATH]")]
+    [Description("Set defaultDestinationProject in db-migrator-config.json (omit PATH to pick interactively).")]
+    public FlagValue<string>? SetDefaultDestination { get; init; }
+
     [CommandOption("--show")]
     [Description("Display the current db-migrator-config.json.")]
     public bool Show { get; init; }
@@ -35,6 +39,11 @@ internal sealed class ConfigCommand : Command<ConfigSettings>
         if (settings.SetDefaultStartup is { IsSet: true })
         {
             return ExecuteSetDefaultStartup(settings);
+        }
+
+        if (settings.SetDefaultDestination is { IsSet: true })
+        {
+            return ExecuteSetDefaultDestination(settings);
         }
 
         return ExecuteShow();
@@ -60,7 +69,7 @@ internal sealed class ConfigCommand : Command<ConfigSettings>
 
         if (string.IsNullOrWhiteSpace(result.Config.DefaultStartupProject) &&
             result.Config.StartupProjects.Count > 1 &&
-            InteractiveProjectPicker.IsInteractive(settings.NonInteractive))
+            SpectreProjectPicker.Instance.IsInteractive(settings.NonInteractive))
         {
             var choices = result.Config.StartupProjects
                 .Select(rel =>
@@ -70,7 +79,7 @@ internal sealed class ConfigCommand : Command<ConfigSettings>
                 })
                 .ToList();
 
-            var selected = InteractiveProjectPicker.PickProject("Select defaultStartupProject", choices);
+            var selected = SpectreProjectPicker.Instance.PickProject("Select defaultStartupProject", choices);
             result.Config.DefaultStartupProject = selected.RelativePath;
         }
 
@@ -121,7 +130,7 @@ internal sealed class ConfigCommand : Command<ConfigSettings>
         }
         else
         {
-            if (!InteractiveProjectPicker.IsInteractive(settings.NonInteractive))
+            if (!SpectreProjectPicker.Instance.IsInteractive(settings.NonInteractive))
             {
                 AnsiConsole.MarkupLine("[red]Error:[/] Pass a project path to --set-default-startup in non-interactive mode.");
                 return 1;
@@ -143,7 +152,7 @@ internal sealed class ConfigCommand : Command<ConfigSettings>
                 return 1;
             }
 
-            selectedFullPath = InteractiveProjectPicker.PickProject("Select defaultStartupProject", choices).FullPath;
+            selectedFullPath = SpectreProjectPicker.Instance.PickProject("Select defaultStartupProject", choices).FullPath;
         }
 
         var normalizedRel = MigratorCliConfig.NormalizeRelativePath(configDir, selectedFullPath);
@@ -156,6 +165,79 @@ internal sealed class ConfigCommand : Command<ConfigSettings>
 
         config.Save(configPath);
         AnsiConsole.MarkupLine($"[green]Updated defaultStartupProject[/] → [cyan]{Markup.Escape(normalizedRel)}[/]");
+        return 0;
+    }
+
+    private static int ExecuteSetDefaultDestination(ConfigSettings settings)
+    {
+        var configPath = MigratorCliConfig.FindConfigPath();
+        if (configPath is null)
+        {
+            AnsiConsole.MarkupLine(
+                $"[red]Error:[/] '{MigratorCliConfig.FileName}' was not found. Run 'db-migrator config --generate' first.");
+            return 1;
+        }
+
+        var configDir = Path.GetDirectoryName(configPath)!;
+        var config = MigratorCliConfig.Load(configPath);
+        string selectedFullPath;
+
+        var rawArg = settings.SetDefaultDestination?.Value;
+        if (!string.IsNullOrWhiteSpace(rawArg))
+        {
+            selectedFullPath = Path.IsPathRooted(rawArg)
+                ? Path.GetFullPath(rawArg)
+                : File.Exists(Path.GetFullPath(rawArg))
+                    ? Path.GetFullPath(rawArg)
+                    : MigratorCliConfig.ResolveAbsolutePath(configDir, rawArg);
+
+            if (!File.Exists(selectedFullPath))
+            {
+                AnsiConsole.MarkupLine($"[red]Error:[/] Destination project not found: '{Markup.Escape(rawArg)}'.");
+                return 1;
+            }
+        }
+        else
+        {
+            if (!SpectreProjectPicker.Instance.IsInteractive(settings.NonInteractive))
+            {
+                AnsiConsole.MarkupLine("[red]Error:[/] Pass a project path to --set-default-destination in non-interactive mode.");
+                return 1;
+            }
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var choices = new List<ProjectChoice>();
+            foreach (var (list, tag) in new (IReadOnlyList<string>, string)[]
+                     {
+                         (config.StartupProjects, "startup"),
+                         (config.Projects, "registry"),
+                         (config.OtherProjects, "other")
+                     })
+            {
+                foreach (var rel in list)
+                {
+                    var full = MigratorCliConfig.ResolveAbsolutePath(configDir, rel);
+                    if (File.Exists(full) && seen.Add(full))
+                    {
+                        choices.Add(new ProjectChoice(Path.GetFileNameWithoutExtension(full), rel, full, tag));
+                    }
+                }
+            }
+
+            if (choices.Count == 0)
+            {
+                AnsiConsole.MarkupLine(
+                    $"[red]Error:[/] No projects listed in '{MigratorCliConfig.FileName}'. Run 'db-migrator config --generate' first.");
+                return 1;
+            }
+
+            selectedFullPath = SpectreProjectPicker.Instance.PickProject("Select defaultDestinationProject", choices).FullPath;
+        }
+
+        var normalizedRel = MigratorCliConfig.NormalizeRelativePath(configDir, selectedFullPath);
+        config.DefaultDestinationProject = normalizedRel;
+        config.Save(configPath);
+        AnsiConsole.MarkupLine($"[green]Updated defaultDestinationProject[/] → [cyan]{Markup.Escape(normalizedRel)}[/]");
         return 0;
     }
 
@@ -186,6 +268,12 @@ internal sealed class ConfigCommand : Command<ConfigSettings>
             string.IsNullOrWhiteSpace(config.DefaultStartupProject)
                 ? "[grey](none)[/]"
                 : $"[green]{Markup.Escape(config.DefaultStartupProject)}[/]");
+
+        table.AddRow(
+            "[bold]defaultDestinationProject[/]",
+            string.IsNullOrWhiteSpace(config.DefaultDestinationProject)
+                ? "[grey](none)[/]"
+                : $"[green]{Markup.Escape(config.DefaultDestinationProject)}[/]");
 
         table.AddRow(
             "startupProjects",

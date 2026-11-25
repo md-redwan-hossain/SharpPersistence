@@ -234,4 +234,57 @@ public sealed class SqlStorageExtensionGeneratorTests
         Assert.Empty(diags);
         Assert.Empty(runResult.GeneratedTrees);
     }
+
+    [Fact]
+    public async Task SqlTagUsageAnalyzer_ReportsSpsql006ForUnknownTag_AndAllowsLocalAndCrossAssemblyTags()
+    {
+        const string billingSql = """
+            -- #start# get_invoice
+            SELECT 1;
+            -- #end# get_invoice
+            """;
+
+        // Simulate referenced module assembly that had SqlStorageExtensionGenerator run on it
+        var (billingComp, _, _) = RunGenerator([(@"D:\Repo\Billing\Queries.sql", billingSql)]);
+        var billingRef = billingComp.ToMetadataReference();
+
+        const string apiSql = """
+            -- #start# local_ping
+            SELECT 1;
+            -- #end# local_ping
+            """;
+
+        const string apiCode = """
+            using SharpPersistence.Abstractions;
+
+            namespace Api;
+
+            public static class Queries
+            {
+                public static void Run(IParsedSqlStorage storage)
+                {
+                    _ = storage["local_ping"];             // valid local
+                    _ = storage["get_invoice"];            // valid cross-assembly
+                    _ = storage["does_not_exist"];         // SPSQL006
+                    storage.TryGetParsedSql("bad_tag", out _); // SPSQL006
+                }
+            }
+            """;
+
+        var parseOptions = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Preview);
+        var compilation = CSharpCompilation.Create(
+            "Api",
+            [CSharpSyntaxTree.ParseText(apiCode, parseOptions, cancellationToken: TestContext.Current.CancellationToken)],
+            BaseReferences.Concat([billingRef]),
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        var analyzerOptions = new AnalyzerOptions([new InMemoryAdditionalText(@"D:\Repo\Api\Local.sql", apiSql)]);
+        var compWithAnalyzers = compilation.WithAnalyzers([new SqlTagUsageAnalyzer()], analyzerOptions);
+        var analyzerDiags = await compWithAnalyzers.GetAnalyzerDiagnosticsAsync(TestContext.Current.CancellationToken);
+
+        var spsql006 = analyzerDiags.Where(d => d.Id == "SPSQL006").ToList();
+        Assert.Equal(2, spsql006.Count);
+        Assert.Contains(spsql006, d => d.GetMessage().Contains("does_not_exist"));
+        Assert.Contains(spsql006, d => d.GetMessage().Contains("bad_tag"));
+    }
 }

@@ -165,6 +165,22 @@ internal static partial class SolutionProjectScanner
             }
         }
 
+        // Validate existing defaultDestinationProject (existence on disk)
+        string? defaultDestination = null;
+        if (!string.IsNullOrWhiteSpace(existingConfig?.DefaultDestinationProject))
+        {
+            var rawDest = existingConfig.DefaultDestinationProject!;
+            var fullDest = MigratorCliConfig.ResolveAbsolutePath(solutionRoot, rawDest);
+            if (!File.Exists(fullDest))
+            {
+                warnings.Add($"Cleared defaultDestinationProject '{rawDest}' because the file no longer exists.");
+            }
+            else
+            {
+                defaultDestination = MigratorCliConfig.NormalizeRelativePath(solutionRoot, fullDest);
+            }
+        }
+
         // Auto-select defaultStartupProject when exactly one qualified startup project exists
         if (string.IsNullOrWhiteSpace(defaultStartup) && startupProjects.Count == 1)
         {
@@ -174,6 +190,7 @@ internal static partial class SolutionProjectScanner
         var config = new MigratorCliConfig
         {
             DefaultStartupProject = defaultStartup,
+            DefaultDestinationProject = defaultDestination,
             StartupProjects = startupProjects,
             Projects = registryProjects,
             OtherProjects = validatedOthers
@@ -311,7 +328,13 @@ internal static partial class SolutionProjectScanner
                 }
             }
 
-            if (isTest)
+            var isToolOrAnalyzer = doc.Descendants()
+                .Any(static e =>
+                    (e.Name.LocalName.Equals("PackAsTool", StringComparison.OrdinalIgnoreCase) ||
+                     e.Name.LocalName.Equals("IsRoslynComponent", StringComparison.OrdinalIgnoreCase)) &&
+                    string.Equals(e.Value.Trim(), "true", StringComparison.OrdinalIgnoreCase));
+
+            if (isTest || isToolOrAnalyzer)
             {
                 return (true, false, false);
             }
@@ -349,21 +372,35 @@ internal static partial class SolutionProjectScanner
 
             try
             {
-                var text = File.ReadAllText(csFile);
-                if (!isMigratorRoot &&
-                    (text.Contains("EntityRegistryRoot", StringComparison.Ordinal) ||
-                     text.Contains(".AddDbMigrator(", StringComparison.Ordinal) ||
-                     text.Contains("IDesignTimeMigrationFactory", StringComparison.Ordinal)))
+                foreach (var rawLine in File.ReadLines(csFile))
                 {
-                    isMigratorRoot = true;
-                }
+                    if (isMigratorRoot && hasEntityRegistry)
+                    {
+                        return;
+                    }
 
-                if (!hasEntityRegistry &&
-                    (text.Contains("[EntityRegistry", StringComparison.Ordinal) ||
-                     text.Contains(": IEntityRegistry", StringComparison.Ordinal) ||
-                     text.Contains(", IEntityRegistry", StringComparison.Ordinal)))
-                {
-                    hasEntityRegistry = true;
+                    var line = StripLineComment(rawLine);
+                    if (line.Length == 0)
+                    {
+                        continue;
+                    }
+
+                    if (!isMigratorRoot &&
+                        (line.Contains("[assembly: EntityRegistryRoot", StringComparison.Ordinal) ||
+                         line.Contains(".AddDbMigrator(", StringComparison.Ordinal) ||
+                         line.Contains(": IDesignTimeMigrationFactory", StringComparison.Ordinal) ||
+                         line.Contains(", IDesignTimeMigrationFactory", StringComparison.Ordinal)))
+                    {
+                        isMigratorRoot = true;
+                    }
+
+                    if (!hasEntityRegistry &&
+                        (line.Contains("[EntityRegistry", StringComparison.Ordinal) ||
+                         line.Contains(": IEntityRegistry", StringComparison.Ordinal) ||
+                         line.Contains(", IEntityRegistry", StringComparison.Ordinal)))
+                    {
+                        hasEntityRegistry = true;
+                    }
                 }
             }
             catch
@@ -387,6 +424,18 @@ internal static partial class SolutionProjectScanner
 
             ScanProjectSourceFiles(subDir, ref isMigratorRoot, ref hasEntityRegistry);
         }
+    }
+
+    private static string StripLineComment(string line)
+    {
+        var trimmed = line.Trim();
+        if (trimmed.StartsWith("//", StringComparison.Ordinal))
+        {
+            return string.Empty;
+        }
+
+        var commentIdx = trimmed.IndexOf("//", StringComparison.Ordinal);
+        return commentIdx >= 0 ? trimmed[..commentIdx].TrimEnd() : trimmed;
     }
 
     [GeneratedRegex(@"Project\(""\{[^}]+\}""\)\s*=\s*""[^""]+"",\s*""([^""]+\.csproj)""", RegexOptions.IgnoreCase)]

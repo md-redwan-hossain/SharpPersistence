@@ -53,6 +53,10 @@
     </ItemGroup>
 
     <ItemGroup>
+        <EmbeddedResource Include="Ui\index.html" LogicalName="SharpPersistence.Migrator.Cli.Ui.index.html" />
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="..\SharpPersistence.Migrator\SharpPersistence.Migrator.csproj" />
     </ItemGroup>
 

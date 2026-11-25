@@ -18,3 +18,5 @@ SPM010 | SharpPersistence.Migrator | Error | Duplicate BindEntityRegistry or Ent
 SPM011 | SharpPersistence.Migrator | Error | EntityRegistryItem requires a bound EntityRegistry containing the target entity
 SPM012 | SharpPersistence.Migrator | Error | Generated DbContext property name collides with another entity or existing member
 SPM013 | SharpPersistence.Migrator | Error | Custom DbContext constructor or OnModelCreating does not wire DatabaseModel via ApplySchemaToEfCore
+SPM014 | SharpPersistence.Migrator | Error | Calling IsRequired() on a property inside an optional OwnsOne navigation is not allowed
+SPM015 | SharpPersistence.Migrator | Error | ConfigureEntityStubs cannot map a type to itself or to another ReadOnly entity stub

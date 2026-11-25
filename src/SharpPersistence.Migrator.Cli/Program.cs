@@ -1,5 +1,6 @@
 using SharpPersistence.Migrator.Cli;
 using SharpPersistence.Migrator.Cli.Config;
+using SharpPersistence.Migrator.Cli.Ui;
 using Spectre.Console.Cli;
 
 var app = new CommandApp();
@@ -53,6 +54,12 @@ app.Configure(config =>
         .WithExample("config", "--generate")
         .WithExample("config", "--set-default-startup", "src/AppRoot/AppRoot.csproj")
         .WithExample("config", "--show");
+
+    config.AddCommand<UiCommand>("ui")
+        .WithDescription("Launch an interactive browser UI for exploring entities, DB metadata, ERD, runlist, and doctor checks.")
+        .WithExample("ui")
+        .WithExample("ui", "--port", "5077")
+        .WithExample("ui", "--export", "db-explorer.html");
 });
 
 return await app.RunAsync(args);
