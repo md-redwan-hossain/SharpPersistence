@@ -50,3 +50,6 @@ lerna-debug.log*
 
 _trash/
 src/SharpPersistence.Migrator.Cli/Ui/index.html
+
+ui/*.tsbuildinfo
+src/SharpPersistence.Migrator.Cli/Ui/*.delete-me
