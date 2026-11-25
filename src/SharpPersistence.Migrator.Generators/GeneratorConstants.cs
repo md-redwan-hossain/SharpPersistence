@@ -30,6 +30,14 @@ internal static class GeneratorConstants
     public const string IEntityRegistryBuilderMetadataName = "SharpPersistence.Migrator.Abstractions.IEntityRegistryBuilder";
     public const string IEntityConfigurationMetadataName = "SharpPersistence.Migrator.Abstractions.IEntityConfiguration`1";
 
+    public const string BindEntityRegistryAttributeMetadataName = "SharpPersistence.Migrator.EfCore.Attributes.BindEntityRegistryAttribute`1";
+    public const string EntityRegistryItemAttributeMetadataName = "SharpPersistence.Migrator.EfCore.Attributes.EntityRegistryItemAttribute`1";
+    public const string DatabaseModelMetadataName = "SharpPersistence.Migrator.Models.DatabaseModel";
+    public const string EfCoreDbContextMetadataName = "Microsoft.EntityFrameworkCore.DbContext";
+    public const string EfCoreDbSetMetadataName = "Microsoft.EntityFrameworkCore.DbSet`1";
+    public const string EfCoreModelBuilderMetadataName = "Microsoft.EntityFrameworkCore.ModelBuilder";
+    public const string SystemQueryableMetadataName = "System.Linq.IQueryable`1";
+
     public const string DiagnosticCategory = "SharpPersistence.Migrator";
 
     public static readonly DiagnosticDescriptor RegistryMustBeSealedPartialImplementingInterface = new(
@@ -86,6 +94,54 @@ internal static class GeneratorConstants
         messageFormat: "Configuration '{0}' targets entity '{1}', which is not matched by any [EntityRegistry] in this compilation",
         category: DiagnosticCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor DbContextMustBeSealedPartial = new(
+        id: "SPM008",
+        title: "Invalid [BindEntityRegistry<TRegistry>] class declaration",
+        messageFormat: "Type '{0}' decorated with [BindEntityRegistry] must be sealed, partial, and inherit Microsoft.EntityFrameworkCore.DbContext",
+        category: DiagnosticCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor InvalidRegistryItemCombination = new(
+        id: "SPM009",
+        title: "Invalid [EntityRegistryItem<TEntity>] property combination",
+        messageFormat: "[EntityRegistryItem<{0}>] on '{1}' cannot set Exclude = true together with ReadOnly or Pluralize",
+        category: DiagnosticCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor DuplicateDbContextBindingAttribute = new(
+        id: "SPM010",
+        title: "Duplicate DbContext registry binding attribute",
+        messageFormat: "Duplicate {0} for '{1}' on '{2}'",
+        category: DiagnosticCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor OrphanEntityRegistryItem = new(
+        id: "SPM011",
+        title: "Unmatched [EntityRegistryItem<TEntity>]",
+        messageFormat: "[EntityRegistryItem<{0}>] on '{1}' {2}",
+        category: DiagnosticCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor DbContextPropertyNameCollision = new(
+        id: "SPM012",
+        title: "Generated DbContext property name collision",
+        messageFormat: "Generated property '{0}' for entity '{1}' on '{2}' collides with {3}",
+        category: DiagnosticCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor DbContextSchemaNotWired = new(
+        id: "SPM013",
+        title: "DatabaseModel schema is not wired into EF Core",
+        messageFormat: "DbContext '{0}' {1}",
+        category: DiagnosticCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
     public static bool HasAssemblyAttribute(Compilation compilation, string attributeMetadataName)

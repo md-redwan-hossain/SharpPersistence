@@ -8,8 +8,12 @@ namespace SharpPersistence.Migrator.EfCore;
 
 public static class EfCoreModelBridge
 {
-    public static void ApplySchemaToEfCore(this ModelBuilder modelBuilder, DatabaseModel schema)
+    public static void ApplySchemaToEfCore(
+        this ModelBuilder modelBuilder,
+        DatabaseModel schema,
+        IEnumerable<Type>? includedEntityTypes = null)
     {
+        HashSet<Type>? includedSet = includedEntityTypes is null ? null : [.. includedEntityTypes];
         if (schema.Sequences is { Count: > 0 })
         {
             foreach (var seq in schema.Sequences)
@@ -46,6 +50,11 @@ public static class EfCoreModelBridge
 
         foreach (var (clrType, table) in schema.ByClrType)
         {
+            if (includedSet is not null && !includedSet.Contains(clrType))
+            {
+                continue;
+            }
+
             modelBuilder.Entity(clrType, entity =>
             {
                 entity.ToTable(table.TableName, table.Schema, tb =>
@@ -129,7 +138,8 @@ public static class EfCoreModelBridge
                 foreach (var fk in table.ForeignKeys)
                 {
                     if (!string.IsNullOrWhiteSpace(fk.PrincipalEntityName) &&
-                        clrTypeByEntityName.TryGetValue(fk.PrincipalEntityName, out var principalClrType))
+                        clrTypeByEntityName.TryGetValue(fk.PrincipalEntityName, out var principalClrType) &&
+                        (includedSet is null || includedSet.Contains(principalClrType)))
                     {
                         var isOneToOne =
                             (table.PrimaryKey is not null &&

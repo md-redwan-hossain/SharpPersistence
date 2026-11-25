@@ -1,4 +1,5 @@
 using SharpPersistence.Migrator.Cli;
+using SharpPersistence.Migrator.Cli.Config;
 using Spectre.Console.Cli;
 
 var app = new CommandApp();
@@ -46,6 +47,12 @@ app.Configure(config =>
         .WithDescription("Validate DI wiring, entity registries, configurations, migration script coverage, and optionally live database connectivity.")
         .WithExample("doctor", "--startup-project", "WebApi/WebApi.csproj")
         .WithExample("doctor", "--registry", "SalesRegistry", "--check-db");
+
+    config.AddCommand<ConfigCommand>("config")
+        .WithDescription("Generate, inspect, or update solution-level db-migrator-config.json.")
+        .WithExample("config", "--generate")
+        .WithExample("config", "--set-default-startup", "src/AppRoot/AppRoot.csproj")
+        .WithExample("config", "--show");
 });
 
 return await app.RunAsync(args);

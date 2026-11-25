@@ -5,6 +5,7 @@ using System.Xml.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SharpPersistence.Migrator.Abstractions;
+using SharpPersistence.Migrator.Cli.Config;
 using SharpPersistence.Migrator.Configuration;
 using SharpPersistence.Migrator.Services;
 
@@ -29,14 +30,15 @@ internal static class TargetAssemblyLoader
 
     public static LoadedMigrationContext CreateManagerContext(SharedSettings settings)
     {
-        var (csprojPath, assemblyPath, startupDir) = ResolveStartupAssembly(settings.StartupProjectPath, settings.NoBuild);
+        var resolvedPaths = ProjectResolutionService.Resolve(settings);
+        var (csprojPath, assemblyPath, startupDir) = ResolveStartupAssembly(resolvedPaths.StartupProjectPath, settings.NoBuild);
         var startupDisplayPath = Path.GetRelativePath(Directory.GetCurrentDirectory(), csprojPath);
         if (startupDisplayPath.StartsWith("..", StringComparison.Ordinal))
         {
             startupDisplayPath = csprojPath;
         }
-        var destinationRoot = ResolveDestinationDirectory(settings.DestinationProjectPath, startupDir);
-        var outputRoot = ResolveOutputDirectory(settings.OutputDir, settings.DestinationProjectPath is not null ? destinationRoot : null, destinationRoot);
+        var destinationRoot = ResolveDestinationDirectory(resolvedPaths.DestinationProjectPath, startupDir);
+        var outputRoot = ResolveOutputDirectory(settings.OutputDir, resolvedPaths.DestinationProjectPath is not null ? destinationRoot : null, destinationRoot);
 
         var alc = new TargetLoadContext(assemblyPath);
         var primaryAssembly = alc.LoadFromAssemblyPath(assemblyPath);

@@ -6,7 +6,15 @@ namespace SharpPersistence.Abstractions.Attributes;
 /// Base class for module-specific entity marker attributes used by compile-time entity discovery.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
-public abstract class EntityMarkerAttribute : Attribute;
+public abstract class EntityMarkerAttribute : Attribute
+{
+    /// <summary>
+    /// Marks the entity as read-only (e.g., a cross-module stub or database view).
+    /// Read-only entities are automatically excluded from migrations and generated as
+    /// <c>IQueryable&lt;T&gt;</c> (<c>AsNoTracking</c>) on bound EF Core <c>DbContext</c> classes.
+    /// </summary>
+    public bool ReadOnly { get; set; }
+}
 
 /// <summary>
 /// Built-in default entity marker attribute for projects that do not define a custom per-module marker attribute.

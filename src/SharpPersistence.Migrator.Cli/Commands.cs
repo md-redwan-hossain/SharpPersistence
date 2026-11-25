@@ -23,6 +23,10 @@ internal class SharedSettings : CommandSettings
     [CommandOption("--no-build")]
     [Description("Skip running 'dotnet build' on the startup project before loading it.")]
     public bool NoBuild { get; init; }
+
+    [CommandOption("--ci|--non-interactive")]
+    [Description("Disable interactive prompts (project pickers and rename prompts).")]
+    public bool NonInteractive { get; init; }
 }
 
 internal sealed class DiffSettings : SharedSettings
@@ -34,10 +38,6 @@ internal sealed class DiffSettings : SharedSettings
     [CommandOption("-r|--registry <REGISTRY>")]
     [Description("Optional registry class name to filter.")]
     public string? RegistryFilter { get; init; }
-
-    [CommandOption("--ci|--non-interactive")]
-    [Description("Disable interactive rename prompts.")]
-    public bool NonInteractive { get; init; }
 
     [CommandOption("--allow-empty")]
     [Description("Generate an empty migration script when no schema changes are detected.")]

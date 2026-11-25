@@ -143,3 +143,33 @@ if (pending.Count > 0)
 ```
 
 `MigrateAsync` automatically acquires a distributed lock (`pg_advisory_lock` on PostgreSQL, `DBMS_LOCK` on Oracle) so multiple app instances starting concurrently never race.
+
+## EF Core `DbContext` Binding (`[BindEntityRegistry<TRegistry>]`)
+
+With `SharpPersistence.Migrator.EfCore`, bind one or more `[EntityRegistry]` classes directly to a `sealed partial` `DbContext` to auto-generate `DbSet<T>` / `IQueryable<T>` (`AsNoTracking`) properties, constructor, and scoped `OnModelCreating`:
+
+```csharp
+using Microsoft.EntityFrameworkCore;
+using SharpPersistence.Migrator.EfCore.Attributes;
+
+[BindEntityRegistry<BillingRegistry>]
+[BindEntityRegistry<LookupDataRegistry>(ReadOnly = true)]
+[EntityRegistryItem<AuditLog>(ReadOnly = true)]
+[EntityRegistryItem<InventoryData>(Pluralize = false)]
+[EntityRegistryItem<OutboxMessage>(Exclude = true)]
+public sealed partial class BillingDbContext : DbContext
+{
+    // Manual properties for an entity automatically suppress duplicate generation
+    public DbSet<PortfolioProduct> ProductPortfolios => Set<PortfolioProduct>();
+
+    // Optional hook called at the end of generated OnModelCreating
+    partial void OnModelCreatingPartial(ModelBuilder modelBuilder)
+    {
+        modelBuilder.HasPostgresExtension("pg_trgm");
+    }
+}
+```
+
+- Entities decorated with `[Entity(ReadOnly = true)]` (or `[ModuleEntity(ReadOnly = true)]`) automatically get `ExcludeFromMigrations = true` in `SchemaScanner` and generate `IQueryable<T> => Set<T>().AsNoTracking();` on bound `DbContext` classes.
+- If you declare your own constructor or `OnModelCreating`, the generator automatically skips emitting its own (and emits `SPM013` if `DatabaseModel` / `ApplySchemaToEfCore` does not appear wired).
+- Compile-time rules `SPM008`–`SPM013` validate `sealed partial DbContext`, mutually exclusive `Exclude = true` with `ReadOnly`/`Pluralize`, duplicates, unmatched `[EntityRegistryItem<T>]`, property name collisions, and `ApplySchemaToEfCore` wiring.

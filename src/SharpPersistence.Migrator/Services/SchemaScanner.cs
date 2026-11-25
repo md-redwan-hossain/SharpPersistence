@@ -1,5 +1,6 @@
 using System.Reflection;
 using Humanizer;
+using SharpPersistence.Abstractions.Attributes;
 using SharpPersistence.Enums;
 using SharpPersistence.Migrator.Abstractions;
 using SharpPersistence.Migrator.Builders;
@@ -190,6 +191,11 @@ internal static class SchemaScanner
             sqlExpressionOptions,
             propertyConventions,
             nullabilityContext);
+
+        if (entityType.GetCustomAttributes<EntityMarkerAttribute>(inherit: false).Any(static a => a.ReadOnly))
+        {
+            tableBuilder.ExcludeFromMigrations = true;
+        }
 
         foreach (var prop in entityType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
         {
