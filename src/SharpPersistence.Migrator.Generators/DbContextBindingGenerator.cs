@@ -1,5 +1,6 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using SharpPersistence.Migrator.Constants;
 
 namespace SharpPersistence.Migrator.Generators;
 
@@ -52,22 +53,22 @@ public sealed class DbContextBindingGenerator : IIncrementalGenerator
         var location = diag.Location?.ToLocation() ?? Location.None;
         switch (diag.DiagnosticId)
         {
-            case "SPM008":
+            case DiagnosticIds.DbContextMustBeSealedPartial:
                 spc.ReportDiagnostic(Diagnostic.Create(GeneratorConstants.DbContextMustBeSealedPartial, location, diag.Arg0));
                 break;
-            case "SPM009":
+            case DiagnosticIds.InvalidRegistryItemCombination:
                 spc.ReportDiagnostic(Diagnostic.Create(GeneratorConstants.InvalidRegistryItemCombination, location, diag.Arg0, diag.Arg1));
                 break;
-            case "SPM010":
+            case DiagnosticIds.DuplicateDbContextBindingAttribute:
                 spc.ReportDiagnostic(Diagnostic.Create(GeneratorConstants.DuplicateDbContextBindingAttribute, location, diag.Arg0, diag.Arg1, diag.Arg2));
                 break;
-            case "SPM011":
+            case DiagnosticIds.OrphanEntityRegistryItem:
                 spc.ReportDiagnostic(Diagnostic.Create(GeneratorConstants.OrphanEntityRegistryItem, location, diag.Arg0, diag.Arg1, diag.Arg2));
                 break;
-            case "SPM012":
+            case DiagnosticIds.DbContextPropertyNameCollision:
                 spc.ReportDiagnostic(Diagnostic.Create(GeneratorConstants.DbContextPropertyNameCollision, location, diag.Arg0, diag.Arg1, diag.Arg2, diag.Arg3));
                 break;
-            case "SPM013":
+            case DiagnosticIds.DbContextMissingSchemaWiring:
                 spc.ReportDiagnostic(Diagnostic.Create(GeneratorConstants.DbContextSchemaNotWired, location, diag.Arg0, diag.Arg1));
                 break;
         }

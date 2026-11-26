@@ -135,10 +135,10 @@ using SharpPersistence.Migrator.Abstractions;
 await using var scope = app.Services.CreateAsyncScope();
 var migrator = scope.ServiceProvider.GetRequiredService<IDbMigrator>();
 
-IReadOnlyList<string> pending = await migrator.GetPendingMigrationsAsync(ct);
+IReadOnlyList<string> pending = await migrator.GetPendingMigrationsAsync(cancellationToken);
 if (pending.Count > 0)
 {
-    await migrator.MigrateAsync(ct: ct);
+    await migrator.MigrateAsync(cancellationToken: cancellationToken);
 }
 ```
 

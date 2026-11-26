@@ -14,6 +14,7 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
         <PackageReference Include="Npgsql" />
@@ -33,6 +34,7 @@
     <ItemGroup>
         <ProjectReference Include="..\..\src\SharpPersistence.Abstractions\SharpPersistence.Abstractions.csproj" />
         <ProjectReference Include="..\..\src\SharpPersistence.Migrator.Cli\SharpPersistence.Migrator.Cli.csproj" />
+        <ProjectReference Include="..\..\src\SharpPersistence.Migrator.CodeFixes\SharpPersistence.Migrator.CodeFixes.csproj" />
         <ProjectReference Include="..\..\src\SharpPersistence.Migrator.EfCore\SharpPersistence.Migrator.EfCore.csproj" />
         <ProjectReference Include="..\..\src\SharpPersistence.Migrator.Generators\SharpPersistence.Migrator.Generators.csproj" />
         <ProjectReference Include="..\..\src\SharpPersistence.Migrator\SharpPersistence.Migrator.csproj" />

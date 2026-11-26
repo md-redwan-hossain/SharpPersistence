@@ -38,11 +38,10 @@ internal sealed class UiCommand : AsyncCommand<UiSettings>
         {
             var htmlTemplate = LoadEmbeddedHtml();
             var dataService = new UiDataService(loaded);
-            UiOverviewDto overview = null!;
-            TargetAssemblyLoader.RunWithStatus(
+            var overview = TargetAssemblyLoader.RunWithStatus(
                 TargetAssemblyLoader.CreateStderrConsole(),
                 "Scanning registries & building UI overview...",
-                () => overview = dataService.BuildOverview());
+                () => dataService.BuildOverview());
 
             var url = $"http://127.0.0.1:{settings.Port}";
             var builder = WebApplication.CreateSlimBuilder();

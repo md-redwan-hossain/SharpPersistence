@@ -1,6 +1,14 @@
 # Migrating from EF Core
 
-Move an existing EF Core codebase to `SharpPersistence.Migrator` in three explicit CLI steps without losing your migration history.
+Move an existing EF Core codebase to `SharpPersistence.Migrator` in four explicit CLI steps without losing your migration history.
+
+## Step 0 (Optional): Annotate Existing `DbContext` Entities
+
+If your domain entities aren't yet marked with `[Entity]` (or a custom `EntityMarkerAttribute`), annotate every entity discovered from your EF Core `DbContext` in one pass:
+
+```powershell
+db-migrator annotate-dbcontext-entities --dbcontext src/Infrastructure/AppDbContext.cs --search-directory src/Domain --dry-run
+```
 
 ## Step 1: Translate `IEntityTypeConfiguration<T>` Files
 

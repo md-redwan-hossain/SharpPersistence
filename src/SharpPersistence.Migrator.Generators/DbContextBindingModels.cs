@@ -27,19 +27,23 @@ internal sealed record PendingDiagnostic(
     string Arg2 = "",
     string Arg3 = "");
 
-internal sealed record GeneratedDbContextProperty(
-    string EntityFullTypeName,
-    string PropertyName,
-    bool IsReadOnly);
+internal readonly record struct GeneratedDbContextProperty
+{
+    public required string EntityFullTypeName { get; init; }
+    public required string PropertyName { get; init; }
+    public required bool IsReadOnly { get; init; }
+}
 
-internal sealed record DbContextBindingModel(
-    string HintName,
-    string SimpleName,
-    string? Namespace,
-    EquatableArray<string> ContainingTypeDeclarations,
-    EquatableArray<GeneratedDbContextProperty> Properties,
-    EquatableArray<string> BoundEntityTypeNames,
-    bool GenerateConstructor,
-    bool GenerateOnModelCreating,
-    string? ExistingSchemaMemberName,
-    EquatableArray<PendingDiagnostic> Diagnostics);
+internal sealed record DbContextBindingModel
+{
+    public required string HintName { get; init; }
+    public required string SimpleName { get; init; }
+    public required string? Namespace { get; init; }
+    public required EquatableArray<string> ContainingTypeDeclarations { get; init; }
+    public required EquatableArray<GeneratedDbContextProperty> Properties { get; init; }
+    public required EquatableArray<string> BoundEntityTypeNames { get; init; }
+    public required bool GenerateConstructor { get; init; }
+    public required bool GenerateOnModelCreating { get; init; }
+    public required string? ExistingSchemaMemberName { get; init; }
+    public required EquatableArray<PendingDiagnostic> Diagnostics { get; init; }
+}

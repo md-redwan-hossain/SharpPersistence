@@ -36,32 +36,28 @@ public sealed class AppDbContext(
 
 ## Compile-Time `DbContext` Registry Binding (`[BindEntityRegistry<TRegistry>]`)
 
-Instead of manually declaring `DbSet<T>` properties and filtering entities per `DbContext`, decorate a `partial` `DbContext` with `[BindEntityRegistry<TRegistry>]`. The Roslyn generator emits `DbSet<T>` (or `IQueryable<T>` with `.AsNoTracking()` when `ReadOnly = true`) properties and a scoped `ApplyBoundRegistries(modelBuilder, model)` method:
+Instead of manually declaring `DbSet<T>` properties and filtering entities per `DbContext`, decorate a `sealed partial` `DbContext` with `[BindEntityRegistry<TRegistry>]`. The Roslyn generator emits `DbSet<T>` (or `IQueryable<T>` with `.AsNoTracking()` when `ReadOnly = true`) properties, a `(DbContextOptions<TContext>, DatabaseModel)` constructor (unless you declare your own), and `OnModelCreating` wired to `modelBuilder.ApplySchemaToEfCore(...)` plus a `partial void OnModelCreatingPartial(ModelBuilder modelBuilder)` hook:
 
 ```csharp
 using Microsoft.EntityFrameworkCore;
 using SharpPersistence.Migrator.EfCore.Attributes;
-using SharpPersistence.Migrator.Models;
 
 [BindEntityRegistry<SalesRegistry>]
 [BindEntityRegistry<IdentityRegistry>(ReadOnly = true)] // emits IQueryable<User> Users => Set<User>().AsNoTracking();
 [EntityRegistryItem<AuditLog>(Exclude = true)]          // omit specific entity from this DbContext
 [EntityRegistryItem<Order>(Pluralize = false)]          // override property name (Order instead of Orders)
-public sealed partial class SalesDbContext(
-    DbContextOptions<SalesDbContext> options,
-    DatabaseModel model) : DbContext(options)
+public sealed partial class SalesDbContext : DbContext
 {
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    // Optional hook that runs right after modelBuilder.ApplySchemaToEfCore(...)
+    partial void OnModelCreatingPartial(ModelBuilder modelBuilder)
     {
-        base.OnModelCreating(modelBuilder);
-        ApplyBoundRegistries(modelBuilder, model);
     }
 }
 ```
 
 - **Registry-level options**: `[BindEntityRegistry<TRegistry>(ReadOnly = false, Pluralize = true)]`.
 - **Per-entity overrides**: `[EntityRegistryItem<TEntity>(ReadOnly = ..., Pluralize = ..., Exclude = ...)]`.
-- **Compile-time diagnostics (`SPM008`-`SPM013`)**: Validates that the `DbContext` is `partial` and inherits `DbContext`, checks for duplicate bindings/items, and flags unknown entities in `[EntityRegistryItem<TEntity>]`.
+- **Compile-time diagnostics & IDE CodeFixes (`SPM008`-`SPM013`)**: Validates that the `DbContext` is `sealed partial` and inherits `DbContext`, checks for duplicate bindings/items, flags unknown entities in `[EntityRegistryItem<TEntity>]`, catches property name collisions, and ensures `DatabaseModel` is wired into `ApplySchemaToEfCore`.
 
 ## Value Converters (`HasConversion`)
 

@@ -64,14 +64,13 @@ internal static class TargetAssemblyLoader
 
         var hostName = Path.GetFileNameWithoutExtension(assemblyPath);
         var loadedAssemblies = new List<Assembly>();
-        Assembly primaryAssembly = null!;
 
-        RunWithStatus(errConsole, $"Loading assemblies ([cyan]{Markup.Escape(hostName)}[/])...", () =>
+        var primaryAssembly = RunWithStatus(errConsole, $"Loading assemblies ([cyan]{Markup.Escape(hostName)}[/])...", () =>
         {
             var alc = new TargetLoadContext(assemblyPath);
-            primaryAssembly = alc.LoadFromAssemblyPath(assemblyPath);
-            hostName = primaryAssembly.GetName().Name ?? hostName;
-            loadedAssemblies.Add(primaryAssembly);
+            var primary = alc.LoadFromAssemblyPath(assemblyPath);
+            hostName = primary.GetName().Name ?? hostName;
+            loadedAssemblies.Add(primary);
 
             var targetDir = Path.GetDirectoryName(assemblyPath)!;
             var defaultAssemblyNames = AssemblyLoadContext.Default.Assemblies
@@ -79,7 +78,7 @@ internal static class TargetAssemblyLoader
                 .Where(n => !string.IsNullOrWhiteSpace(n))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var refName in primaryAssembly.GetReferencedAssemblies())
+            foreach (var refName in primary.GetReferencedAssemblies())
             {
                 if (IsFrameworkOrCoreAssembly(refName.Name) ||
                     (refName.Name is not null && defaultAssemblyNames.Contains(refName.Name)))
@@ -116,6 +115,8 @@ internal static class TargetAssemblyLoader
                     }
                 }
             }
+
+            return primary;
         });
 
         // Tier 1: Optional IDesignTimeDbMigratorFactory fallback (for class libraries or custom offline config)
@@ -125,11 +126,9 @@ internal static class TargetAssemblyLoader
 
         if (factoryType is not null)
         {
-            ServiceProvider provider = null!;
-            DbMigrator manager = null!;
             var bootstrapSw = Stopwatch.StartNew();
 
-            RunWithStatus(errConsole, $"Bootstrapping IDbMigrator via [cyan]{Markup.Escape(factoryType.Name)}[/]...", () =>
+            var (provider, manager) = RunWithStatus(errConsole, $"Bootstrapping IDbMigrator via [cyan]{Markup.Escape(factoryType.Name)}[/]...", () =>
             {
                 var designFactory = (IDesignTimeDbMigratorFactory)Activator.CreateInstance(factoryType)!;
                 var services = new ServiceCollection();
@@ -139,8 +138,9 @@ internal static class TargetAssemblyLoader
                     options.UseRootPath(outputRoot);
                 });
 
-                provider = services.BuildServiceProvider();
-                manager = (DbMigrator)provider.GetRequiredService<IDbMigrator>();
+                var sp = services.BuildServiceProvider();
+                var mgr = (DbMigrator)sp.GetRequiredService<IDbMigrator>();
+                return (sp, mgr);
             });
 
             bootstrapSw.Stop();
@@ -149,12 +149,9 @@ internal static class TargetAssemblyLoader
         }
 
         // Tier 2: Resolve IHost / IServiceProvider from Program.Main via Microsoft.Extensions.Hosting DiagnosticListener
-        IHost host = null!;
         var hostSw = Stopwatch.StartNew();
-        RunWithStatus(errConsole, $"Bootstrapping IDbMigrator via [cyan]{Markup.Escape(hostName)}[/] (Program.cs)...", () =>
-        {
-            host = ResolveHostFromEntryPoint(primaryAssembly, startupDir);
-        });
+        var host = RunWithStatus(errConsole, $"Bootstrapping IDbMigrator via [cyan]{Markup.Escape(hostName)}[/] (Program.cs)...", () =>
+            ResolveHostFromEntryPoint(primaryAssembly, startupDir));
         hostSw.Stop();
 
         var hostManager = host.Services.GetService<IDbMigrator>() as DbMigrator
@@ -175,20 +172,22 @@ internal static class TargetAssemblyLoader
             Out = new AnsiConsoleOutput(Console.Error)
         });
 
-    internal static void RunWithStatus(IAnsiConsole errConsole, string markupMessage, Action action)
+    internal static T RunWithStatus<T>(IAnsiConsole errConsole, string markupMessage, Func<T> func)
     {
         if (Console.IsErrorRedirected)
         {
             errConsole.MarkupLine($"[grey]{markupMessage}[/]");
-            action();
-            return;
+            return func();
         }
 
-        errConsole.Status()
+        return errConsole.Status()
             .Spinner(Spinner.Known.Dots)
             .SpinnerStyle(Style.Parse("cyan"))
-            .Start(markupMessage, _ => action());
+            .Start(markupMessage, _ => func());
     }
+
+    internal static void RunWithStatus(IAnsiConsole errConsole, string markupMessage, Action action) =>
+        RunWithStatus(errConsole, markupMessage, () => { action(); return 0; });
 
     private static void WriteLoadedSummary(
         IAnsiConsole errConsole,

@@ -171,7 +171,7 @@ public sealed class PostgresIntegrationTests(PostgresContainerFixture fixture)
             var generated = await manager.GenerateAsync("Initial", interactiveRenamePrompt: false, ct: ct);
             generated.Count.ShouldBe(2); // _global (btree_gist + enum) + PgBookingRegistryV1
 
-            var applied = await manager.MigrateAsync(ct: ct);
+            var applied = await manager.MigrateAsync(cancellationToken: ct);
             applied.Count.ShouldBe(2);
 
             (await manager.GetPendingMigrationsAsync(ct)).ShouldBeEmpty();
@@ -248,7 +248,7 @@ public sealed class PostgresIntegrationTests(PostgresContainerFixture fixture)
         {
             var managerV1 = BuildManager(dbConnectionString, tempRoot, new PgBookingRegistryV1());
             await managerV1.GenerateAsync("Initial", interactiveRenamePrompt: false, ct: ct);
-            await managerV1.MigrateAsync(ct: ct);
+            await managerV1.MigrateAsync(cancellationToken: ct);
 
             // Copy V1 snapshot under V2's registry name to simulate evolving the same registry
             var stateDir = Path.Combine(tempRoot, "EntityChangelogs");
@@ -260,7 +260,7 @@ public sealed class PostgresIntegrationTests(PostgresContainerFixture fixture)
             var v2Generated = await managerV2.GenerateAsync("AddCustomerEmail", interactiveRenamePrompt: false, ct: ct);
             v2Generated.ShouldContain(g => g.RegistryName == nameof(PgBookingRegistryV2));
 
-            var v2Applied = await managerV2.MigrateAsync(ct: ct);
+            var v2Applied = await managerV2.MigrateAsync(cancellationToken: ct);
             v2Applied.ShouldContain(s => s.Contains("add_customer_email", StringComparison.Ordinal));
 
             var v2Report = await managerV2.DiagnoseAsync(checkDatabase: true, ct: ct);
@@ -311,7 +311,7 @@ public sealed class PostgresIntegrationTests(PostgresContainerFixture fixture)
             }
 
             // 2. Apply migrations -> doctor --check-db passes cleanly
-            await manager.MigrateAsync(ct: ct);
+            await manager.MigrateAsync(cancellationToken: ct);
             var healthyReport = await manager.DiagnoseAsync(checkDatabase: true, ct: ct);
             healthyReport.HasErrors.ShouldBeFalse();
             healthyReport.MigrationCoverageChecks.ShouldContain(c =>
@@ -366,8 +366,8 @@ public sealed class PostgresIntegrationTests(PostgresContainerFixture fixture)
             await managerA.GenerateAsync("Initial", interactiveRenamePrompt: false, ct: ct);
 
             var results = await Task.WhenAll(
-                managerA.MigrateAsync(ct: ct),
-                managerB.MigrateAsync(ct: ct));
+                managerA.MigrateAsync(cancellationToken: ct),
+                managerB.MigrateAsync(cancellationToken: ct));
 
             var totalApplied = results[0].Count + results[1].Count;
             totalApplied.ShouldBe(2);

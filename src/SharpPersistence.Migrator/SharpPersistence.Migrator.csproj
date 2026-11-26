@@ -37,9 +37,21 @@
                           ReferenceOutputAssembly="false"
                           OutputItemType="Analyzer"
                           PrivateAssets="all" />
+        <ProjectReference Include="..\SharpPersistence.Migrator.CodeFixes\SharpPersistence.Migrator.CodeFixes.csproj"
+                          ReferenceOutputAssembly="false"
+                          OutputItemType="Analyzer"
+                          PrivateAssets="all" />
     </ItemGroup>
 
     <ItemGroup>
+        <None Include="..\SharpPersistence.Migrator.Generators\bin\$(Configuration)\netstandard2.0\SharpPersistence.Migrator.Generators.dll"
+              Pack="true"
+              PackagePath="analyzers/dotnet/cs"
+              Visible="false" />
+        <None Include="..\SharpPersistence.Migrator.CodeFixes\bin\$(Configuration)\netstandard2.0\SharpPersistence.Migrator.CodeFixes.dll"
+              Pack="true"
+              PackagePath="analyzers/dotnet/cs"
+              Visible="false" />
         <None Update="buildTransitive\SharpPersistence.Migrator.props"
               Pack="true"
               PackagePath="buildTransitive\SharpPersistence.Migrator.props"

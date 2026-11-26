@@ -176,12 +176,12 @@ internal sealed class DbMigrator : IDbMigrator
         return generated;
     }
 
-    public async Task EnsureHistoryTableAsync(CancellationToken ct = default)
+    public async Task EnsureHistoryTableAsync(CancellationToken cancellationToken = default)
     {
-        var (conn, ownsConnection) = await _connectionOpener.OpenAsync(ct).ConfigureAwait(false);
+        var (conn, ownsConnection) = await _connectionOpener.OpenAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await _historyStore.EnsureHistoryTableAsync(conn, ct).ConfigureAwait(false);
+            await _historyStore.EnsureHistoryTableAsync(conn, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -192,13 +192,13 @@ internal sealed class DbMigrator : IDbMigrator
         }
     }
 
-    public async Task<IReadOnlyList<AppliedMigrationRecord>> GetAppliedMigrationsAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<AppliedMigrationRecord>> GetAppliedMigrationsAsync(CancellationToken cancellationToken = default)
     {
-        var (conn, ownsConnection) = await _connectionOpener.OpenAsync(ct).ConfigureAwait(false);
+        var (conn, ownsConnection) = await _connectionOpener.OpenAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await _historyStore.EnsureHistoryTableAsync(conn, ct).ConfigureAwait(false);
-            return await _historyStore.ReadAppliedAsync(conn, ct).ConfigureAwait(false);
+            await _historyStore.EnsureHistoryTableAsync(conn, cancellationToken).ConfigureAwait(false);
+            return await _historyStore.ReadAppliedAsync(conn, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -209,34 +209,34 @@ internal sealed class DbMigrator : IDbMigrator
         }
     }
 
-    public async Task<IReadOnlyList<string>> GetPendingMigrationsAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<string>> GetPendingMigrationsAsync(CancellationToken cancellationToken = default)
     {
-        var status = await GetStatusAsync(ct).ConfigureAwait(false);
+        var status = await GetStatusAsync(cancellationToken).ConfigureAwait(false);
         return status.Where(s => !s.IsApplied).Select(s => $"{s.RegistryName}/{s.ScriptName}").ToList();
     }
 
-    public async Task<IReadOnlyList<MigrationStatusItem>> GetStatusAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<MigrationStatusItem>> GetStatusAsync(CancellationToken cancellationToken = default)
     {
-        var applied = await GetAppliedMigrationsAsync(ct).ConfigureAwait(false);
-        return await _scriptStore.BuildStatusItemsAsync(applied, ct).ConfigureAwait(false);
+        var applied = await GetAppliedMigrationsAsync(cancellationToken).ConfigureAwait(false);
+        return await _scriptStore.BuildStatusItemsAsync(applied, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<IReadOnlyList<string>> MigrateAsync(bool dryRun = false, CancellationToken ct = default)
+    public async Task<IReadOnlyList<string>> MigrateAsync(bool dryRun = false, CancellationToken cancellationToken = default)
     {
         if (dryRun)
         {
-            return await GetPendingMigrationsAsync(ct).ConfigureAwait(false);
+            return await GetPendingMigrationsAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        var (conn, ownsConnection) = await _connectionOpener.OpenAsync(ct).ConfigureAwait(false);
+        var (conn, ownsConnection) = await _connectionOpener.OpenAsync(cancellationToken).ConfigureAwait(false);
         IAsyncDisposable? migrationLock = null;
 
         try
         {
-            migrationLock = await _dialect.AcquireLockAsync(conn, _options, ct).ConfigureAwait(false);
-            await _historyStore.EnsureHistoryTableAsync(conn, ct).ConfigureAwait(false);
+            migrationLock = await _dialect.AcquireLockAsync(conn, _options, cancellationToken).ConfigureAwait(false);
+            await _historyStore.EnsureHistoryTableAsync(conn, cancellationToken).ConfigureAwait(false);
 
-            var applied = await _historyStore.ReadAppliedAsync(conn, ct).ConfigureAwait(false);
+            var applied = await _historyStore.ReadAppliedAsync(conn, cancellationToken).ConfigureAwait(false);
             var appliedMap = applied.ToDictionary(a => a.ScriptId);
 
             var scripts = _scriptStore.DiscoverScripts();
@@ -245,7 +245,7 @@ internal sealed class DbMigrator : IDbMigrator
             {
                 if (appliedMap.TryGetValue(scriptId, out var record))
                 {
-                    var existingSql = await File.ReadAllTextAsync(fullPath, ct).ConfigureAwait(false);
+                    var existingSql = await File.ReadAllTextAsync(fullPath, cancellationToken).ConfigureAwait(false);
                     var currentChecksum = MigrationScriptStore.ComputeSha256(existingSql);
                     if (!string.Equals(record.ChecksumSha256, currentChecksum, StringComparison.OrdinalIgnoreCase))
                     {
@@ -270,13 +270,13 @@ internal sealed class DbMigrator : IDbMigrator
                     continue;
                 }
 
-                var sql = await File.ReadAllTextAsync(fullPath, ct).ConfigureAwait(false);
+                var sql = await File.ReadAllTextAsync(fullPath, cancellationToken).ConfigureAwait(false);
                 var checksum = MigrationScriptStore.ComputeSha256(sql);
                 var relativeScriptName = $"{registryName}/{scriptName}";
 
                 if (_dialect.TryStripOuterTransaction(sql, out var innerSql))
                 {
-                    await using var tx = await conn.BeginTransactionAsync(ct).ConfigureAwait(false);
+                    await using var tx = await conn.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
                     try
                     {
                         foreach (var stmt in _dialect.SplitScriptStatements(innerSql))
@@ -289,11 +289,11 @@ internal sealed class DbMigrator : IDbMigrator
                             await using var execCmd = conn.CreateCommand();
                             execCmd.Transaction = tx;
                             execCmd.CommandText = stmt;
-                            await execCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+                            await execCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
                         }
 
-                        await _historyStore.RecordAppliedAsync(conn, scriptId, relativeScriptName, checksum, ct, tx).ConfigureAwait(false);
-                        await tx.CommitAsync(ct).ConfigureAwait(false);
+                        await _historyStore.RecordAppliedAsync(conn, scriptId, relativeScriptName, checksum, cancellationToken, tx).ConfigureAwait(false);
+                        await tx.CommitAsync(cancellationToken).ConfigureAwait(false);
                     }
                     catch
                     {
@@ -312,10 +312,10 @@ internal sealed class DbMigrator : IDbMigrator
 
                         await using var execCmd = conn.CreateCommand();
                         execCmd.CommandText = stmt;
-                        await execCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+                        await execCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
                     }
 
-                    await _historyStore.RecordAppliedAsync(conn, scriptId, relativeScriptName, checksum, ct).ConfigureAwait(false);
+                    await _historyStore.RecordAppliedAsync(conn, scriptId, relativeScriptName, checksum, cancellationToken).ConfigureAwait(false);
                 }
 
                 executed.Add(relativeScriptName);

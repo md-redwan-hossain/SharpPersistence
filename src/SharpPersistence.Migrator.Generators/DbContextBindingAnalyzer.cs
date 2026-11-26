@@ -1,41 +1,52 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using SharpPersistence.Migrator.Constants;
 
 namespace SharpPersistence.Migrator.Generators;
 
 internal static class DbContextBindingAnalyzer
 {
-    private sealed record BoundRegistryInput(
-        INamedTypeSymbol RegistrySymbol,
-        bool ReadOnly,
-        bool Pluralize,
-        SourceLocationInfo? Location);
+    private readonly record struct BoundRegistryInput
+    {
+        public required INamedTypeSymbol RegistrySymbol { get; init; }
+        public required bool ReadOnly { get; init; }
+        public required bool Pluralize { get; init; }
+        public required SourceLocationInfo? Location { get; init; }
+    }
 
-    private sealed record ItemOverrideInput(
-        INamedTypeSymbol EntitySymbol,
-        string EntityFullName,
-        bool HasReadOnly,
-        bool ReadOnly,
-        bool HasPluralize,
-        bool Pluralize,
-        bool Exclude,
-        SourceLocationInfo? Location);
+    private readonly record struct ItemOverrideInput
+    {
+        public required INamedTypeSymbol EntitySymbol { get; init; }
+        public required string EntityFullName { get; init; }
+        public required bool HasReadOnly { get; init; }
+        public required bool ReadOnly { get; init; }
+        public required bool HasPluralize { get; init; }
+        public required bool Pluralize { get; init; }
+        public required bool Exclude { get; init; }
+        public required SourceLocationInfo? Location { get; init; }
+    }
 
-    private sealed record DiscoveredEntity(
-        INamedTypeSymbol Symbol,
-        string FullTypeName,
-        string SimpleName,
-        bool MarkedReadOnly);
+    private readonly record struct DiscoveredEntity
+    {
+        public required INamedTypeSymbol Symbol { get; init; }
+        public required string FullTypeName { get; init; }
+        public required string SimpleName { get; init; }
+        public required bool MarkedReadOnly { get; init; }
+    }
 
-    private sealed record ExistingMembersInfo(
-        HashSet<string> EntityPropertyTypes,
-        HashSet<string> MemberNames);
+    private readonly record struct ExistingMembersInfo
+    {
+        public required HashSet<string> EntityPropertyTypes { get; init; }
+        public required HashSet<string> MemberNames { get; init; }
+    }
 
-    private sealed record WiringResult(
-        bool GenerateConstructor,
-        bool GenerateOnModelCreating,
-        string? ExistingSchemaMemberName);
+    private readonly record struct WiringResult
+    {
+        public required bool GenerateConstructor { get; init; }
+        public required bool GenerateOnModelCreating { get; init; }
+        public required string? ExistingSchemaMemberName { get; init; }
+    }
 
     public static EquatableArray<PendingDiagnostic> AnalyzeOrphanItemClass(GeneratorAttributeSyntaxContext ctx)
     {
@@ -67,7 +78,7 @@ internal static class DbContextBindingAnalyzer
                 attr.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? classSymbol.Locations.FirstOrDefault());
 
             builder.Add(new PendingDiagnostic(
-                "SPM011",
+                DiagnosticIds.OrphanEntityRegistryItem,
                 loc,
                 entityName,
                 classSymbol.Name,
@@ -116,19 +127,21 @@ internal static class DbContextBindingAnalyzer
 
         var wiring = AnalyzeWiring(compilation, dbContextSymbol, dbContextBase, typeLocation, diagnostics);
 
-        return new DbContextBindingModel(
-            HintName: BuildHintName(dbContextSymbol),
-            SimpleName: dbContextSymbol.Name,
-            Namespace: dbContextSymbol.ContainingNamespace.IsGlobalNamespace
+        return new DbContextBindingModel
+        {
+            HintName = BuildHintName(dbContextSymbol),
+            SimpleName = dbContextSymbol.Name,
+            Namespace = dbContextSymbol.ContainingNamespace.IsGlobalNamespace
                 ? null
                 : dbContextSymbol.ContainingNamespace.ToDisplayString(),
-            ContainingTypeDeclarations: new EquatableArray<string>(GetContainingTypeDeclarations(dbContextSymbol)),
-            Properties: new EquatableArray<GeneratedDbContextProperty>(properties),
-            BoundEntityTypeNames: new EquatableArray<string>(boundEntityTypes),
-            GenerateConstructor: wiring.GenerateConstructor,
-            GenerateOnModelCreating: wiring.GenerateOnModelCreating,
-            ExistingSchemaMemberName: wiring.ExistingSchemaMemberName,
-            Diagnostics: new EquatableArray<PendingDiagnostic>(diagnostics.ToImmutable()));
+            ContainingTypeDeclarations = new EquatableArray<string>(GetContainingTypeDeclarations(dbContextSymbol)),
+            Properties = new EquatableArray<GeneratedDbContextProperty>(properties),
+            BoundEntityTypeNames = new EquatableArray<string>(boundEntityTypes),
+            GenerateConstructor = wiring.GenerateConstructor,
+            GenerateOnModelCreating = wiring.GenerateOnModelCreating,
+            ExistingSchemaMemberName = wiring.ExistingSchemaMemberName,
+            Diagnostics = new EquatableArray<PendingDiagnostic>(diagnostics.ToImmutable())
+        };
     }
 
     private static bool ValidateDbContextDeclaration(
@@ -144,7 +157,7 @@ internal static class DbContextBindingAnalyzer
             return true;
         }
 
-        diagnostics.Add(new PendingDiagnostic("SPM008", typeLocation, dbContextSymbol.ToDisplayString()));
+        diagnostics.Add(new PendingDiagnostic(DiagnosticIds.DbContextMustBeSealedPartial, typeLocation, dbContextSymbol.ToDisplayString()));
         return false;
     }
 
@@ -170,14 +183,20 @@ internal static class DbContextBindingAnalyzer
             var regFullName = regSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             if (!seenRegistryNames.Add(regFullName))
             {
-                diagnostics.Add(new PendingDiagnostic("SPM010", attrLoc, "[BindEntityRegistry]", regSymbol.Name, dbContextSymbol.Name));
+                diagnostics.Add(new PendingDiagnostic(DiagnosticIds.DuplicateDbContextBindingAttribute, attrLoc, KnownNames.Attributes.BindEntityRegistryDisplay, regSymbol.Name, dbContextSymbol.Name));
                 continue;
             }
 
-            var readOnly = RoslynSymbolHelper.GetNamedBool(attr, "ReadOnly", out _);
-            var pluralizeVal = RoslynSymbolHelper.GetNamedBool(attr, "Pluralize", out var hasPluralize);
+            var readOnly = RoslynSymbolHelper.GetNamedBool(attr, KnownNames.AttributeProperties.ReadOnly, out _);
+            var pluralizeVal = RoslynSymbolHelper.GetNamedBool(attr, KnownNames.AttributeProperties.Pluralize, out var hasPluralize);
             var pluralize = !hasPluralize || pluralizeVal;
-            boundRegistries.Add(new BoundRegistryInput(regSymbol, readOnly, pluralize, attrLoc));
+            boundRegistries.Add(new BoundRegistryInput
+            {
+                RegistrySymbol = regSymbol,
+                ReadOnly = readOnly,
+                Pluralize = pluralize,
+                Location = attrLoc
+            });
         }
 
         return boundRegistries;
@@ -207,24 +226,33 @@ internal static class DbContextBindingAnalyzer
             var attrLoc = SourceLocationInfo.From(attr.ApplicationSyntaxReference?.GetSyntax().GetLocation()) ?? typeLocation;
             var entityFullName = entitySymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
-            var readOnlyVal = RoslynSymbolHelper.GetNamedBool(attr, "ReadOnly", out var hasReadOnly);
-            var pluralizeVal = RoslynSymbolHelper.GetNamedBool(attr, "Pluralize", out var hasPluralize);
-            var excludeVal = RoslynSymbolHelper.GetNamedBool(attr, "Exclude", out _);
+            var readOnlyVal = RoslynSymbolHelper.GetNamedBool(attr, KnownNames.AttributeProperties.ReadOnly, out var hasReadOnly);
+            var pluralizeVal = RoslynSymbolHelper.GetNamedBool(attr, KnownNames.AttributeProperties.Pluralize, out var hasPluralize);
+            var excludeVal = RoslynSymbolHelper.GetNamedBool(attr, KnownNames.AttributeProperties.Exclude, out _);
 
             if (excludeVal && (hasReadOnly || hasPluralize))
             {
-                diagnostics.Add(new PendingDiagnostic("SPM009", attrLoc, entitySymbol.Name, dbContextSymbol.Name));
+                diagnostics.Add(new PendingDiagnostic(DiagnosticIds.InvalidRegistryItemCombination, attrLoc, entitySymbol.Name, dbContextSymbol.Name));
                 continue;
             }
 
             if (itemOverrides.ContainsKey(entityFullName))
             {
-                diagnostics.Add(new PendingDiagnostic("SPM010", attrLoc, "[EntityRegistryItem]", entitySymbol.Name, dbContextSymbol.Name));
+                diagnostics.Add(new PendingDiagnostic(DiagnosticIds.DuplicateDbContextBindingAttribute, attrLoc, KnownNames.Attributes.EntityRegistryItemDisplay, entitySymbol.Name, dbContextSymbol.Name));
                 continue;
             }
 
-            itemOverrides[entityFullName] = new ItemOverrideInput(
-                entitySymbol, entityFullName, hasReadOnly, readOnlyVal, hasPluralize, pluralizeVal, excludeVal, attrLoc);
+            itemOverrides[entityFullName] = new ItemOverrideInput
+            {
+                EntitySymbol = entitySymbol,
+                EntityFullName = entityFullName,
+                HasReadOnly = hasReadOnly,
+                ReadOnly = readOnlyVal,
+                HasPluralize = hasPluralize,
+                Pluralize = pluralizeVal,
+                Exclude = excludeVal,
+                Location = attrLoc
+            };
         }
 
         return itemOverrides;
@@ -255,7 +283,11 @@ internal static class DbContextBindingAnalyzer
             }
         }
 
-        return new ExistingMembersInfo(existingEntityProps, existingMemberNames);
+        return new ExistingMembersInfo
+        {
+            EntityPropertyTypes = existingEntityProps,
+            MemberNames = existingMemberNames
+        };
     }
 
     private static (ImmutableArray<GeneratedDbContextProperty> Properties, ImmutableArray<string> BoundEntityTypes)
@@ -318,19 +350,24 @@ internal static class DbContextBindingAnalyzer
                 if (existingMembers.MemberNames.Contains(propName))
                 {
                     diagnostics.Add(new PendingDiagnostic(
-                        "SPM012", typeLocation, propName, entity.SimpleName, dbContextSymbol.Name, $"an existing member '{propName}'"));
+                        DiagnosticIds.DbContextPropertyNameCollision, typeLocation, propName, entity.SimpleName, dbContextSymbol.Name, $"an existing member '{propName}'"));
                     continue;
                 }
 
                 if (usedPropertyNames.TryGetValue(propName, out var otherEntity))
                 {
                     diagnostics.Add(new PendingDiagnostic(
-                        "SPM012", typeLocation, propName, entity.SimpleName, dbContextSymbol.Name, $"another bound entity '{otherEntity}'"));
+                        DiagnosticIds.DbContextPropertyNameCollision, typeLocation, propName, entity.SimpleName, dbContextSymbol.Name, $"another bound entity '{otherEntity}'"));
                     continue;
                 }
 
                 usedPropertyNames[propName] = entity.SimpleName;
-                generatedProps.Add(new GeneratedDbContextProperty(entity.FullTypeName, propName, isReadOnly));
+                generatedProps.Add(new GeneratedDbContextProperty
+                {
+                    EntityFullTypeName = entity.FullTypeName,
+                    PropertyName = propName,
+                    IsReadOnly = isReadOnly
+                });
             }
         }
 
@@ -339,7 +376,7 @@ internal static class DbContextBindingAnalyzer
             if (!matchedOverrideKeys.Contains(kv.Key))
             {
                 diagnostics.Add(new PendingDiagnostic(
-                    "SPM011",
+                    DiagnosticIds.OrphanEntityRegistryItem,
                     kv.Value.Location,
                     kv.Value.EntitySymbol.Name,
                     dbContextSymbol.Name,
@@ -362,7 +399,12 @@ internal static class DbContextBindingAnalyzer
         var databaseModelSymbol = compilation.GetTypeByMetadataName(GeneratorConstants.DatabaseModelMetadataName);
         if (databaseModelSymbol is null)
         {
-            return new WiringResult(false, false, null);
+            return new WiringResult
+            {
+                GenerateConstructor = false,
+                GenerateOnModelCreating = false,
+                ExistingSchemaMemberName = null
+            };
         }
 
         var modelBuilderSymbol = compilation.GetTypeByMetadataName(GeneratorConstants.EfCoreModelBuilderMetadataName);
@@ -372,35 +414,55 @@ internal static class DbContextBindingAnalyzer
 
         if (!hasExplicitConstructor && existingOnModelCreating is null)
         {
-            return new WiringResult(true, true, null);
+            return new WiringResult
+            {
+                GenerateConstructor = true,
+                GenerateOnModelCreating = true,
+                ExistingSchemaMemberName = null
+            };
         }
 
         if (hasExplicitConstructor && existingOnModelCreating is null)
         {
             if (existingSchemaMember is not null)
             {
-                return new WiringResult(false, true, existingSchemaMember);
+                return new WiringResult
+                {
+                    GenerateConstructor = false,
+                    GenerateOnModelCreating = true,
+                    ExistingSchemaMemberName = existingSchemaMember
+                };
             }
 
             diagnostics.Add(new PendingDiagnostic(
-                "SPM013",
+                DiagnosticIds.DbContextMissingSchemaWiring,
                 typeLocation,
                 dbContextSymbol.Name,
                 "declares a custom constructor without a DatabaseModel field or property, so OnModelCreating was not auto-generated; override OnModelCreating and call modelBuilder.ApplySchemaToEfCore(schema)"));
-            return new WiringResult(false, false, null);
+            return new WiringResult
+            {
+                GenerateConstructor = false,
+                GenerateOnModelCreating = false,
+                ExistingSchemaMemberName = null
+            };
         }
 
         if (existingOnModelCreating is not null && !CallsApplySchemaToEfCore(existingOnModelCreating))
         {
             var methodLoc = SourceLocationInfo.From(existingOnModelCreating.Locations.FirstOrDefault()) ?? typeLocation;
             diagnostics.Add(new PendingDiagnostic(
-                "SPM013",
+                DiagnosticIds.DbContextMissingSchemaWiring,
                 methodLoc,
                 dbContextSymbol.Name,
                 "overrides OnModelCreating without calling ApplySchemaToEfCore(...); bound entity schemas may not be applied to EF Core"));
         }
 
-        return new WiringResult(false, false, existingSchemaMember);
+        return new WiringResult
+        {
+            GenerateConstructor = false,
+            GenerateOnModelCreating = false,
+            ExistingSchemaMemberName = existingSchemaMember
+        };
     }
 
     private static IMethodSymbol? FindCustomOnModelCreating(
@@ -417,7 +479,7 @@ internal static class DbContextBindingAnalyzer
         var current = dbContextSymbol;
         while (current is not null && !SymbolEqualityComparer.Default.Equals(current, dbContextBase))
         {
-            foreach (var member in current.GetMembers("OnModelCreating"))
+            foreach (var member in current.GetMembers(KnownNames.Methods.OnModelCreating))
             {
                 if (member is IMethodSymbol method &&
                     !method.IsImplicitlyDeclared &&
@@ -447,7 +509,7 @@ internal static class DbContextBindingAnalyzer
             var syntax = syntaxRef.GetSyntax();
             foreach (var id in syntax.DescendantNodes().OfType<IdentifierNameSyntax>())
             {
-                if (string.Equals(id.Identifier.ValueText, "ApplySchemaToEfCore", StringComparison.Ordinal))
+                if (string.Equals(id.Identifier.ValueText, KnownNames.Methods.ApplySchemaToEfCore, StringComparison.Ordinal))
                 {
                     return true;
                 }
@@ -628,7 +690,13 @@ internal static class DbContextBindingAnalyzer
         }
 
         var markedReadOnly = RoslynSymbolHelper.IsMarkedReadOnly(entitySym, entityMarkerBase);
-        results[fullName] = new DiscoveredEntity(entitySym, fullName, entitySym.Name, markedReadOnly);
+        results[fullName] = new DiscoveredEntity
+        {
+            Symbol = entitySym,
+            FullTypeName = fullName,
+            SimpleName = entitySym.Name,
+            MarkedReadOnly = markedReadOnly
+        };
     }
 
     private static INamedTypeSymbol? ResolveRegistryMarker(Compilation compilation, INamedTypeSymbol registrySymbol)
@@ -691,15 +759,17 @@ internal static class DbContextBindingAnalyzer
     private static DbContextBindingModel CreateDiagnosticsOnlyModel(
         INamedTypeSymbol symbol,
         ImmutableArray<PendingDiagnostic> diagnostics) =>
-        new(
-            HintName: BuildHintName(symbol),
-            SimpleName: symbol.Name,
-            Namespace: null,
-            ContainingTypeDeclarations: EquatableArray<string>.Empty,
-            Properties: EquatableArray<GeneratedDbContextProperty>.Empty,
-            BoundEntityTypeNames: EquatableArray<string>.Empty,
-            GenerateConstructor: false,
-            GenerateOnModelCreating: false,
-            ExistingSchemaMemberName: null,
-            Diagnostics: new EquatableArray<PendingDiagnostic>(diagnostics));
+        new()
+        {
+            HintName = BuildHintName(symbol),
+            SimpleName = symbol.Name,
+            Namespace = null,
+            ContainingTypeDeclarations = EquatableArray<string>.Empty,
+            Properties = EquatableArray<GeneratedDbContextProperty>.Empty,
+            BoundEntityTypeNames = EquatableArray<string>.Empty,
+            GenerateConstructor = false,
+            GenerateOnModelCreating = false,
+            ExistingSchemaMemberName = null,
+            Diagnostics = new EquatableArray<PendingDiagnostic>(diagnostics)
+        };
 }

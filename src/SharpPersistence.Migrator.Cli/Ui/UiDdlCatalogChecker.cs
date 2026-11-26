@@ -1,5 +1,6 @@
 using System.Data.Common;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -45,9 +46,9 @@ internal static partial class UiDdlCatalogChecker
         return result;
     }
 
-    private static bool TryParseDdl(string clean, string originalSql, int index, out UiDdlStatementDto dto)
+    private static bool TryParseDdl(string clean, string originalSql, int index, [NotNullWhen(true)] out UiDdlStatementDto? dto)
     {
-        dto = null!;
+        dto = null;
         Match m;
 
         if ((m = CreateSchemaRx().Match(clean)).Success)

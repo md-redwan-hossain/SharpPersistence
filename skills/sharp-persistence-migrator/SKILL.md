@@ -55,7 +55,7 @@ builder.Services.AddDbMigrator(opt =>
 ```
 
 - Implement `IDesignTimeDbMigratorFactory` in class-library projects without `Program.cs`.
-- Inject `IDbMigrator` at runtime (`MigrateAsync`, `GetStatusAsync`, `GetPendingMigrationsAsync`, `GetAppliedMigrationsAsync`, `EnsureHistoryTableAsync`).
+- Inject `IDbMigrator` at runtime (`MigrateAsync(bool dryRun = false, CancellationToken cancellationToken = default)`, `GetStatusAsync(CancellationToken cancellationToken = default)`, `GetPendingMigrationsAsync(CancellationToken cancellationToken = default)`, `GetAppliedMigrationsAsync(CancellationToken cancellationToken = default)`, `EnsureHistoryTableAsync(CancellationToken cancellationToken = default)`).
 
 ## Entity Registries & Fluent Builders
 
@@ -131,27 +131,24 @@ public sealed partial class SalesRegistry : IEntityRegistry
 - **Migrator (`SharpPersistence.Migrator`):** `[EntityRegistry]`, `[EntityRegistry<TMarker>]`, `[EntityConfiguration<TEntity>]`, `[assembly: EntityRegistryRoot]` (or `<EntityRegistryRoot>true</EntityRegistryRoot>`).
 - **Diagnostics:**
   - `SPM001`-`SPM007`: registry/configuration declaration, duplicate config, missing `Configure`, duplicate entity across registries, non-public entity/marker, orphan config warning.
-  - `SPM008`-`SPM013`: `[BindEntityRegistry<TRegistry>]` / `[EntityRegistryItem<TEntity>]` validation (partial `DbContext`, valid registry type, duplicate bindings/items, unknown item).
+  - `SPM008`-`SPM013`: `[BindEntityRegistry<TRegistry>]` / `[EntityRegistryItem<TEntity>]` validation (`sealed partial DbContext`, valid registry type, duplicate bindings/items, unknown item, property collision, `DatabaseModel`/`ApplySchemaToEfCore` wiring). Most `SPM` diagnostics include bundled IDE Roslyn CodeFixes.
   - `SPM014`: `.IsRequired()` inside an optional `OwnsOne(...)`.
   - `SPM015`: self-mapped or `ReadOnly = true` target in `ConfigureEntityStubs(...)`.
 
 ## EF Core Bridge & `DbContext` Registry Binding (`SharpPersistence.Migrator.EfCore`)
 
 - Inject `DatabaseModel` into `DbContext` and call `modelBuilder.ApplySchemaToEfCore(model);` in `OnModelCreating` (or use `[BindEntityRegistry<TRegistry>]` below).
-- Decorate a `partial` `DbContext` with `[BindEntityRegistry<TRegistry>]` to generate `DbSet<T>` / `IQueryable<T>` properties and `ApplyBoundRegistries(modelBuilder, model)` at compile time:
+- Decorate a `sealed partial` `DbContext` with `[BindEntityRegistry<TRegistry>]` to generate `DbSet<T>` / `IQueryable<T>` properties, a `(DbContextOptions<TContext>, DatabaseModel)` constructor (unless you declare your own), and `OnModelCreating` calling `modelBuilder.ApplySchemaToEfCore(...)` + `partial void OnModelCreatingPartial(ModelBuilder modelBuilder)`:
 
 ```csharp
 [BindEntityRegistry<SalesRegistry>]
 [BindEntityRegistry<IdentityRegistry>(ReadOnly = true)] // generates IQueryable<T> (.AsNoTracking())
 [EntityRegistryItem<AuditLog>(Exclude = true)]
-public sealed partial class SalesDbContext(
-    DbContextOptions<SalesDbContext> options,
-    DatabaseModel model) : DbContext(options)
+public sealed partial class SalesDbContext : DbContext
 {
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    // Optional hook that runs right after modelBuilder.ApplySchemaToEfCore(...)
+    partial void OnModelCreatingPartial(ModelBuilder modelBuilder)
     {
-        base.OnModelCreating(modelBuilder);
-        ApplyBoundRegistries(modelBuilder, model);
     }
 }
 ```

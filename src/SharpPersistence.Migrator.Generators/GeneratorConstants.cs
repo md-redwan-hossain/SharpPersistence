@@ -1,5 +1,6 @@
 using System.Text;
 using Microsoft.CodeAnalysis;
+using SharpPersistence.Migrator.Constants;
 
 namespace SharpPersistence.Migrator.Generators;
 
@@ -45,7 +46,7 @@ internal static class GeneratorConstants
     public const string DiagnosticCategory = "SharpPersistence.Migrator";
 
     public static readonly DiagnosticDescriptor RegistryMustBeSealedPartialImplementingInterface = new(
-        id: "SPM001",
+        id: DiagnosticIds.RegistryMustBeSealedPartialImplementingInterface,
         title: "Invalid [EntityRegistry] class declaration",
         messageFormat: "Type '{0}' decorated with [EntityRegistry] must be sealed, partial, and implement IEntityRegistry",
         category: DiagnosticCategory,
@@ -53,7 +54,7 @@ internal static class GeneratorConstants
         isEnabledByDefault: true);
 
     public static readonly DiagnosticDescriptor ConfigurationInvalid = new(
-        id: "SPM002",
+        id: DiagnosticIds.ConfigurationInvalid,
         title: "Invalid [EntityConfiguration<TEntity>] class declaration",
         messageFormat: "Type '{0}' decorated with [EntityConfiguration<{1}>] must be sealed, have a public parameterless constructor, and implement IEntityConfiguration<{1}>",
         category: DiagnosticCategory,
@@ -61,7 +62,7 @@ internal static class GeneratorConstants
         isEnabledByDefault: true);
 
     public static readonly DiagnosticDescriptor DuplicateEntityConfiguration = new(
-        id: "SPM003",
+        id: DiagnosticIds.DuplicateEntityConfiguration,
         title: "Duplicate [EntityConfiguration<TEntity>] detected",
         messageFormat: "Multiple [EntityConfiguration] classes found for entity '{0}': {1}",
         category: DiagnosticCategory,
@@ -69,7 +70,7 @@ internal static class GeneratorConstants
         isEnabledByDefault: true);
 
     public static readonly DiagnosticDescriptor RegistryMustDeclareConfigure = new(
-        id: "SPM004",
+        id: DiagnosticIds.RegistryMustDeclareConfigure,
         title: "Missing Configure(IEntityRegistryBuilder) method",
         messageFormat: "Type '{0}' decorated with [EntityRegistry] must declare 'public void Configure(IEntityRegistryBuilder registry)'",
         category: DiagnosticCategory,
@@ -77,7 +78,7 @@ internal static class GeneratorConstants
         isEnabledByDefault: true);
 
     public static readonly DiagnosticDescriptor DuplicateEntityAcrossRegistries = new(
-        id: "SPM005",
+        id: DiagnosticIds.DuplicateEntityAcrossRegistries,
         title: "Entity matched by multiple registries",
         messageFormat: "Entity '{0}' is matched by multiple [EntityRegistry] classes in this compilation: {1}",
         category: DiagnosticCategory,
@@ -85,7 +86,7 @@ internal static class GeneratorConstants
         isEnabledByDefault: true);
 
     public static readonly DiagnosticDescriptor EntityOrMarkerMustBePublic = new(
-        id: "SPM006",
+        id: DiagnosticIds.EntityOrMarkerMustBePublic,
         title: "Discovered entity or marker attribute must be public",
         messageFormat: "Type '{0}' marked with '{1}' must be publicly accessible for compile-time entity manifest generation",
         category: DiagnosticCategory,
@@ -93,7 +94,7 @@ internal static class GeneratorConstants
         isEnabledByDefault: true);
 
     public static readonly DiagnosticDescriptor OrphanEntityConfiguration = new(
-        id: "SPM007",
+        id: DiagnosticIds.OrphanEntityConfiguration,
         title: "Unpaired [EntityConfiguration<TEntity>]",
         messageFormat: "Configuration '{0}' targets entity '{1}', which is not matched by any [EntityRegistry] in this compilation",
         category: DiagnosticCategory,
@@ -101,7 +102,7 @@ internal static class GeneratorConstants
         isEnabledByDefault: true);
 
     public static readonly DiagnosticDescriptor DbContextMustBeSealedPartial = new(
-        id: "SPM008",
+        id: DiagnosticIds.DbContextMustBeSealedPartial,
         title: "Invalid [BindEntityRegistry<TRegistry>] class declaration",
         messageFormat: "Type '{0}' decorated with [BindEntityRegistry] must be sealed, partial, and inherit Microsoft.EntityFrameworkCore.DbContext",
         category: DiagnosticCategory,
@@ -109,7 +110,7 @@ internal static class GeneratorConstants
         isEnabledByDefault: true);
 
     public static readonly DiagnosticDescriptor InvalidRegistryItemCombination = new(
-        id: "SPM009",
+        id: DiagnosticIds.InvalidRegistryItemCombination,
         title: "Invalid [EntityRegistryItem<TEntity>] property combination",
         messageFormat: "[EntityRegistryItem<{0}>] on '{1}' cannot set Exclude = true together with ReadOnly or Pluralize",
         category: DiagnosticCategory,
@@ -117,7 +118,7 @@ internal static class GeneratorConstants
         isEnabledByDefault: true);
 
     public static readonly DiagnosticDescriptor DuplicateDbContextBindingAttribute = new(
-        id: "SPM010",
+        id: DiagnosticIds.DuplicateDbContextBindingAttribute,
         title: "Duplicate DbContext registry binding attribute",
         messageFormat: "Duplicate {0} for '{1}' on '{2}'",
         category: DiagnosticCategory,
@@ -125,7 +126,7 @@ internal static class GeneratorConstants
         isEnabledByDefault: true);
 
     public static readonly DiagnosticDescriptor OrphanEntityRegistryItem = new(
-        id: "SPM011",
+        id: DiagnosticIds.OrphanEntityRegistryItem,
         title: "Unmatched [EntityRegistryItem<TEntity>]",
         messageFormat: "[EntityRegistryItem<{0}>] on '{1}' {2}",
         category: DiagnosticCategory,
@@ -133,7 +134,7 @@ internal static class GeneratorConstants
         isEnabledByDefault: true);
 
     public static readonly DiagnosticDescriptor DbContextPropertyNameCollision = new(
-        id: "SPM012",
+        id: DiagnosticIds.DbContextPropertyNameCollision,
         title: "Generated DbContext property name collision",
         messageFormat: "Generated property '{0}' for entity '{1}' on '{2}' collides with {3}",
         category: DiagnosticCategory,
@@ -141,7 +142,7 @@ internal static class GeneratorConstants
         isEnabledByDefault: true);
 
     public static readonly DiagnosticDescriptor DbContextSchemaNotWired = new(
-        id: "SPM013",
+        id: DiagnosticIds.DbContextMissingSchemaWiring,
         title: "DatabaseModel schema is not wired into EF Core",
         messageFormat: "DbContext '{0}' {1}",
         category: DiagnosticCategory,
@@ -149,7 +150,7 @@ internal static class GeneratorConstants
         isEnabledByDefault: true);
 
     public static readonly DiagnosticDescriptor RequiredColumnInsideOptionalOwnedNavigation = new(
-        id: "SPM014",
+        id: DiagnosticIds.RequiredColumnInsideOptionalOwnedNavigation,
         title: "IsRequired() cannot be used inside an optional OwnsOne navigation",
         messageFormat: "Cannot call IsRequired() inside optional OwnsOne navigation '{0}'; columns under a nullable owned navigation must remain nullable in the database",
         category: DiagnosticCategory,
@@ -157,7 +158,7 @@ internal static class GeneratorConstants
         isEnabledByDefault: true);
 
     public static readonly DiagnosticDescriptor InvalidEntityStubMapping = new(
-        id: "SPM015",
+        id: DiagnosticIds.InvalidEntityStubMapping,
         title: "Invalid ConfigureEntityStubs mapping",
         messageFormat: "{0}",
         category: DiagnosticCategory,
