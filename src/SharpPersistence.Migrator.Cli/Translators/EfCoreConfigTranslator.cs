@@ -14,6 +14,7 @@ internal sealed record TranslatedEfCoreConfig(
 
 internal static class EfCoreConfigTranslator
 {
+    public const string DefaultOutputDirectoryName = "TranslatedEfConfigs";
     private static readonly HashSet<string> EfOnlyMethods = new(StringComparer.Ordinal)
     {
         "OwnsOne",
@@ -73,31 +74,37 @@ internal static class EfCoreConfigTranslator
             rewriter.Warnings);
     }
 
+    public static string ResolveOutputDirectory(string inputDirectory, string? outputDirectory = null)
+    {
+        var fullInput = Path.GetFullPath(inputDirectory);
+        return string.IsNullOrWhiteSpace(outputDirectory)
+            ? Path.Combine(fullInput, DefaultOutputDirectoryName)
+            : Path.GetFullPath(outputDirectory);
+    }
+
     public static IReadOnlyList<TranslatedEfCoreConfig> TranslateDirectory(
         string inputDirectory,
         string? outputDirectory = null,
         bool dryRun = false,
         bool addEntityConfigurationAttribute = true)
     {
-        if (string.IsNullOrWhiteSpace(inputDirectory))
-        {
-            throw new ArgumentException("Input directory cannot be empty.", nameof(inputDirectory));
-        }
-
-        var fullInput = Path.GetFullPath(inputDirectory);
-        if (!Directory.Exists(fullInput))
-        {
-            throw new DirectoryNotFoundException($"Directory not found: '{fullInput}'.");
-        }
-
-        var fullOutput = string.IsNullOrWhiteSpace(outputDirectory)
-            ? fullInput
-            : Path.GetFullPath(outputDirectory);
+        var fullInput = PathGuard.EnsureReadableDirectory(inputDirectory, "--source-path");
+        var rawOutput = string.IsNullOrWhiteSpace(outputDirectory)
+            ? Path.Combine(fullInput, DefaultOutputDirectoryName)
+            : outputDirectory;
+        var fullOutput = PathGuard.EnsureWritableDirectory(rawOutput, "--output-path", dryRun);
+        var fullOutputPrefix = fullOutput.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            + Path.DirectorySeparatorChar;
 
         var results = new List<TranslatedEfCoreConfig>();
         foreach (var file in Directory.EnumerateFiles(fullInput, "*.cs", SearchOption.AllDirectories)
                      .OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
         {
+            if (file.StartsWith(fullOutputPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             var source = File.ReadAllText(file);
             var relative = Path.GetRelativePath(fullInput, file);
             var translated = TranslateSource(source, file, relative, addEntityConfigurationAttribute);

@@ -14,7 +14,6 @@ Most commands load your `IServiceProvider` (from `Program.cs`) or `IDesignTimeDb
 | --- | --- |
 | `-s`, `--startup-project <PATH>` | Startup `.csproj` or directory (auto-detected from CWD if omitted) |
 | `-d`, `--destination-project <PATH>` | Project where `DbMigrator/Scripts` and `DbMigrator/Snapshots` live |
-| `-o`, `--output-dir <DIR>` | Override output directory for scripts and snapshots |
 | `--no-build` | Skip `dotnet build` before loading the startup assembly |
 | `--ci`, `--non-interactive` | Disable interactive prompts (project pickers and rename prompts) |
 
@@ -22,11 +21,15 @@ Most commands load your `IServiceProvider` (from `Program.cs`) or `IDesignTimeDb
 
 ### `config`
 
-Scans your solution (`.slnx` / `.sln`) and generates or refreshes `db-migrator.config.json` at the solution root so you don't need to pass `-s` / `-d` on every command.
+Scans your solution (`.slnx` / `.sln`) and generates, inspects, or updates `db-migrator-config.json` at the solution root so you don't need to pass `-s` / `-d` on every command.
 
 ```powershell
-# Generate or refresh db-migrator.config.json at the solution root
+# Generate or refresh db-migrator-config.json at the solution root
 db-migrator config --generate
+
+# Update the default startup project or inspect the current config
+db-migrator config --set-default-startup src/WebApi/WebApi.csproj
+db-migrator config --show
 ```
 
 ```json
@@ -188,6 +191,8 @@ db-migrator runlist sync --prune --dry-run
 
 ### `status` & `pending`
 
+Inspects applied vs. pending migration scripts against the database history table (`status` also checks applied scripts for SHA-256 checksum mismatches; `pending` lists unapplied scripts read-only without reading `.sql` files).
+
 ```powershell
 # Table showing APPLIED / PENDING / CHECKSUM MISMATCH
 db-migrator status --startup-project WebApi/WebApi.csproj
@@ -198,13 +203,14 @@ db-migrator pending --startup-project WebApi/WebApi.csproj
 
 ### `translate-ef-configs`
 
-Translates EF Core `IEntityTypeConfiguration<T>` C# files into `IEntityConfiguration<T>` files.
+Translates EF Core `IEntityTypeConfiguration<T>` C# files into `IEntityConfiguration<T>` files without overwriting the originals. When `--output-path` is omitted, translated files are written into `<source-path>/TranslatedEfConfigs`.
 
 ```powershell
-db-migrator translate-ef-configs Infrastructure/Configurations --output-dir Infrastructure/MigratorConfigs --dry-run
+db-migrator translate-ef-configs --source-path Infrastructure/Configurations --dry-run
+db-migrator translate-ef-configs --source-path Infrastructure/Configurations --output-path Infrastructure/MigratorConfigs
 ```
 
-Options: `-o|--output-dir <DIR>`, `--no-attribute`, `--dry-run`.
+Options: `-s|--source-path <DIR>` (required), `-o|--output-path <DIR>` (optional, defaults to `<source-path>/TranslatedEfConfigs`), `--no-attribute`, `--dry-run`.
 
 ### `annotate-dbcontext-entities`
 
@@ -220,9 +226,11 @@ db-migrator annotate-dbcontext-entities --dbcontext Modules/Sales/Infra/SalesDbC
 
 Options: `--dbcontext <PATH>` (required), `--search-directory <DIR>` (required), `--entity-group-name <NAME>` and `--entity-group-namespace <NAMESPACE>` (optional, must be provided together), `--read-only`, `--dry-run`.
 
-### `translate-ef-migration` & `sync-ef-history`
+### `translate-ef-migrations` & `sync-ef-history`
+
+`translate-ef-migrations` converts compiled EF Core `Migration` classes in `--source-path` 1-to-1 into idempotent SQL scripts under `DbMigrator/Scripts/_translated/` and appends them to `db-migration-runlist.json`. `sync-ef-history` reads `__EFMigrationsHistory` and records matching `_translated` scripts as already applied in `__db_migration_logs` so existing databases won't re-run historical migrations.
 
 ```powershell
-db-migrator translate-ef-migration WebApi/Migrations --startup-project WebApi/WebApi.csproj
+db-migrator translate-ef-migrations --source-path WebApi/Migrations --startup-project WebApi/WebApi.csproj
 db-migrator sync-ef-history --startup-project WebApi/WebApi.csproj --dry-run
 ```

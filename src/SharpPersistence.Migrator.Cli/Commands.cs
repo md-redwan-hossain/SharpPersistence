@@ -13,12 +13,8 @@ internal class SharedSettings : CommandSettings
     public string? StartupProjectPath { get; init; }
 
     [CommandOption("-d|--destination-project <PATH>")]
-    [Description("Destination .csproj file or directory where MigrationScripts and EntityChangelogs live (defaults to startup project directory).")]
+    [Description("Destination .csproj file or directory where DbMigrator/Scripts and DbMigrator/Snapshots live (defaults to startup project directory).")]
     public string? DestinationProjectPath { get; init; }
-
-    [CommandOption("-o|--output-dir <DIR>")]
-    [Description("Optional output directory override for MigrationScripts and EntityChangelogs.")]
-    public string? OutputDir { get; init; }
 
     [CommandOption("--no-build")]
     [Description("Skip running 'dotnet build' on the startup project before loading it.")]
@@ -66,13 +62,18 @@ internal sealed class MigrateSettings : SharedSettings
 
 internal sealed class TranslateEfSettings : SharedSettings
 {
-    [CommandArgument(0, "<MIGRATIONS_DIR>")]
-    [Description("Path to the EF Core Migrations folder containing *.cs migration files.")]
-    public string MigrationsDirectory { get; init; } = string.Empty;
+    [CommandOption("--source-path <DIR>")]
+    [Description("Path to the EF Core Migrations folder containing *.cs migration files (required).")]
+    public string SourcePath { get; init; } = string.Empty;
 
     [CommandOption("--dry-run")]
     [Description("Preview translated SQL scripts without writing files.")]
     public bool DryRun { get; init; }
+
+    public override ValidationResult Validate() =>
+        string.IsNullOrWhiteSpace(SourcePath)
+            ? ValidationResult.Error("Missing required option: --source-path <DIR>.")
+            : ValidationResult.Success();
 }
 
 internal sealed class DryRunSettings : SharedSettings
@@ -117,13 +118,13 @@ internal sealed class RunlistSyncSettings : SharedSettings
 
 internal sealed class TranslateEfConfigsSettings : CommandSettings
 {
-    [CommandArgument(0, "<CONFIGS_DIR>")]
-    [Description("Directory containing EF Core IEntityTypeConfiguration<T> .cs files.")]
-    public string ConfigsDirectory { get; init; } = string.Empty;
+    [CommandOption("-s|--source-path <DIR>")]
+    [Description("Directory containing EF Core IEntityTypeConfiguration<T> .cs files (required).")]
+    public string SourcePath { get; init; } = string.Empty;
 
-    [CommandOption("-o|--output-dir <DIR>")]
-    [Description("Output directory for translated IEntityConfiguration<T> files (defaults to overwriting in place).")]
-    public string? OutputDir { get; init; }
+    [CommandOption("-o|--output-path <DIR>")]
+    [Description("Optional output directory for translated IEntityConfiguration<T> files (defaults to <source-path>/TranslatedEfConfigs).")]
+    public string? OutputPath { get; init; }
 
     [CommandOption("--no-attribute")]
     [Description("Do not add [EntityConfiguration<T>] attributes to translated classes.")]
@@ -132,6 +133,11 @@ internal sealed class TranslateEfConfigsSettings : CommandSettings
     [CommandOption("--dry-run")]
     [Description("Preview translated files without writing to disk.")]
     public bool DryRun { get; init; }
+
+    public override ValidationResult Validate() =>
+        string.IsNullOrWhiteSpace(SourcePath)
+            ? ValidationResult.Error("Missing required option: --source-path <DIR>.")
+            : ValidationResult.Success();
 }
 
 internal sealed class DiffCommand : AsyncCommand<DiffSettings>
@@ -194,10 +200,11 @@ internal sealed class TranslateEfConfigsCommand : Command<TranslateEfConfigsSett
 {
     public override int Execute(CommandContext context, TranslateEfConfigsSettings settings)
     {
-        var inputDir = Path.GetFullPath(settings.ConfigsDirectory);
+        var inputDir = Path.GetFullPath(settings.SourcePath);
+        var outputDir = EfCoreConfigTranslator.ResolveOutputDirectory(inputDir, settings.OutputPath);
         var translated = EfCoreConfigTranslator.TranslateDirectory(
             inputDir,
-            settings.OutputDir,
+            settings.OutputPath,
             dryRun: settings.DryRun,
             addEntityConfigurationAttribute: !settings.NoAttribute);
 
@@ -208,6 +215,7 @@ internal sealed class TranslateEfConfigsCommand : Command<TranslateEfConfigsSett
         }
 
         var badge = settings.DryRun ? "[yellow][[DRY-RUN]][/] " : string.Empty;
+        AnsiConsole.MarkupLine($"{badge}Output directory: [cyan]{Markup.Escape(outputDir)}[/]");
         foreach (var item in translated)
         {
             AnsiConsole.MarkupLine(
@@ -343,10 +351,10 @@ internal sealed class TranslateEfMigrationCommand : AsyncCommand<TranslateEfSett
 {
     public override async Task<int> ExecuteAsync(CommandContext context, TranslateEfSettings settings)
     {
+        var dir = PathGuard.EnsureReadableDirectory(settings.SourcePath, "--source-path");
         var (owner, manager, _) = TargetAssemblyLoader.CreateManager(settings);
         try
         {
-            var dir = Path.GetFullPath(settings.MigrationsDirectory);
             var translated = await manager.TranslateEfCoreMigrationsAsync(dir, dryRun: settings.DryRun);
             if (translated.Count == 0)
             {

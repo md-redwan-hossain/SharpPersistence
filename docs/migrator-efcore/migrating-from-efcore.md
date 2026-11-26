@@ -4,7 +4,7 @@ Move an existing EF Core codebase to `SharpPersistence.Migrator` in four explici
 
 ## Step 0 (Optional): Annotate Existing `DbContext` Entities
 
-If your domain entities aren't yet marked with `[Entity]` (or a custom `EntityMarkerAttribute`), annotate every entity discovered from your EF Core `DbContext` in one pass:
+If your domain entities aren't yet marked with `[Entity]` (or `[Entity<TGroup>]`), annotate every entity discovered from your EF Core `DbContext` in one pass:
 
 ```powershell
 db-migrator annotate-dbcontext-entities --dbcontext src/Infrastructure/AppDbContext.cs --search-directory src/Domain --dry-run
@@ -16,10 +16,10 @@ Run `translate-ef-configs` on your configurations folder (this runs only when yo
 
 ```powershell
 # Preview first without modifying files
-db-migrator translate-ef-configs src/Infrastructure/Configurations --dry-run
+db-migrator translate-ef-configs --source-path src/Infrastructure/Configurations --dry-run
 
-# Write translated files into a new folder (or omit -o to overwrite in place)
-db-migrator translate-ef-configs src/Infrastructure/Configurations -o src/Infrastructure/MigratorConfigs
+# Write translated files into <source-path>/TranslatedEfConfigs (or pass --output-path for a custom folder)
+db-migrator translate-ef-configs --source-path src/Infrastructure/Configurations --output-path src/Infrastructure/MigratorConfigs
 ```
 
 ### What It Rewrites Automatically
@@ -37,7 +37,7 @@ db-migrator translate-ef-configs src/Infrastructure/Configurations -o src/Infras
 Translate existing EF Core C# migration files 1-to-1 into `DbMigrator/Scripts/_translated/`:
 
 ```powershell
-db-migrator translate-ef-migration src/Infrastructure/Migrations --startup-project src/Api/Api.csproj
+db-migrator translate-ef-migrations --source-path src/Infrastructure/Migrations --startup-project src/Api/Api.csproj
 ```
 
 ## Step 3: Sync `__EFMigrationsHistory`

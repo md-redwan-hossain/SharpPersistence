@@ -37,19 +37,9 @@ internal static class ProjectResolutionService
         var startupFullPath = ResolveStartupProject(config, configDir, interactive, activePicker);
 
         // 2. Resolve destination project
-        string? destinationFullPath;
-        if (explicitDestination)
-        {
-            destinationFullPath = settings.DestinationProjectPath;
-        }
-        else if (!string.IsNullOrWhiteSpace(settings.OutputDir))
-        {
-            destinationFullPath = null;
-        }
-        else
-        {
-            destinationFullPath = ResolveDestinationProject(config, configDir, startupFullPath, interactive, activePicker);
-        }
+        var destinationFullPath = explicitDestination
+            ? settings.DestinationProjectPath
+            : ResolveDestinationProject(config, configDir, startupFullPath, interactive, activePicker);
 
         return new ResolvedProjectPaths(startupFullPath, destinationFullPath);
     }

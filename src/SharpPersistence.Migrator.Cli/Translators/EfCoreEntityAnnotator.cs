@@ -120,25 +120,10 @@ internal static class EfCoreEntityAnnotator
     public static (HashSet<string> EntityNames, HashSet<string> ImportedNamespaces) ExtractDbContextEntities(
         string dbContextPath)
     {
-        if (string.IsNullOrWhiteSpace(dbContextPath))
-        {
-            throw new ArgumentException("DbContext path cannot be empty.", nameof(dbContextPath));
-        }
-
-        var fullPath = Path.GetFullPath(dbContextPath);
-        IEnumerable<string> files;
-        if (File.Exists(fullPath))
-        {
-            files = [fullPath];
-        }
-        else if (Directory.Exists(fullPath))
-        {
-            files = EnumerateCsFiles(fullPath);
-        }
-        else
-        {
-            throw new FileNotFoundException($"DbContext file or directory not found: '{fullPath}'.");
-        }
+        var fullPath = PathGuard.EnsureReadableFileOrDirectory(dbContextPath, "--dbcontext");
+        IEnumerable<string> files = File.Exists(fullPath)
+            ? [fullPath]
+            : EnumerateCsFiles(fullPath);
 
         var entityNames = new HashSet<string>(StringComparer.Ordinal);
         var importedNamespaces = new HashSet<string>(StringComparer.Ordinal);
@@ -215,15 +200,10 @@ internal static class EfCoreEntityAnnotator
         bool readOnly = false,
         bool dryRun = false)
     {
-        if (string.IsNullOrWhiteSpace(searchDirectory))
+        var fullSearchDir = PathGuard.EnsureReadableDirectory(searchDirectory, "--search-directory");
+        if (!dryRun)
         {
-            throw new ArgumentException("Search directory cannot be empty.", nameof(searchDirectory));
-        }
-
-        var fullSearchDir = Path.GetFullPath(searchDirectory);
-        if (!Directory.Exists(fullSearchDir))
-        {
-            throw new DirectoryNotFoundException($"Search directory not found: '{fullSearchDir}'.");
+            PathGuard.EnsureWritableDirectory(fullSearchDir, "--search-directory", dryRun: false);
         }
 
         var marker = ResolveMarkerAttribute(entityGroupName, entityGroupNamespace);

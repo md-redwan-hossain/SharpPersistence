@@ -61,7 +61,7 @@ internal static class TargetAssemblyLoader
 
         var (assemblyPath, startupDir) = LocateStartupAssembly(csprojPath);
         var destinationRoot = ResolveDestinationDirectory(resolvedPaths.DestinationProjectPath, startupDir);
-        var outputRoot = ResolveOutputDirectory(settings.OutputDir, resolvedPaths.DestinationProjectPath is not null ? destinationRoot : null, destinationRoot);
+        var outputRoot = destinationRoot;
 
         var hostName = Path.GetFileNameWithoutExtension(assemblyPath);
         var loadedAssemblies = new List<Assembly>();
@@ -360,22 +360,6 @@ internal static class TargetAssemblyLoader
         }
 
         return full;
-    }
-
-    private static string ResolveOutputDirectory(string? outputDirArg, string? explicitDestDir, string fallbackRoot)
-    {
-        if (string.IsNullOrWhiteSpace(outputDirArg))
-        {
-            return fallbackRoot;
-        }
-
-        if (Path.IsPathRooted(outputDirArg))
-        {
-            return Path.GetFullPath(outputDirArg);
-        }
-
-        var baseDir = explicitDestDir ?? Directory.GetCurrentDirectory();
-        return Path.GetFullPath(Path.Combine(baseDir, outputDirArg));
     }
 
     private static string ResolveCsprojOrDirectory(string pathOrDir, string role)

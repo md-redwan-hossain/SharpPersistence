@@ -191,4 +191,60 @@ public sealed class EfCoreConfigTranslatorTests
         Assert.Contains("builder.Property(x => x.Secret).SetAnnotation(\"Sensitive:Mask\", true);", result.TranslatedSource);
         Assert.Contains("builder.Property(x => x.Code).SetAnnotation(\"Custom:Tag\", \"v1\");", result.TranslatedSource);
     }
+
+    [Fact]
+    public void TranslateDirectory_WithoutOutputPath_WritesToTranslatedEfConfigsAndLeavesOriginalsIntact()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"sp_cfg_trans_{Guid.NewGuid():N}");
+        var subDir = Path.Combine(tempRoot, "Sales");
+        Directory.CreateDirectory(subDir);
+
+        const string originalSource = """
+            using Microsoft.EntityFrameworkCore;
+            using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+            namespace Demo;
+
+            public class OrderConfiguration : IEntityTypeConfiguration<Order>
+            {
+                public void Configure(EntityTypeBuilder<Order> builder) => builder.ToTable("orders");
+            }
+            """;
+
+        try
+        {
+            var sourceFile = Path.Combine(subDir, "OrderConfiguration.cs");
+            File.WriteAllText(sourceFile, originalSource);
+
+            var firstRun = EfCoreConfigTranslator.TranslateDirectory(tempRoot);
+            Assert.Single(firstRun);
+
+            Assert.Equal(originalSource, File.ReadAllText(sourceFile));
+
+            var translatedFile = Path.Combine(
+                tempRoot,
+                EfCoreConfigTranslator.DefaultOutputDirectoryName,
+                "Sales",
+                "OrderConfiguration.cs");
+            Assert.True(File.Exists(translatedFile));
+            Assert.Contains("IEntityConfiguration<Order>", File.ReadAllText(translatedFile));
+
+            var secondRun = EfCoreConfigTranslator.TranslateDirectory(tempRoot);
+            Assert.Single(secondRun);
+            Assert.False(Directory.Exists(Path.Combine(
+                tempRoot,
+                EfCoreConfigTranslator.DefaultOutputDirectoryName,
+                EfCoreConfigTranslator.DefaultOutputDirectoryName)));
+
+            Assert.Throws<IOException>(() => EfCoreConfigTranslator.TranslateDirectory(sourceFile));
+            Assert.Throws<IOException>(() => EfCoreConfigTranslator.TranslateDirectory(tempRoot, outputDirectory: sourceFile));
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, recursive: true);
+            }
+        }
+    }
 }

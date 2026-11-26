@@ -211,6 +211,8 @@ internal sealed class DbMigrator : IDbMigrator
 
     public async Task<bool> CanConnectToDatabaseAsync(CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
             var (conn, ownsConnection) = await _connectionOpener.OpenAsync(cancellationToken).ConfigureAwait(false);

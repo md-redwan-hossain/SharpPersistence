@@ -23,13 +23,14 @@ app.Configure(config =>
     config.AddCommand<PendingCommand>("pending")
         .WithDescription("List pending SQL migration scripts.");
 
-    config.AddCommand<TranslateEfMigrationCommand>("translate-ef-migration")
+    config.AddCommand<TranslateEfMigrationCommand>("translate-ef-migrations")
         .WithDescription("Translate existing EF Core C# migrations in a folder 1-to-1 into SQL scripts.")
-        .WithExample("translate-ef-migration", "WebApi/Migrations", "--startup-project", "WebApi/WebApi.csproj");
+        .WithExample("translate-ef-migrations", "--source-path", "WebApi/Migrations", "--startup-project", "WebApi/WebApi.csproj");
 
     config.AddCommand<TranslateEfConfigsCommand>("translate-ef-configs")
         .WithDescription("Translate EF Core IEntityTypeConfiguration<T> C# files into SharpPersistence.Migrator IEntityConfiguration<T> files.")
-        .WithExample("translate-ef-configs", "Infrastructure/Configurations", "--output-dir", "Infrastructure/MigratorConfigs", "--dry-run");
+        .WithExample("translate-ef-configs", "--source-path", "Infrastructure/Configurations", "--dry-run")
+        .WithExample("translate-ef-configs", "--source-path", "Infrastructure/Configurations", "--output-path", "Infrastructure/MigratorConfigs");
 
     config.AddCommand<AnnotateDbContextEntitiesCommand>("annotate-dbcontext-entities")
         .WithDescription("Annotate entity classes referenced by an EF Core DbContext with a SharpPersistence entity marker attribute.")

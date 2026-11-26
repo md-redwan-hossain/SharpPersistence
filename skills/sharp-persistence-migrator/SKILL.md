@@ -169,7 +169,7 @@ public sealed partial class SalesDbContext : DbContext
 
 ## `db-migrator` CLI Commands
 
-- `db-migrator config --generate` - scans the solution and writes `db-migrator-config.json` (qualifying startup projects, registry projects, and defaults for the searchable interactive project picker; pass `--ci` to disable prompts).
+- `db-migrator config --generate | --set-default-startup <PATH> | --show` - scans the solution and writes, updates, or inspects `db-migrator-config.json` (qualifying startup projects, registry projects, and defaults for the searchable interactive project picker; pass `--ci` to disable prompts).
 - `db-migrator ui [--port <PORT>] [--no-open]` - launches the local browser UI (Entities explorer, Table ERD, Registry Dependencies & Stubs graph, Migrations Runlist + Dry Run diff, Doctor, and `Ctrl/Cmd+K` search).
 - `db-migrator doctor [--registry <Name>] [--check-db] [--runlist]` - validates DI wiring, entity configs, FK types, cross-registry collisions, runlist/override integrity, SQL DDL dependencies, and migration script coverage (read-only).
 - `db-migrator generate --name <Name> [--registry <Name>] [--dry-run] [--ci] [--allow-empty]` - generates idempotent SQL scripts named `{guidN}_{timestamp}_{lower_snake_name}.sql` and appends their 32-char GUIDs to `db-migration-runlist.json`.
@@ -177,5 +177,5 @@ public sealed partial class SalesDbContext : DbContext
 - `db-migrator migrate [--dry-run] [--sync-ef-history]` - applies pending scripts under distributed lock.
 - `db-migrator status` / `db-migrator pending` - inspects migration history and pending scripts.
 - `db-migrator annotate-dbcontext-entities --dbcontext <PATH> --search-directory <DIR> [--entity-group-name <NAME>] [--entity-group-namespace <NAMESPACE>] [--read-only] [--dry-run]` - annotates EF Core `DbContext` entity classes with `[Entity]` or `[Entity<TGroup>]`.
-- `db-migrator translate-ef-configs <CONFIGS_DIR> [-o <DIR>] [--dry-run] [--no-attribute]` - converts `IEntityTypeConfiguration<T>` to `IEntityConfiguration<T>`.
-- `db-migrator translate-ef-migration <MIGRATIONS_DIR>` & `db-migrator sync-ef-history` - translates EF Core migrations 1-to-1 and syncs `__EFMigrationsHistory`.
+- `db-migrator translate-ef-configs --source-path <DIR> [--output-path <DIR>] [--dry-run] [--no-attribute]` - converts `IEntityTypeConfiguration<T>` to `IEntityConfiguration<T>` without overwriting originals (defaults to `<source-path>/TranslatedEfConfigs`).
+- `db-migrator translate-ef-migrations --source-path <DIR> [--dry-run]` & `db-migrator sync-ef-history` - translates EF Core migrations 1-to-1 and syncs `__EFMigrationsHistory`.
