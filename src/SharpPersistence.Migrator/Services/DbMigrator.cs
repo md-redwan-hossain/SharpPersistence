@@ -209,10 +209,87 @@ internal sealed class DbMigrator : IDbMigrator
         }
     }
 
+    public async Task<bool> CanConnectToDatabaseAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var (conn, ownsConnection) = await _connectionOpener.OpenAsync(cancellationToken).ConfigureAwait(false);
+            if (ownsConnection)
+            {
+                await conn.DisposeAsync().ConfigureAwait(false);
+            }
+
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public async Task<bool> HasPendingMigrationAsync(CancellationToken cancellationToken = default)
+    {
+        var discovered = _scriptStore.DiscoverScripts();
+        if (discovered.Count == 0)
+        {
+            return false;
+        }
+
+        var (conn, ownsConnection) = await _connectionOpener.OpenAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (!await _historyStore.HistoryTableExistsAsync(conn, cancellationToken).ConfigureAwait(false))
+            {
+                return true;
+            }
+
+            var applied = await _historyStore.ReadAppliedAsync(conn, cancellationToken).ConfigureAwait(false);
+            var appliedIds = applied.Select(static a => a.ScriptId).ToHashSet();
+            return discovered.Any(s => !appliedIds.Contains(s.ScriptId));
+        }
+        finally
+        {
+            if (ownsConnection)
+            {
+                await conn.DisposeAsync().ConfigureAwait(false);
+            }
+        }
+    }
+
     public async Task<IReadOnlyList<string>> GetPendingMigrationsAsync(CancellationToken cancellationToken = default)
     {
-        var status = await GetStatusAsync(cancellationToken).ConfigureAwait(false);
-        return status.Where(s => !s.IsApplied).Select(s => $"{s.RegistryName}/{s.ScriptName}").ToList();
+        var discovered = _scriptStore.DiscoverScripts();
+        if (discovered.Count == 0)
+        {
+            return [];
+        }
+
+        var (conn, ownsConnection) = await _connectionOpener.OpenAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (!await _historyStore.HistoryTableExistsAsync(conn, cancellationToken).ConfigureAwait(false))
+            {
+                return discovered.Select(s => $"{s.RegistryName}/{s.ScriptName}").ToList();
+            }
+
+            var applied = await _historyStore.ReadAppliedAsync(conn, cancellationToken).ConfigureAwait(false);
+            var appliedIds = applied.Select(static a => a.ScriptId).ToHashSet();
+            return discovered
+                .Where(s => !appliedIds.Contains(s.ScriptId))
+                .Select(s => $"{s.RegistryName}/{s.ScriptName}")
+                .ToList();
+        }
+        finally
+        {
+            if (ownsConnection)
+            {
+                await conn.DisposeAsync().ConfigureAwait(false);
+            }
+        }
     }
 
     public async Task<IReadOnlyList<MigrationStatusItem>> GetStatusAsync(CancellationToken cancellationToken = default)

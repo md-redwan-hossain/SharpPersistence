@@ -33,6 +33,7 @@ internal static class TargetAssemblyLoader
 
     public static LoadedMigrationContext CreateManagerContext(SharedSettings settings)
     {
+        AppContext.SetData(DbMigratorState.DesignTimeDataKey, true);
         var errConsole = CreateStderrConsole();
         var totalSw = Stopwatch.StartNew();
 

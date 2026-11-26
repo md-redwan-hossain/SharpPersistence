@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;
+using SharpPersistence.Migrator.Constants;
 
 namespace SharpPersistence.Migrator.Generators;
 
@@ -23,7 +24,8 @@ public sealed class MigratorUsageAnalyzer : DiagnosticAnalyzer
         {
             var compilation = compilationContext.Compilation;
             var stubBuilderType = compilation.GetTypeByMetadataName(GeneratorConstants.EntityStubBuilderMetadataName);
-            var entityMarkerBase = compilation.GetTypeByMetadataName(GeneratorConstants.EntityMarkerAttributeMetadataName);
+            var defaultEntityAttr = compilation.GetTypeByMetadataName(GeneratorConstants.DefaultEntityAttributeMetadataName);
+            var genericEntityAttr = compilation.GetTypeByMetadataName(GeneratorConstants.GenericEntityAttributeMetadataName);
             var entityBuilderDef = compilation.GetTypeByMetadataName(GeneratorConstants.EntityBuilderMetadataName);
             var ownedBuilderDef = compilation.GetTypeByMetadataName(GeneratorConstants.OwnedEntityBuilderMetadataName);
             var columnBuilderBaseDef = compilation.GetTypeByMetadataName(GeneratorConstants.ColumnBuilderBaseMetadataName);
@@ -40,17 +42,17 @@ public sealed class MigratorUsageAnalyzer : DiagnosticAnalyzer
 
                 // SPM015: EntityStubBuilder.Map<TRef, TOwner>()
                 if (stubBuilderType is not null &&
-                    method.Name == "Map" &&
+                    method.Name == KnownNames.Methods.Map &&
                     method.TypeArguments.Length == 2 &&
                     SymbolEqualityComparer.Default.Equals(method.ContainingType, stubBuilderType))
                 {
-                    AnalyzeStubMapping(opCtx, invocation, method, entityMarkerBase);
+                    AnalyzeStubMapping(opCtx, invocation, method, defaultEntityAttr, genericEntityAttr);
                     return;
                 }
 
                 // SPM014: ColumnBuilderBase<T>.IsRequired(true) inside optional OwnsOne(...)
                 if (columnBuilderBaseDef is not null &&
-                    method.Name == "IsRequired" &&
+                    method.Name == KnownNames.Methods.IsRequired &&
                     RoslynSymbolHelper.InheritsGenericDefinition(method.ContainingType, columnBuilderBaseDef))
                 {
                     AnalyzeIsRequiredInsideOwnsOne(opCtx, invocation, entityBuilderDef, ownedBuilderDef);
@@ -63,7 +65,8 @@ public sealed class MigratorUsageAnalyzer : DiagnosticAnalyzer
         OperationAnalysisContext opCtx,
         IInvocationOperation invocation,
         IMethodSymbol method,
-        INamedTypeSymbol? entityMarkerBase)
+        INamedTypeSymbol? defaultEntityAttr,
+        INamedTypeSymbol? genericEntityAttr)
     {
         var refType = method.TypeArguments[0];
         var ownerType = method.TypeArguments[1];
@@ -78,8 +81,7 @@ public sealed class MigratorUsageAnalyzer : DiagnosticAnalyzer
         }
 
         if (ownerType is INamedTypeSymbol ownerNamed &&
-            entityMarkerBase is not null &&
-            RoslynSymbolHelper.IsMarkedReadOnly(ownerNamed, entityMarkerBase))
+            RoslynSymbolHelper.IsMarkedReadOnly(ownerNamed, defaultEntityAttr, genericEntityAttr))
         {
             opCtx.ReportDiagnostic(Diagnostic.Create(
                 GeneratorConstants.InvalidEntityStubMapping,
@@ -110,7 +112,7 @@ public sealed class MigratorUsageAnalyzer : DiagnosticAnalyzer
             }
 
             var enclosingMethod = enclosingCall.TargetMethod;
-            if (enclosingMethod.Name != "OwnsOne" || enclosingCall.Arguments.Length < 2)
+            if (enclosingMethod.Name != KnownNames.Methods.OwnsOne || enclosingCall.Arguments.Length < 2)
             {
                 continue;
             }

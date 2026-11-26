@@ -27,6 +27,14 @@ internal sealed record PendingDiagnostic(
     string Arg2 = "",
     string Arg3 = "");
 
+internal readonly record struct LocalDiscoveredEntity
+{
+    public required string GroupFullName { get; init; }
+    public required string FullTypeName { get; init; }
+    public required string SimpleName { get; init; }
+    public required bool MarkedReadOnly { get; init; }
+}
+
 internal readonly record struct GeneratedDbContextProperty
 {
     public required string EntityFullTypeName { get; init; }
@@ -46,4 +54,42 @@ internal sealed record DbContextBindingModel
     public required bool GenerateOnModelCreating { get; init; }
     public required string? ExistingSchemaMemberName { get; init; }
     public required EquatableArray<PendingDiagnostic> Diagnostics { get; init; }
+}
+
+internal readonly record struct BoundRegistryGroupInfo
+{
+    public required string GroupFullName { get; init; }
+    public required bool ReadOnly { get; init; }
+    public required bool Pluralize { get; init; }
+}
+
+internal readonly record struct ItemOverrideSnapshot
+{
+    public required string EntityFullName { get; init; }
+    public required string EntitySimpleName { get; init; }
+    public required bool HasReadOnly { get; init; }
+    public required bool ReadOnly { get; init; }
+    public required bool HasPluralize { get; init; }
+    public required bool Pluralize { get; init; }
+    public required bool Exclude { get; init; }
+    public required SourceLocationInfo? Location { get; init; }
+}
+
+internal sealed record BoundDbContextSnapshot
+{
+    public required string HintName { get; init; }
+    public required string SimpleName { get; init; }
+    public required string? Namespace { get; init; }
+    public required SourceLocationInfo? TypeLocation { get; init; }
+    public required EquatableArray<string> ContainingTypeDeclarations { get; init; }
+    public required EquatableArray<BoundRegistryGroupInfo> BoundGroups { get; init; }
+    public required EquatableArray<LocalDiscoveredEntity> CrossAssemblyEntities { get; init; }
+    public required EquatableArray<ItemOverrideSnapshot> ItemOverrides { get; init; }
+    public required EquatableArray<string> ExistingEntityPropertyTypes { get; init; }
+    public required EquatableArray<string> ExistingMemberNames { get; init; }
+    public required bool GenerateConstructor { get; init; }
+    public required bool GenerateOnModelCreating { get; init; }
+    public required string? ExistingSchemaMemberName { get; init; }
+    public required EquatableArray<PendingDiagnostic> InitialDiagnostics { get; init; }
+    public required bool IsInvalidDeclaration { get; init; }
 }

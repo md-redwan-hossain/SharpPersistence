@@ -13,11 +13,11 @@ public sealed class EntityRegistryAttribute : Attribute;
 
 /// <summary>
 /// Marks a <c>sealed partial</c> <see cref="Abstractions.IEntityRegistry"/> class for compile-time entity discovery
-/// targeting entities marked with <typeparamref name="TMarkerAttribute"/>.
+/// targeting entities marked with <see cref="EntityAttribute{TGroup}"/>.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
-public sealed class EntityRegistryAttribute<TMarkerAttribute> : Attribute
-    where TMarkerAttribute : EntityMarkerAttribute;
+public sealed class EntityRegistryAttribute<TGroup> : Attribute
+    where TGroup : struct, IEntityGroup;
 
 /// <summary>
 /// Marks a <c>sealed</c> <see cref="Abstractions.IEntityConfiguration{TEntity}"/> class for compile-time pairing

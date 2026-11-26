@@ -27,14 +27,6 @@ internal static class DbContextBindingAnalyzer
         public required SourceLocationInfo? Location { get; init; }
     }
 
-    private readonly record struct DiscoveredEntity
-    {
-        public required INamedTypeSymbol Symbol { get; init; }
-        public required string FullTypeName { get; init; }
-        public required string SimpleName { get; init; }
-        public required bool MarkedReadOnly { get; init; }
-    }
-
     private readonly record struct ExistingMembersInfo
     {
         public required HashSet<string> EntityPropertyTypes { get; init; }
@@ -88,8 +80,11 @@ internal static class DbContextBindingAnalyzer
         return new EquatableArray<PendingDiagnostic>(builder.ToImmutable());
     }
 
-    public static DbContextBindingModel? AnalyzeBoundDbContext(GeneratorAttributeSyntaxContext ctx)
+    public static BoundDbContextSnapshot? AnalyzeBoundDbContext(
+        GeneratorAttributeSyntaxContext ctx,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (ctx.TargetSymbol is not INamedTypeSymbol dbContextSymbol)
         {
             return null;
@@ -108,39 +103,78 @@ internal static class DbContextBindingAnalyzer
 
         if (!ValidateDbContextDeclaration(dbContextSymbol, dbContextBase, typeLocation, diagnostics))
         {
-            return CreateDiagnosticsOnlyModel(dbContextSymbol, diagnostics.ToImmutable());
+            return CreateInvalidSnapshot(dbContextSymbol, typeLocation, diagnostics.ToImmutable());
         }
 
         var boundRegistries = ParseBoundRegistries(dbContextSymbol, bindAttrDef, typeLocation, diagnostics);
         var itemAttrDef = compilation.GetTypeByMetadataName(GeneratorConstants.EntityRegistryItemAttributeMetadataName);
         var itemOverrides = ParseItemOverrides(dbContextSymbol, itemAttrDef, typeLocation, diagnostics);
         var existingMembers = InspectExistingMembers(compilation, dbContextSymbol);
-
-        var (properties, boundEntityTypes) = ResolveBoundProperties(
-            compilation,
-            dbContextSymbol,
-            boundRegistries,
-            itemOverrides,
-            existingMembers,
-            typeLocation,
-            diagnostics);
-
         var wiring = AnalyzeWiring(compilation, dbContextSymbol, dbContextBase, typeLocation, diagnostics);
 
-        return new DbContextBindingModel
+        var boundGroups = ImmutableArray.CreateBuilder<BoundRegistryGroupInfo>(boundRegistries.Count);
+        var targetGroups = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var reg in boundRegistries)
+        {
+            var groupFullName = ResolveRegistryGroupFullName(compilation, reg.RegistrySymbol);
+            if (groupFullName is null)
+            {
+                continue;
+            }
+
+            targetGroups.Add(groupFullName);
+            boundGroups.Add(new BoundRegistryGroupInfo
+            {
+                GroupFullName = groupFullName,
+                ReadOnly = reg.ReadOnly,
+                Pluralize = reg.Pluralize
+            });
+        }
+
+        var defaultEntityAttr = compilation.GetTypeByMetadataName(GeneratorConstants.DefaultEntityAttributeMetadataName);
+        var genericEntityAttr = compilation.GetTypeByMetadataName(GeneratorConstants.GenericEntityAttributeMetadataName);
+        var crossByGroup = IndexCrossAssemblyManifestEntities(compilation, targetGroups, defaultEntityAttr, genericEntityAttr, cancellationToken);
+        var crossEntities = ImmutableArray.CreateBuilder<LocalDiscoveredEntity>();
+        foreach (var list in crossByGroup.Values)
+        {
+            crossEntities.AddRange(list);
+        }
+
+        var overrideSnapshots = ImmutableArray.CreateBuilder<ItemOverrideSnapshot>(itemOverrides.Count);
+        foreach (var ov in itemOverrides.Values)
+        {
+            overrideSnapshots.Add(new ItemOverrideSnapshot
+            {
+                EntityFullName = ov.EntityFullName,
+                EntitySimpleName = ov.EntitySymbol.Name,
+                HasReadOnly = ov.HasReadOnly,
+                ReadOnly = ov.ReadOnly,
+                HasPluralize = ov.HasPluralize,
+                Pluralize = ov.Pluralize,
+                Exclude = ov.Exclude,
+                Location = ov.Location
+            });
+        }
+
+        return new BoundDbContextSnapshot
         {
             HintName = BuildHintName(dbContextSymbol),
             SimpleName = dbContextSymbol.Name,
             Namespace = dbContextSymbol.ContainingNamespace.IsGlobalNamespace
                 ? null
                 : dbContextSymbol.ContainingNamespace.ToDisplayString(),
+            TypeLocation = typeLocation,
             ContainingTypeDeclarations = new EquatableArray<string>(GetContainingTypeDeclarations(dbContextSymbol)),
-            Properties = new EquatableArray<GeneratedDbContextProperty>(properties),
-            BoundEntityTypeNames = new EquatableArray<string>(boundEntityTypes),
+            BoundGroups = new EquatableArray<BoundRegistryGroupInfo>(boundGroups.ToImmutable()),
+            CrossAssemblyEntities = new EquatableArray<LocalDiscoveredEntity>(crossEntities.ToImmutable()),
+            ItemOverrides = new EquatableArray<ItemOverrideSnapshot>(overrideSnapshots.ToImmutable()),
+            ExistingEntityPropertyTypes = new EquatableArray<string>([.. existingMembers.EntityPropertyTypes]),
+            ExistingMemberNames = new EquatableArray<string>([.. existingMembers.MemberNames]),
             GenerateConstructor = wiring.GenerateConstructor,
             GenerateOnModelCreating = wiring.GenerateOnModelCreating,
             ExistingSchemaMemberName = wiring.ExistingSchemaMemberName,
-            Diagnostics = new EquatableArray<PendingDiagnostic>(diagnostics.ToImmutable())
+            InitialDiagnostics = new EquatableArray<PendingDiagnostic>(diagnostics.ToImmutable()),
+            IsInvalidDeclaration = false
         };
     }
 
@@ -290,27 +324,72 @@ internal static class DbContextBindingAnalyzer
         };
     }
 
-    private static (ImmutableArray<GeneratedDbContextProperty> Properties, ImmutableArray<string> BoundEntityTypes)
-        ResolveBoundProperties(
-            Compilation compilation,
-            INamedTypeSymbol dbContextSymbol,
-            List<BoundRegistryInput> boundRegistries,
-            Dictionary<string, ItemOverrideInput> itemOverrides,
-            ExistingMembersInfo existingMembers,
-            SourceLocationInfo? typeLocation,
-            ImmutableArray<PendingDiagnostic>.Builder diagnostics)
+    public static DbContextBindingModel FinalizeModel(
+        BoundDbContextSnapshot snapshot,
+        EquatableArray<LocalDiscoveredEntity> localDefault,
+        EquatableArray<LocalDiscoveredEntity> localGrouped)
     {
-        var entityMarkerBase = compilation.GetTypeByMetadataName(GeneratorConstants.EntityMarkerAttributeMetadataName);
+        if (snapshot.IsInvalidDeclaration)
+        {
+            return new DbContextBindingModel
+            {
+                HintName = snapshot.HintName,
+                SimpleName = snapshot.SimpleName,
+                Namespace = null,
+                ContainingTypeDeclarations = EquatableArray<string>.Empty,
+                Properties = EquatableArray<GeneratedDbContextProperty>.Empty,
+                BoundEntityTypeNames = EquatableArray<string>.Empty,
+                GenerateConstructor = false,
+                GenerateOnModelCreating = false,
+                ExistingSchemaMemberName = null,
+                Diagnostics = snapshot.InitialDiagnostics
+            };
+        }
+
+        var diagnostics = ImmutableArray.CreateBuilder<PendingDiagnostic>(snapshot.InitialDiagnostics.Length);
+        diagnostics.AddRange(snapshot.InitialDiagnostics);
+
+        var entitiesByGroup = new Dictionary<string, Dictionary<string, LocalDiscoveredEntity>>(StringComparer.Ordinal);
+        void IndexEntities(EquatableArray<LocalDiscoveredEntity> items)
+        {
+            foreach (var item in items)
+            {
+                if (!entitiesByGroup.TryGetValue(item.GroupFullName, out var dict))
+                {
+                    dict = new Dictionary<string, LocalDiscoveredEntity>(StringComparer.Ordinal);
+                    entitiesByGroup[item.GroupFullName] = dict;
+                }
+
+                dict[item.FullTypeName] = item;
+            }
+        }
+
+        IndexEntities(snapshot.CrossAssemblyEntities);
+        IndexEntities(localDefault);
+        IndexEntities(localGrouped);
+
+        var itemOverrides = new Dictionary<string, ItemOverrideSnapshot>(StringComparer.Ordinal);
+        foreach (var ov in snapshot.ItemOverrides)
+        {
+            itemOverrides[ov.EntityFullName] = ov;
+        }
+
+        var existingEntityProps = new HashSet<string>(snapshot.ExistingEntityPropertyTypes, StringComparer.Ordinal);
+        var existingMemberNames = new HashSet<string>(snapshot.ExistingMemberNames, StringComparer.Ordinal);
         var matchedOverrideKeys = new HashSet<string>(StringComparer.Ordinal);
         var seenEntities = new HashSet<string>(StringComparer.Ordinal);
         var usedPropertyNames = new Dictionary<string, string>(StringComparer.Ordinal);
         var generatedProps = ImmutableArray.CreateBuilder<GeneratedDbContextProperty>();
         var boundEntityTypeNames = ImmutableArray.CreateBuilder<string>();
 
-        foreach (var reg in boundRegistries)
+        foreach (var reg in snapshot.BoundGroups)
         {
-            var entities = ResolveRegistryEntities(compilation, reg.RegistrySymbol, entityMarkerBase);
-            foreach (var entity in entities)
+            if (!entitiesByGroup.TryGetValue(reg.GroupFullName, out var groupMap))
+            {
+                continue;
+            }
+
+            foreach (var entity in groupMap.Values.OrderBy(static e => e.FullTypeName, StringComparer.Ordinal))
             {
                 if (!seenEntities.Add(entity.FullTypeName))
                 {
@@ -323,23 +402,23 @@ internal static class DbContextBindingAnalyzer
                     matchedOverrideKeys.Add(entity.FullTypeName);
                 }
 
-                if (hasOverride && itemOverride!.Exclude)
+                if (hasOverride && itemOverride.Exclude)
                 {
                     continue;
                 }
 
                 boundEntityTypeNames.Add(entity.FullTypeName);
 
-                if (existingMembers.EntityPropertyTypes.Contains(entity.FullTypeName))
+                if (existingEntityProps.Contains(entity.FullTypeName))
                 {
                     continue;
                 }
 
-                var isReadOnly = hasOverride && itemOverride!.HasReadOnly
+                var isReadOnly = hasOverride && itemOverride.HasReadOnly
                     ? itemOverride.ReadOnly
                     : reg.ReadOnly || entity.MarkedReadOnly;
 
-                var shouldPluralize = hasOverride && itemOverride!.HasPluralize
+                var shouldPluralize = hasOverride && itemOverride.HasPluralize
                     ? itemOverride.Pluralize
                     : reg.Pluralize;
 
@@ -347,17 +426,17 @@ internal static class DbContextBindingAnalyzer
                     ? EnglishPluralizer.PluralizeIdentifier(entity.SimpleName)
                     : entity.SimpleName;
 
-                if (existingMembers.MemberNames.Contains(propName))
+                if (existingMemberNames.Contains(propName))
                 {
                     diagnostics.Add(new PendingDiagnostic(
-                        DiagnosticIds.DbContextPropertyNameCollision, typeLocation, propName, entity.SimpleName, dbContextSymbol.Name, $"an existing member '{propName}'"));
+                        DiagnosticIds.DbContextPropertyNameCollision, snapshot.TypeLocation, propName, entity.SimpleName, snapshot.SimpleName, $"an existing member '{propName}'"));
                     continue;
                 }
 
                 if (usedPropertyNames.TryGetValue(propName, out var otherEntity))
                 {
                     diagnostics.Add(new PendingDiagnostic(
-                        DiagnosticIds.DbContextPropertyNameCollision, typeLocation, propName, entity.SimpleName, dbContextSymbol.Name, $"another bound entity '{otherEntity}'"));
+                        DiagnosticIds.DbContextPropertyNameCollision, snapshot.TypeLocation, propName, entity.SimpleName, snapshot.SimpleName, $"another bound entity '{otherEntity}'"));
                     continue;
                 }
 
@@ -378,15 +457,27 @@ internal static class DbContextBindingAnalyzer
                 diagnostics.Add(new PendingDiagnostic(
                     DiagnosticIds.OrphanEntityRegistryItem,
                     kv.Value.Location,
-                    kv.Value.EntitySymbol.Name,
-                    dbContextSymbol.Name,
+                    kv.Value.EntitySimpleName,
+                    snapshot.SimpleName,
                     "targets an entity not found in any bound [BindEntityRegistry<TRegistry>] on this class"));
             }
         }
 
-        var sortedProps = generatedProps.OrderBy(static p => p.PropertyName, StringComparer.Ordinal).ToImmutableArray();
-        var sortedBoundTypes = boundEntityTypeNames.OrderBy(static t => t, StringComparer.Ordinal).ToImmutableArray();
-        return (sortedProps, sortedBoundTypes);
+        return new DbContextBindingModel
+        {
+            HintName = snapshot.HintName,
+            SimpleName = snapshot.SimpleName,
+            Namespace = snapshot.Namespace,
+            ContainingTypeDeclarations = snapshot.ContainingTypeDeclarations,
+            Properties = new EquatableArray<GeneratedDbContextProperty>(
+                generatedProps.OrderBy(static p => p.PropertyName, StringComparer.Ordinal).ToImmutableArray()),
+            BoundEntityTypeNames = new EquatableArray<string>(
+                boundEntityTypeNames.OrderBy(static t => t, StringComparer.Ordinal).ToImmutableArray()),
+            GenerateConstructor = snapshot.GenerateConstructor,
+            GenerateOnModelCreating = snapshot.GenerateOnModelCreating,
+            ExistingSchemaMemberName = snapshot.ExistingSchemaMemberName,
+            Diagnostics = new EquatableArray<PendingDiagnostic>(diagnostics.ToImmutable())
+        };
     }
 
     private static WiringResult AnalyzeWiring(
@@ -560,146 +651,142 @@ internal static class DbContextBindingAnalyzer
         return null;
     }
 
-    private static List<DiscoveredEntity> ResolveRegistryEntities(
-        Compilation compilation,
-        INamedTypeSymbol registrySymbol,
-        INamedTypeSymbol? entityMarkerBase)
+    internal static LocalDiscoveredEntity? ExtractLocalDefaultEntity(GeneratorAttributeSyntaxContext ctx)
     {
-        var markerSymbol = ResolveRegistryMarker(compilation, registrySymbol);
-        if (markerSymbol is null)
+        if (ctx.TargetSymbol is not INamedTypeSymbol symbol || symbol.IsAbstract || symbol.TypeParameters.Length > 0)
         {
-            return [];
+            return null;
         }
 
-        var results = new Dictionary<string, DiscoveredEntity>(StringComparer.Ordinal);
-        CollectCrossAssemblyManifestEntities(compilation, markerSymbol, entityMarkerBase, results);
-        CollectLocalEntities(compilation.Assembly.GlobalNamespace, markerSymbol, entityMarkerBase, results);
+        var markedReadOnly = ctx.Attributes.Any(static a =>
+            RoslynSymbolHelper.GetNamedBool(a, KnownNames.AttributeProperties.ReadOnly, out _));
 
-        return results.Values
-            .OrderBy(static e => e.FullTypeName, StringComparer.Ordinal)
-            .ToList();
-    }
-
-    private static void CollectCrossAssemblyManifestEntities(
-        Compilation compilation,
-        INamedTypeSymbol markerSymbol,
-        INamedTypeSymbol? entityMarkerBase,
-        Dictionary<string, DiscoveredEntity> results)
-    {
-        var manifestAttr = compilation.GetTypeByMetadataName(GeneratorConstants.EntityManifestAttributeMetadataName);
-        var manifestEntryAttr = compilation.GetTypeByMetadataName(GeneratorConstants.EntityManifestEntryAttributeMetadataName);
-        if (manifestAttr is null || manifestEntryAttr is null)
+        return new LocalDiscoveredEntity
         {
-            return;
-        }
-
-        foreach (var reference in compilation.References)
-        {
-            if (compilation.GetAssemblyOrModuleSymbol(reference) is not IAssemblySymbol asm)
-            {
-                continue;
-            }
-
-            var genNs = RoslynSymbolHelper.FindNamespace(asm.GlobalNamespace, GeneratorConstants.GeneratedNamespace);
-            if (genNs is null)
-            {
-                continue;
-            }
-
-            foreach (var type in genNs.GetTypeMembers())
-            {
-                if (!type.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, manifestAttr)))
-                {
-                    continue;
-                }
-
-                foreach (var entryAttr in type.GetAttributes())
-                {
-                    if (!SymbolEqualityComparer.Default.Equals(entryAttr.AttributeClass, manifestEntryAttr) ||
-                        entryAttr.ConstructorArguments.Length < 2 ||
-                        entryAttr.ConstructorArguments[0].Value is not INamedTypeSymbol entryMarker ||
-                        !SymbolEqualityComparer.Default.Equals(entryMarker, markerSymbol))
-                    {
-                        continue;
-                    }
-
-                    var entityArgs = entryAttr.ConstructorArguments[1];
-                    if (entityArgs.Kind != TypedConstantKind.Array)
-                    {
-                        continue;
-                    }
-
-                    foreach (var tc in entityArgs.Values)
-                    {
-                        if (tc.Value is INamedTypeSymbol entitySym)
-                        {
-                            AddDiscoveredEntity(results, entitySym, entityMarkerBase);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private static void CollectLocalEntities(
-        INamespaceSymbol ns,
-        INamedTypeSymbol markerSymbol,
-        INamedTypeSymbol? entityMarkerBase,
-        Dictionary<string, DiscoveredEntity> results)
-    {
-        foreach (var type in ns.GetTypeMembers())
-        {
-            InspectTypeForMarker(type, markerSymbol, entityMarkerBase, results);
-        }
-
-        foreach (var childNs in ns.GetNamespaceMembers())
-        {
-            CollectLocalEntities(childNs, markerSymbol, entityMarkerBase, results);
-        }
-    }
-
-    private static void InspectTypeForMarker(
-        INamedTypeSymbol type,
-        INamedTypeSymbol markerSymbol,
-        INamedTypeSymbol? entityMarkerBase,
-        Dictionary<string, DiscoveredEntity> results)
-    {
-        if (!type.IsAbstract &&
-            type.TypeKind == TypeKind.Class &&
-            type.TypeParameters.Length == 0 &&
-            type.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, markerSymbol)))
-        {
-            AddDiscoveredEntity(results, type, entityMarkerBase);
-        }
-
-        foreach (var nested in type.GetTypeMembers())
-        {
-            InspectTypeForMarker(nested, markerSymbol, entityMarkerBase, results);
-        }
-    }
-
-    private static void AddDiscoveredEntity(
-        Dictionary<string, DiscoveredEntity> results,
-        INamedTypeSymbol entitySym,
-        INamedTypeSymbol? entityMarkerBase)
-    {
-        var fullName = entitySym.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-        if (results.ContainsKey(fullName))
-        {
-            return;
-        }
-
-        var markedReadOnly = RoslynSymbolHelper.IsMarkedReadOnly(entitySym, entityMarkerBase);
-        results[fullName] = new DiscoveredEntity
-        {
-            Symbol = entitySym,
-            FullTypeName = fullName,
-            SimpleName = entitySym.Name,
+            GroupFullName = "global::" + GeneratorConstants.DefaultEntityAttributeMetadataName,
+            FullTypeName = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            SimpleName = symbol.Name,
             MarkedReadOnly = markedReadOnly
         };
     }
 
-    private static INamedTypeSymbol? ResolveRegistryMarker(Compilation compilation, INamedTypeSymbol registrySymbol)
+    internal static EquatableArray<LocalDiscoveredEntity> ExtractLocalGroupedEntities(GeneratorAttributeSyntaxContext ctx)
+    {
+        if (ctx.TargetSymbol is not INamedTypeSymbol symbol || symbol.IsAbstract || symbol.TypeParameters.Length > 0)
+        {
+            return EquatableArray<LocalDiscoveredEntity>.Empty;
+        }
+
+        var builder = ImmutableArray.CreateBuilder<LocalDiscoveredEntity>(ctx.Attributes.Length);
+        var fullName = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        foreach (var attr in ctx.Attributes)
+        {
+            if (attr.AttributeClass is not { IsGenericType: true, TypeArguments.Length: 1 } ac ||
+                ac.TypeArguments[0] is not INamedTypeSymbol groupSym)
+            {
+                continue;
+            }
+
+            builder.Add(new LocalDiscoveredEntity
+            {
+                GroupFullName = groupSym.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                FullTypeName = fullName,
+                SimpleName = symbol.Name,
+                MarkedReadOnly = RoslynSymbolHelper.GetNamedBool(attr, KnownNames.AttributeProperties.ReadOnly, out _)
+            });
+        }
+
+        return new EquatableArray<LocalDiscoveredEntity>(builder.ToImmutable());
+    }
+
+    private static Dictionary<string, List<LocalDiscoveredEntity>> IndexCrossAssemblyManifestEntities(
+        Compilation compilation,
+        HashSet<string> targetGroups,
+        INamedTypeSymbol? defaultEntityAttr,
+        INamedTypeSymbol? genericEntityAttr,
+        CancellationToken cancellationToken)
+    {
+        var byGroup = new Dictionary<string, List<LocalDiscoveredEntity>>(StringComparer.Ordinal);
+        if (targetGroups.Count == 0)
+        {
+            return byGroup;
+        }
+
+        var manifestEntryAttr = compilation.GetTypeByMetadataName(GeneratorConstants.EntityManifestEntryAttributeMetadataName);
+        if (manifestEntryAttr is null)
+        {
+            return byGroup;
+        }
+
+        foreach (var refAsm in compilation.SourceModule.ReferencedAssemblySymbols)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var manifestMetadataName =
+                $"{GeneratorConstants.GeneratedNamespace}.{GeneratorConstants.ManifestPrefix}{GeneratorConstants.SanitizeAssemblyName(refAsm.Name)}";
+            var manifestType = refAsm.GetTypeByMetadataName(manifestMetadataName);
+            if (manifestType is null)
+            {
+                continue;
+            }
+
+            ReadManifestTypeEntries(manifestType, manifestEntryAttr, targetGroups, defaultEntityAttr, genericEntityAttr, byGroup);
+        }
+
+        return byGroup;
+    }
+
+    private static void ReadManifestTypeEntries(
+        INamedTypeSymbol manifestType,
+        INamedTypeSymbol manifestEntryAttr,
+        HashSet<string> targetGroups,
+        INamedTypeSymbol? defaultEntityAttr,
+        INamedTypeSymbol? genericEntityAttr,
+        Dictionary<string, List<LocalDiscoveredEntity>> byGroup)
+    {
+        foreach (var entryAttr in manifestType.GetAttributes())
+        {
+            if (!SymbolEqualityComparer.Default.Equals(entryAttr.AttributeClass, manifestEntryAttr) ||
+                entryAttr.ConstructorArguments.Length < 2 ||
+                entryAttr.ConstructorArguments[0].Value is not INamedTypeSymbol groupSym)
+            {
+                continue;
+            }
+
+            var groupFullName = groupSym.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            if (!targetGroups.Contains(groupFullName))
+            {
+                continue;
+            }
+
+            var entityArgs = entryAttr.ConstructorArguments[1];
+            if (entityArgs.Kind != TypedConstantKind.Array)
+            {
+                continue;
+            }
+
+            if (!byGroup.TryGetValue(groupFullName, out var list))
+            {
+                list = [];
+                byGroup[groupFullName] = list;
+            }
+
+            foreach (var tc in entityArgs.Values)
+            {
+                if (tc.Value is INamedTypeSymbol entitySym)
+                {
+                    list.Add(new LocalDiscoveredEntity
+                    {
+                        GroupFullName = groupFullName,
+                        FullTypeName = entitySym.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                        SimpleName = entitySym.Name,
+                        MarkedReadOnly = RoslynSymbolHelper.IsMarkedReadOnly(entitySym, defaultEntityAttr, genericEntityAttr)
+                    });
+                }
+            }
+        }
+    }
+
+    private static string? ResolveRegistryGroupFullName(Compilation compilation, INamedTypeSymbol registrySymbol)
     {
         var defaultRegAttr = compilation.GetTypeByMetadataName(GeneratorConstants.EntityRegistryAttributeMetadataName);
         var genericRegAttr = compilation.GetTypeByMetadataName(GeneratorConstants.GenericEntityRegistryAttributeMetadataName);
@@ -716,14 +803,14 @@ internal static class DbContextBindingAnalyzer
                 ac.IsGenericType &&
                 SymbolEqualityComparer.Default.Equals(ac.OriginalDefinition, genericRegAttr) &&
                 ac.TypeArguments.Length == 1 &&
-                ac.TypeArguments[0] is INamedTypeSymbol customMarker)
+                ac.TypeArguments[0] is INamedTypeSymbol groupSym)
             {
-                return customMarker;
+                return groupSym.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             }
 
             if (defaultRegAttr is not null && SymbolEqualityComparer.Default.Equals(ac, defaultRegAttr))
             {
-                return compilation.GetTypeByMetadataName(GeneratorConstants.DefaultEntityAttributeMetadataName);
+                return "global::" + GeneratorConstants.DefaultEntityAttributeMetadataName;
             }
         }
 
@@ -756,20 +843,26 @@ internal static class DbContextBindingAnalyzer
         return $"{GeneratorConstants.SanitizeAssemblyName(fullName)}.DbContextBinding.g.cs";
     }
 
-    private static DbContextBindingModel CreateDiagnosticsOnlyModel(
+    private static BoundDbContextSnapshot CreateInvalidSnapshot(
         INamedTypeSymbol symbol,
+        SourceLocationInfo? typeLocation,
         ImmutableArray<PendingDiagnostic> diagnostics) =>
         new()
         {
             HintName = BuildHintName(symbol),
             SimpleName = symbol.Name,
             Namespace = null,
+            TypeLocation = typeLocation,
             ContainingTypeDeclarations = EquatableArray<string>.Empty,
-            Properties = EquatableArray<GeneratedDbContextProperty>.Empty,
-            BoundEntityTypeNames = EquatableArray<string>.Empty,
+            BoundGroups = EquatableArray<BoundRegistryGroupInfo>.Empty,
+            CrossAssemblyEntities = EquatableArray<LocalDiscoveredEntity>.Empty,
+            ItemOverrides = EquatableArray<ItemOverrideSnapshot>.Empty,
+            ExistingEntityPropertyTypes = EquatableArray<string>.Empty,
+            ExistingMemberNames = EquatableArray<string>.Empty,
             GenerateConstructor = false,
             GenerateOnModelCreating = false,
             ExistingSchemaMemberName = null,
-            Diagnostics = new EquatableArray<PendingDiagnostic>(diagnostics)
+            InitialDiagnostics = new EquatableArray<PendingDiagnostic>(diagnostics),
+            IsInvalidDeclaration = true
         };
 }

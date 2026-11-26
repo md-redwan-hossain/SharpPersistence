@@ -58,6 +58,7 @@ internal static class SchemaFinalizer
 
             schema.Tables.Add(table);
             schema.ByClrType[clrType] = table;
+            schema.ClrTypeByEntityName[table.EntityName] = clrType;
         }
 
         schema.Tables.Sort((a, b) => string.CompareOrdinal(a.QualifiedName, b.QualifiedName));

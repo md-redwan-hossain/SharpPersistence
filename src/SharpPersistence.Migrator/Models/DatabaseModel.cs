@@ -26,4 +26,7 @@ public sealed class DatabaseModel
 
     [JsonIgnore]
     internal Dictionary<Type, TableSchema> ByClrType { get; } = [];
+
+    [JsonIgnore]
+    internal Dictionary<string, Type> ClrTypeByEntityName { get; } = new(StringComparer.Ordinal);
 }

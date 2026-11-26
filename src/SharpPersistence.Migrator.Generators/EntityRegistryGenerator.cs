@@ -3,48 +3,50 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.CodeAnalysis.Text;
+using SharpPersistence.Migrator.Constants;
 
 namespace SharpPersistence.Migrator.Generators;
 
 [Generator]
 public sealed class EntityRegistryGenerator : IIncrementalGenerator
 {
-    private readonly record struct LocationInfo(string FilePath, TextSpan TextSpan, LinePositionSpan LineSpan)
+    private readonly record struct EntityGroupEntry
     {
-        public static LocationInfo? From(Location? location)
-        {
-            if (location is null || !location.IsInSource)
-            {
-                return null;
-            }
-
-            var lineSpan = location.GetLineSpan();
-            return new LocationInfo(lineSpan.Path, location.SourceSpan, lineSpan.Span);
-        }
-
-        public Location ToLocation() => Location.Create(FilePath, TextSpan, LineSpan);
+        public required string GroupFullName { get; init; }
+        public required string EntityFullName { get; init; }
     }
 
-    private sealed record RegistryCandidate(
-        string FullTypeName,
-        string SimpleName,
-        string? Namespace,
-        ImmutableArray<string> ContainingTypeDeclarations,
-        string MarkerFullName,
-        bool IsSealed,
-        bool IsPartial,
-        bool ImplementsInterface,
-        bool HasPublicConfigure,
-        LocationInfo? Location);
+    private sealed record RegistryCandidate
+    {
+        public required string FullTypeName { get; init; }
+        public required string SimpleName { get; init; }
+        public required string? Namespace { get; init; }
+        public required EquatableArray<string> ContainingTypeDeclarations { get; init; }
+        public required string GroupFullName { get; init; }
+        public required bool IsSealed { get; init; }
+        public required bool IsPartial { get; init; }
+        public required bool ImplementsInterface { get; init; }
+        public required bool HasPublicConfigure { get; init; }
+        public required SourceLocationInfo? Location { get; init; }
+    }
 
-    private sealed record ConfigCandidate(
-        string ConfigFullName,
-        string EntityFullName,
-        bool IsValid,
-        LocationInfo? Location);
+    private readonly record struct ConfigCandidate
+    {
+        public required string ConfigFullName { get; init; }
+        public required string EntityFullName { get; init; }
+        public required bool IsValid { get; init; }
+        public required SourceLocationInfo? Location { get; init; }
+    }
 
-    private sealed record LocalEntityEntry(string MarkerFullName, string EntityFullName);
+    private sealed record CompilationRegistryMeta
+    {
+        public required string? AssemblyName { get; init; }
+        public required bool HasMigratorReference { get; init; }
+        public required bool HasDisableAttribute { get; init; }
+        public required bool HasRootAttribute { get; init; }
+        public required EquatableArray<EntityGroupEntry> ReferencedManifestEntries { get; init; }
+        public required EquatableArray<string> ReferencedAggregatorRegistries { get; init; }
+    }
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -58,7 +60,9 @@ public sealed class EntityRegistryGenerator : IIncrementalGenerator
                 provider.GlobalOptions.TryGetValue(GeneratorConstants.RootPropertyName, out var value) &&
                 string.Equals(value, "true", StringComparison.OrdinalIgnoreCase));
 
-        // O(1) discovery of non-generic [EntityRegistry]
+        var compilationMeta = context.CompilationProvider
+            .Select(static (compilation, ct) => ExtractCompilationMeta(compilation, ct));
+
         var defaultRegistries = context.SyntaxProvider
             .ForAttributeWithMetadataName(
                 GeneratorConstants.EntityRegistryAttributeMetadataName,
@@ -66,9 +70,9 @@ public sealed class EntityRegistryGenerator : IIncrementalGenerator
                 static (ctx, _) => AnalyzeRegistry(ctx, isGeneric: false))
             .Where(static x => x is not null)
             .Select(static (x, _) => x!)
-            .Collect();
+            .Collect()
+            .Select(static (arr, _) => new EquatableArray<RegistryCandidate>(arr));
 
-        // O(1) discovery of generic [EntityRegistry<TMarkerAttribute>]
         var genericRegistries = context.SyntaxProvider
             .ForAttributeWithMetadataName(
                 GeneratorConstants.GenericEntityRegistryAttributeMetadataName,
@@ -76,59 +80,42 @@ public sealed class EntityRegistryGenerator : IIncrementalGenerator
                 static (ctx, _) => AnalyzeRegistry(ctx, isGeneric: true))
             .Where(static x => x is not null)
             .Select(static (x, _) => x!)
-            .Collect();
+            .Collect()
+            .Select(static (arr, _) => new EquatableArray<RegistryCandidate>(arr));
 
-        // O(1) discovery of [EntityConfiguration<TEntity>]
         var configurations = context.SyntaxProvider
             .ForAttributeWithMetadataName(
                 GeneratorConstants.EntityConfigurationAttributeMetadataName,
                 static (node, _) => node is ClassDeclarationSyntax,
                 static (ctx, _) => AnalyzeConfiguration(ctx))
-            .Where(static x => x is not null)
-            .Select(static (x, _) => x!)
-            .Collect();
+            .Where(static x => x.HasValue)
+            .Select(static (x, _) => x!.Value)
+            .Collect()
+            .Select(static (arr, _) => new EquatableArray<ConfigCandidate>(arr));
 
-        // O(1) local built-in [Entity] discovery (for single-project apps)
         var localDefaultEntities = context.SyntaxProvider
             .ForAttributeWithMetadataName(
                 GeneratorConstants.DefaultEntityAttributeMetadataName,
                 static (node, _) => node is ClassDeclarationSyntax,
-                static (ctx, _) =>
-                {
-                    if (ctx.TargetSymbol is not INamedTypeSymbol symbol ||
-                        symbol.IsAbstract ||
-                        symbol.TypeParameters.Length > 0)
-                    {
-                        return null;
-                    }
+                static (ctx, _) => ExtractDefaultLocalEntity(ctx))
+            .Where(static x => x.HasValue)
+            .Select(static (x, _) => x!.Value)
+            .Collect()
+            .Select(static (arr, _) => new EquatableArray<EntityGroupEntry>(arr));
 
-                    return new LocalEntityEntry(
-                        "global::" + GeneratorConstants.DefaultEntityAttributeMetadataName,
-                        symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
-                })
-            .Where(static x => x is not null)
-            .Select(static (x, _) => x!)
-            .Collect();
-
-        // Value-equatable local [assembly: DiscoverEntitiesBy<T>] entries (no raw SyntaxNodes stored)
-        var localCustomEntities = context.SyntaxProvider
-            .CreateSyntaxProvider(
-                static (node, _) => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 },
-                static (ctx, _) => EntityManifestGenerator.ExtractCustomEntityEntries(ctx))
-            .Where(static arr => !arr.IsDefaultOrEmpty)
+        var localGroupedEntities = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                GeneratorConstants.GenericEntityAttributeMetadataName,
+                static (node, _) => node is ClassDeclarationSyntax,
+                static (ctx, _) => ExtractGroupedLocalEntities(ctx))
+            .Where(static arr => arr.Length > 0)
             .SelectMany(static (arr, _) => arr)
-            .Select(static (e, _) => new LocalEntityEntry(e.MarkerFullName, e.EntityFullName))
-            .Collect();
+            .Collect()
+            .Select(static (arr, _) => new EquatableArray<EntityGroupEntry>(arr));
 
-        var registriesAndConfigs = defaultRegistries
-            .Combine(genericRegistries)
-            .Combine(configurations);
-
-        var localEntities = localDefaultEntities.Combine(localCustomEntities);
-
-        var pipeline = context.CompilationProvider
-            .Combine(registriesAndConfigs)
-            .Combine(localEntities)
+        var pipeline = compilationMeta
+            .Combine(defaultRegistries.Combine(genericRegistries).Combine(configurations))
+            .Combine(localDefaultEntities.Combine(localGroupedEntities))
             .Combine(isRoot)
             .Combine(isDisabled);
 
@@ -139,266 +126,264 @@ public sealed class EntityRegistryGenerator : IIncrementalGenerator
                 return;
             }
 
-            var compilation = input.Left.Left.Left.Left;
-            if (GeneratorConstants.HasAssemblyAttribute(
-                    compilation,
-                    GeneratorConstants.DisableEntityDiscoveryAttributeMetadataName))
+            var meta = input.Left.Left.Left.Left;
+            if (meta.HasDisableAttribute || !meta.HasMigratorReference)
             {
                 return;
             }
 
-            var defaultRegs = input.Left.Left.Left.Right.Left.Left;
-            var genericRegs = input.Left.Left.Left.Right.Left.Right;
-            var configCandidates = input.Left.Left.Left.Right.Right;
-            var localDefault = input.Left.Left.Right.Left;
-            var localCustom = input.Left.Left.Right.Right;
-            var rootMode = input.Left.Right || GeneratorConstants.HasAssemblyAttribute(
-                compilation,
-                GeneratorConstants.EntityRegistryRootAttributeMetadataName);
-
-            // Skip projects that don't reference SharpPersistence.Migrator
-            if (compilation.GetTypeByMetadataName(GeneratorConstants.IEntityRegistryMetadataName) is null)
-            {
-                return;
-            }
-
-            var allRegistries = defaultRegs.AddRange(genericRegs);
-
-            // 1. Validate configurations & detect duplicates (SPM002, SPM003)
-            var configsByEntity = new Dictionary<string, List<ConfigCandidate>>(StringComparer.Ordinal);
-            foreach (var cfg in configCandidates)
-            {
-                if (!cfg.IsValid)
-                {
-                    spc.ReportDiagnostic(Diagnostic.Create(
-                        GeneratorConstants.ConfigurationInvalid,
-                        cfg.Location?.ToLocation(),
-                        GeneratorConstants.StripGlobalPrefix(cfg.ConfigFullName),
-                        GeneratorConstants.StripGlobalPrefix(cfg.EntityFullName)));
-                    continue;
-                }
-
-                if (!configsByEntity.TryGetValue(cfg.EntityFullName, out var list))
-                {
-                    list = [];
-                    configsByEntity[cfg.EntityFullName] = list;
-                }
-
-                list.Add(cfg);
-            }
-
-            var validConfigByEntity = new Dictionary<string, ConfigCandidate>(StringComparer.Ordinal);
-            foreach (var kv in configsByEntity)
-            {
-                if (kv.Value.Count > 1)
-                {
-                    var names = string.Join(", ", kv.Value
-                        .Select(c => GeneratorConstants.StripGlobalPrefix(c.ConfigFullName))
-                        .OrderBy(x => x, StringComparer.Ordinal));
-                    foreach (var dup in kv.Value)
-                    {
-                        spc.ReportDiagnostic(Diagnostic.Create(
-                            GeneratorConstants.DuplicateEntityConfiguration,
-                            dup.Location?.ToLocation(),
-                            GeneratorConstants.StripGlobalPrefix(kv.Key),
-                            names));
-                    }
-                }
-                else
-                {
-                    validConfigByEntity[kv.Key] = kv.Value[0];
-                }
-            }
-
-            // 2. Validate registries (SPM001, SPM004)
-            var validRegistries = new List<RegistryCandidate>();
-            foreach (var reg in allRegistries)
-            {
-                if (!reg.IsSealed || !reg.IsPartial || !reg.ImplementsInterface)
-                {
-                    spc.ReportDiagnostic(Diagnostic.Create(
-                        GeneratorConstants.RegistryMustBeSealedPartialImplementingInterface,
-                        reg.Location?.ToLocation(),
-                        GeneratorConstants.StripGlobalPrefix(reg.FullTypeName)));
-                    continue;
-                }
-
-                if (!reg.HasPublicConfigure)
-                {
-                    spc.ReportDiagnostic(Diagnostic.Create(
-                        GeneratorConstants.RegistryMustDeclareConfigure,
-                        reg.Location?.ToLocation(),
-                        GeneratorConstants.StripGlobalPrefix(reg.FullTypeName)));
-                    continue;
-                }
-
-                validRegistries.Add(reg);
-            }
-
-            if (validRegistries.Count > 0)
-            {
-                // 3. Collect entities by marker via O(1) manifest lookups on referenced assemblies + local entries
-                var entitiesByMarker = CollectEntitiesByMarker(compilation, localDefault, localCustom);
-
-                // 4. Detect entities matched by more than one registry in this compilation (SPM005)
-                var registriesByEntity = new Dictionary<string, List<RegistryCandidate>>(StringComparer.Ordinal);
-                var allMatchedEntities = new HashSet<string>(StringComparer.Ordinal);
-
-                foreach (var reg in validRegistries)
-                {
-                    if (!entitiesByMarker.TryGetValue(reg.MarkerFullName, out var matchedEntities))
-                    {
-                        continue;
-                    }
-
-                    foreach (var entity in matchedEntities)
-                    {
-                        allMatchedEntities.Add(entity);
-                        if (!registriesByEntity.TryGetValue(entity, out var regList))
-                        {
-                            regList = [];
-                            registriesByEntity[entity] = regList;
-                        }
-
-                        regList.Add(reg);
-                    }
-                }
-
-                foreach (var kv in registriesByEntity)
-                {
-                    if (kv.Value.Count > 1)
-                    {
-                        var regNames = string.Join(", ", kv.Value
-                            .Select(r => GeneratorConstants.StripGlobalPrefix(r.FullTypeName))
-                            .OrderBy(x => x, StringComparer.Ordinal));
-                        foreach (var reg in kv.Value)
-                        {
-                            spc.ReportDiagnostic(Diagnostic.Create(
-                                GeneratorConstants.DuplicateEntityAcrossRegistries,
-                                reg.Location?.ToLocation(),
-                                GeneratorConstants.StripGlobalPrefix(kv.Key),
-                                regNames));
-                        }
-                    }
-                }
-
-                // 5. Warn on orphan [EntityConfiguration<TEntity>] not matched by any registry (SPM007)
-                foreach (var kv in validConfigByEntity)
-                {
-                    if (!allMatchedEntities.Contains(kv.Key))
-                    {
-                        spc.ReportDiagnostic(Diagnostic.Create(
-                            GeneratorConstants.OrphanEntityConfiguration,
-                            kv.Value.Location?.ToLocation(),
-                            GeneratorConstants.StripGlobalPrefix(kv.Value.ConfigFullName),
-                            GeneratorConstants.StripGlobalPrefix(kv.Key)));
-                    }
-                }
-
-                // 6. Emit partial registry explicit IEntityRegistry.Configure implementation
-                foreach (var reg in validRegistries.OrderBy(r => r.FullTypeName, StringComparer.Ordinal))
-                {
-                    entitiesByMarker.TryGetValue(reg.MarkerFullName, out var matchedEntities);
-                    EmitRegistryPartial(spc, reg, matchedEntities, validConfigByEntity);
-                }
-
-                // 7. Emit per-project aggregator for O(1) cross-assembly root discovery
-                EmitProjectAggregator(spc, compilation.AssemblyName, validRegistries);
-            }
-
-            // 8. Root startup project extension method: options.AddGeneratedEntityRegistries()
-            if (rootMode)
-            {
-                EmitRootExtension(spc, compilation, validRegistries);
-            }
+            Execute(
+                spc,
+                meta,
+                input.Left.Left.Left.Right.Left.Left,
+                input.Left.Left.Left.Right.Left.Right,
+                input.Left.Left.Left.Right.Right,
+                input.Left.Left.Right.Left,
+                input.Left.Left.Right.Right,
+                input.Left.Right || meta.HasRootAttribute);
         });
     }
 
-    private static RegistryCandidate? AnalyzeRegistry(GeneratorAttributeSyntaxContext ctx, bool isGeneric)
+    private static CompilationRegistryMeta ExtractCompilationMeta(Compilation compilation, CancellationToken cancellationToken)
     {
-        if (ctx.TargetSymbol is not INamedTypeSymbol symbol ||
-            ctx.TargetNode is not ClassDeclarationSyntax classDecl)
+        cancellationToken.ThrowIfCancellationRequested();
+        var hasMigrator = compilation.GetTypeByMetadataName(GeneratorConstants.IEntityRegistryMetadataName) is not null;
+        var hasDisable = GeneratorConstants.HasAssemblyAttribute(compilation, GeneratorConstants.DisableEntityDiscoveryAttributeMetadataName);
+        if (!hasMigrator || hasDisable)
+        {
+            return new CompilationRegistryMeta
+            {
+                AssemblyName = compilation.AssemblyName,
+                HasMigratorReference = hasMigrator,
+                HasDisableAttribute = hasDisable,
+                HasRootAttribute = false,
+                ReferencedManifestEntries = EquatableArray<EntityGroupEntry>.Empty,
+                ReferencedAggregatorRegistries = EquatableArray<string>.Empty
+            };
+        }
+
+        var manifestEntries = ImmutableArray.CreateBuilder<EntityGroupEntry>();
+        var aggRegistries = ImmutableArray.CreateBuilder<string>();
+
+        var manifestEntryAttr = compilation.GetTypeByMetadataName(GeneratorConstants.EntityManifestEntryAttributeMetadataName);
+        var aggEntryAttr = compilation.GetTypeByMetadataName(GeneratorConstants.EntityRegistryAggregatorEntryAttributeMetadataName);
+
+        foreach (var refAsm in compilation.SourceModule.ReferencedAssemblySymbols)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var sanitized = GeneratorConstants.SanitizeAssemblyName(refAsm.Name);
+
+            if (manifestEntryAttr is not null)
+            {
+                var manifestType = refAsm.GetTypeByMetadataName(
+                    $"{GeneratorConstants.GeneratedNamespace}.{GeneratorConstants.ManifestPrefix}{sanitized}");
+                if (manifestType is not null)
+                {
+                    CollectManifestEntries(manifestType, manifestEntryAttr, manifestEntries);
+                }
+            }
+
+            if (aggEntryAttr is not null)
+            {
+                var aggType = refAsm.GetTypeByMetadataName(
+                    $"{GeneratorConstants.GeneratedNamespace}.{GeneratorConstants.AggregatorPrefix}{sanitized}");
+                if (aggType is not null)
+                {
+                    CollectAggregatorRegistries(aggType, aggEntryAttr, aggRegistries);
+                }
+            }
+        }
+
+        return new CompilationRegistryMeta
+        {
+            AssemblyName = compilation.AssemblyName,
+            HasMigratorReference = true,
+            HasDisableAttribute = false,
+            HasRootAttribute = GeneratorConstants.HasAssemblyAttribute(compilation, GeneratorConstants.EntityRegistryRootAttributeMetadataName),
+            ReferencedManifestEntries = new EquatableArray<EntityGroupEntry>(manifestEntries.ToImmutable()),
+            ReferencedAggregatorRegistries = new EquatableArray<string>(aggRegistries.ToImmutable())
+        };
+    }
+
+    private static void CollectManifestEntries(
+        INamedTypeSymbol manifestType,
+        INamedTypeSymbol entryAttrSymbol,
+        ImmutableArray<EntityGroupEntry>.Builder target)
+    {
+        foreach (var attr in manifestType.GetAttributes())
+        {
+            if (!SymbolEqualityComparer.Default.Equals(attr.AttributeClass, entryAttrSymbol) ||
+                attr.ConstructorArguments.Length != 2 ||
+                attr.ConstructorArguments[0].Value is not INamedTypeSymbol groupType)
+            {
+                continue;
+            }
+
+            var groupFullName = groupType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            var secondArg = attr.ConstructorArguments[1];
+            if (secondArg.Kind == TypedConstantKind.Array)
+            {
+                foreach (var item in secondArg.Values)
+                {
+                    if (item.Value is INamedTypeSymbol entityType)
+                    {
+                        target.Add(new EntityGroupEntry
+                        {
+                            GroupFullName = groupFullName,
+                            EntityFullName = entityType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+                        });
+                    }
+                }
+            }
+            else if (secondArg.Value is INamedTypeSymbol singleEntity)
+            {
+                target.Add(new EntityGroupEntry
+                {
+                    GroupFullName = groupFullName,
+                    EntityFullName = singleEntity.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+                });
+            }
+        }
+    }
+
+    private static void CollectAggregatorRegistries(
+        INamedTypeSymbol aggType,
+        INamedTypeSymbol entryAttrSymbol,
+        ImmutableArray<string>.Builder target)
+    {
+        foreach (var attr in aggType.GetAttributes())
+        {
+            if (!SymbolEqualityComparer.Default.Equals(attr.AttributeClass, entryAttrSymbol) ||
+                attr.ConstructorArguments.Length != 1)
+            {
+                continue;
+            }
+
+            var arg = attr.ConstructorArguments[0];
+            if (arg.Kind == TypedConstantKind.Array)
+            {
+                foreach (var item in arg.Values)
+                {
+                    if (item.Value is INamedTypeSymbol regType)
+                    {
+                        target.Add(regType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+                    }
+                }
+            }
+            else if (arg.Value is INamedTypeSymbol singleReg)
+            {
+                target.Add(singleReg.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+            }
+        }
+    }
+
+    private static EntityGroupEntry? ExtractDefaultLocalEntity(GeneratorAttributeSyntaxContext ctx)
+    {
+        if (ctx.TargetSymbol is not INamedTypeSymbol symbol || symbol.IsAbstract || symbol.TypeParameters.Length > 0)
         {
             return null;
         }
 
-        string markerFullName;
-        if (!isGeneric)
+        return new EntityGroupEntry
         {
-            markerFullName = "global::" + GeneratorConstants.DefaultEntityAttributeMetadataName;
+            GroupFullName = "global::" + GeneratorConstants.DefaultEntityAttributeMetadataName,
+            EntityFullName = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+        };
+    }
+
+    private static EquatableArray<EntityGroupEntry> ExtractGroupedLocalEntities(GeneratorAttributeSyntaxContext ctx)
+    {
+        if (ctx.TargetSymbol is not INamedTypeSymbol symbol || symbol.IsAbstract || symbol.TypeParameters.Length > 0)
+        {
+            return EquatableArray<EntityGroupEntry>.Empty;
         }
-        else
+
+        var builder = ImmutableArray.CreateBuilder<EntityGroupEntry>(ctx.Attributes.Length);
+        var entityFullName = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        foreach (var attr in ctx.Attributes)
+        {
+            if (attr.AttributeClass is { IsGenericType: true, TypeArguments.Length: 1 } ac &&
+                ac.TypeArguments[0] is INamedTypeSymbol groupSym)
+            {
+                builder.Add(new EntityGroupEntry
+                {
+                    GroupFullName = groupSym.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                    EntityFullName = entityFullName
+                });
+            }
+        }
+
+        return new EquatableArray<EntityGroupEntry>(builder.ToImmutable());
+    }
+
+    private static RegistryCandidate? AnalyzeRegistry(GeneratorAttributeSyntaxContext ctx, bool isGeneric)
+    {
+        if (ctx.TargetSymbol is not INamedTypeSymbol symbol || ctx.TargetNode is not ClassDeclarationSyntax classDecl)
+        {
+            return null;
+        }
+
+        string groupFullName;
+        if (isGeneric)
         {
             var attrData = ctx.Attributes.FirstOrDefault();
-            if (attrData?.AttributeClass is not { IsGenericType: true, TypeArguments.Length: 1 } attrClass ||
-                attrClass.TypeArguments[0] is not INamedTypeSymbol markerSymbol)
+            if (attrData?.AttributeClass is not { IsGenericType: true, TypeArguments.Length: 1 } ac ||
+                ac.TypeArguments[0] is not INamedTypeSymbol groupSymbol)
             {
                 return null;
             }
 
-            markerFullName = markerSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            groupFullName = groupSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        }
+        else
+        {
+            groupFullName = "global::" + GeneratorConstants.DefaultEntityAttributeMetadataName;
         }
 
-        var isPartial = classDecl.Modifiers.Any(m => m.IsKind(SyntaxKind.PartialKeyword));
-        var iRegistry = ctx.SemanticModel.Compilation.GetTypeByMetadataName(GeneratorConstants.IEntityRegistryMetadataName);
-        var iBuilder = ctx.SemanticModel.Compilation.GetTypeByMetadataName(GeneratorConstants.IEntityRegistryBuilderMetadataName);
-
+        var compilation = ctx.SemanticModel.Compilation;
+        var iRegistry = compilation.GetTypeByMetadataName(GeneratorConstants.IEntityRegistryMetadataName);
+        var iBuilder = compilation.GetTypeByMetadataName(GeneratorConstants.IEntityRegistryBuilderMetadataName);
         var implementsInterface = iRegistry is not null &&
             symbol.AllInterfaces.Any(i => SymbolEqualityComparer.Default.Equals(i, iRegistry));
 
-        var hasPublicConfigure = iBuilder is not null && symbol
-            .GetMembers("Configure")
+        var hasPublicConfigure = iBuilder is not null && symbol.GetMembers(KnownNames.Methods.Configure)
             .OfType<IMethodSymbol>()
-            .Any(m =>
-                m.DeclaredAccessibility == Accessibility.Public &&
-                !m.IsStatic &&
-                m.ReturnsVoid &&
-                m.Parameters.Length == 1 &&
-                SymbolEqualityComparer.Default.Equals(m.Parameters[0].Type, iBuilder));
+            .Any(m => !m.IsStatic &&
+                      m.DeclaredAccessibility == Accessibility.Public &&
+                      m.ReturnsVoid &&
+                      m.Parameters.Length == 1 &&
+                      SymbolEqualityComparer.Default.Equals(m.Parameters[0].Type, iBuilder));
 
-        var containingTypes = ImmutableArray.CreateBuilder<string>();
-        var parent = symbol.ContainingType;
-        while (parent is not null)
+        var containingDecls = ImmutableArray.CreateBuilder<string>();
+        for (var outer = symbol.ContainingType; outer is not null; outer = outer.ContainingType)
         {
-            var parentIsPartial = parent.DeclaringSyntaxReferences.Any(r =>
-                r.GetSyntax() is TypeDeclarationSyntax tds &&
-                tds.Modifiers.Any(m => m.IsKind(SyntaxKind.PartialKeyword)));
-            if (!parentIsPartial)
+            var kind = outer.TypeKind switch
             {
-                isPartial = false;
-            }
-
-            var kind = parent.TypeKind switch
-            {
-                TypeKind.Struct => "struct",
-                TypeKind.Interface => "interface",
-                _ => "class"
+                TypeKind.Struct => "partial struct",
+                TypeKind.Interface => "partial interface",
+                _ => "partial class"
             };
-            containingTypes.Insert(0, $"partial {kind} {parent.Name}");
-            parent = parent.ContainingType;
+            containingDecls.Insert(0, $"{kind} {outer.Name}");
         }
 
-        var ns = symbol.ContainingNamespace.IsGlobalNamespace
-            ? null
-            : symbol.ContainingNamespace.ToDisplayString();
-
-        return new RegistryCandidate(
-            FullTypeName: symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-            SimpleName: symbol.Name,
-            Namespace: ns,
-            ContainingTypeDeclarations: containingTypes.ToImmutable(),
-            MarkerFullName: markerFullName,
-            IsSealed: symbol.IsSealed,
-            IsPartial: isPartial,
-            ImplementsInterface: implementsInterface,
-            HasPublicConfigure: hasPublicConfigure,
-            Location: LocationInfo.From(classDecl.Identifier.GetLocation()));
+        return new RegistryCandidate
+        {
+            FullTypeName = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            SimpleName = symbol.Name,
+            Namespace = symbol.ContainingNamespace.IsGlobalNamespace ? null : symbol.ContainingNamespace.ToDisplayString(),
+            ContainingTypeDeclarations = new EquatableArray<string>(containingDecls.ToImmutable()),
+            GroupFullName = groupFullName,
+            IsSealed = symbol.IsSealed && !symbol.IsAbstract,
+            IsPartial = RoslynSymbolHelper.IsDeclaredPartial(symbol),
+            ImplementsInterface = implementsInterface,
+            HasPublicConfigure = hasPublicConfigure,
+            Location = SourceLocationInfo.From(classDecl.Identifier.GetLocation())
+        };
     }
 
     private static ConfigCandidate? AnalyzeConfiguration(GeneratorAttributeSyntaxContext ctx)
     {
-        if (ctx.TargetSymbol is not INamedTypeSymbol symbol ||
-            ctx.TargetNode is not ClassDeclarationSyntax classDecl)
+        if (ctx.TargetSymbol is not INamedTypeSymbol symbol || ctx.TargetNode is not ClassDeclarationSyntax classDecl)
         {
             return null;
         }
@@ -418,95 +403,194 @@ public sealed class EntityRegistryGenerator : IIncrementalGenerator
             SymbolEqualityComparer.Default.Equals(i.TypeArguments[0], entitySymbol));
 
         var hasAccessibleCtor = symbol.InstanceConstructors.Any(c =>
-            c.Parameters.Length == 0 &&
-            c.DeclaredAccessibility == Accessibility.Public);
+            c.Parameters.Length == 0 && c.DeclaredAccessibility == Accessibility.Public);
 
         var isValid = symbol.IsSealed && !symbol.IsAbstract && symbol.TypeParameters.Length == 0 &&
                       implementsExpected && hasAccessibleCtor;
 
-        return new ConfigCandidate(
-            ConfigFullName: symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-            EntityFullName: entitySymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-            IsValid: isValid,
-            Location: LocationInfo.From(classDecl.Identifier.GetLocation()));
+        return new ConfigCandidate
+        {
+            ConfigFullName = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            EntityFullName = entitySymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            IsValid = isValid,
+            Location = SourceLocationInfo.From(classDecl.Identifier.GetLocation())
+        };
     }
 
-    private static Dictionary<string, HashSet<string>> CollectEntitiesByMarker(
-        Compilation compilation,
-        ImmutableArray<LocalEntityEntry> localDefaultEntities,
-        ImmutableArray<LocalEntityEntry> localCustomEntities)
+    private static void Execute(
+        SourceProductionContext spc,
+        CompilationRegistryMeta meta,
+        EquatableArray<RegistryCandidate> defaultRegs,
+        EquatableArray<RegistryCandidate> genericRegs,
+        EquatableArray<ConfigCandidate> configCandidates,
+        EquatableArray<EntityGroupEntry> localDefault,
+        EquatableArray<EntityGroupEntry> localGrouped,
+        bool rootMode)
     {
-        var map = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
-
-        void Add(string markerFullName, string entityFullName)
+        var configsByEntity = new Dictionary<string, List<ConfigCandidate>>(StringComparer.Ordinal);
+        foreach (var cfg in configCandidates)
         {
-            if (!map.TryGetValue(markerFullName, out var set))
+            if (!cfg.IsValid)
             {
-                set = new HashSet<string>(StringComparer.Ordinal);
-                map[markerFullName] = set;
+                spc.ReportDiagnostic(Diagnostic.Create(
+                    GeneratorConstants.ConfigurationInvalid,
+                    cfg.Location?.ToLocation() ?? Location.None,
+                    GeneratorConstants.StripGlobalPrefix(cfg.ConfigFullName),
+                    GeneratorConstants.StripGlobalPrefix(cfg.EntityFullName)));
+                continue;
             }
 
-            set.Add(entityFullName);
-        }
-
-        // 1. Local built-in [Entity] and [assembly: DiscoverEntitiesBy<T>] classes
-        foreach (var entry in localDefaultEntities)
-        {
-            Add(entry.MarkerFullName, entry.EntityFullName);
-        }
-
-        foreach (var entry in localCustomEntities)
-        {
-            Add(entry.MarkerFullName, entry.EntityFullName);
-        }
-
-        // 2. O(1) manifest lookup across referenced assemblies (ZERO assembly/namespace walking!)
-        var entryAttrSymbol = compilation.GetTypeByMetadataName(GeneratorConstants.EntityManifestEntryAttributeMetadataName);
-        if (entryAttrSymbol is not null)
-        {
-            foreach (var refAssembly in compilation.SourceModule.ReferencedAssemblySymbols)
+            if (!configsByEntity.TryGetValue(cfg.EntityFullName, out var list))
             {
-                var manifestMetadataName =
-                    $"{GeneratorConstants.GeneratedNamespace}.{GeneratorConstants.ManifestPrefix}{GeneratorConstants.SanitizeAssemblyName(refAssembly.Name)}";
-                var manifestType = refAssembly.GetTypeByMetadataName(manifestMetadataName);
-                if (manifestType is null)
+                list = [];
+                configsByEntity[cfg.EntityFullName] = list;
+            }
+
+            list.Add(cfg);
+        }
+
+        var validConfigByEntity = new Dictionary<string, ConfigCandidate>(StringComparer.Ordinal);
+        foreach (var kv in configsByEntity)
+        {
+            if (kv.Value.Count > 1)
+            {
+                var names = string.Join(", ", kv.Value
+                    .Select(c => GeneratorConstants.StripGlobalPrefix(c.ConfigFullName))
+                    .OrderBy(x => x, StringComparer.Ordinal));
+                foreach (var dup in kv.Value)
+                {
+                    spc.ReportDiagnostic(Diagnostic.Create(
+                        GeneratorConstants.DuplicateEntityConfiguration,
+                        dup.Location?.ToLocation() ?? Location.None,
+                        GeneratorConstants.StripGlobalPrefix(kv.Key),
+                        names));
+                }
+            }
+            else
+            {
+                validConfigByEntity[kv.Key] = kv.Value[0];
+            }
+        }
+
+        var validRegistries = new List<RegistryCandidate>();
+        foreach (var reg in defaultRegs.Concat(genericRegs))
+        {
+            if (!reg.IsSealed || !reg.IsPartial || !reg.ImplementsInterface)
+            {
+                spc.ReportDiagnostic(Diagnostic.Create(
+                    GeneratorConstants.RegistryMustBeSealedPartialImplementingInterface,
+                    reg.Location?.ToLocation() ?? Location.None,
+                    GeneratorConstants.StripGlobalPrefix(reg.FullTypeName)));
+                continue;
+            }
+
+            if (!reg.HasPublicConfigure)
+            {
+                spc.ReportDiagnostic(Diagnostic.Create(
+                    GeneratorConstants.RegistryMustDeclareConfigure,
+                    reg.Location?.ToLocation() ?? Location.None,
+                    GeneratorConstants.StripGlobalPrefix(reg.FullTypeName)));
+                continue;
+            }
+
+            validRegistries.Add(reg);
+        }
+
+        if (validRegistries.Count > 0)
+        {
+            var entitiesByGroup = BuildEntitiesByGroup(meta.ReferencedManifestEntries, localDefault, localGrouped);
+            var registriesByEntity = new Dictionary<string, List<RegistryCandidate>>(StringComparer.Ordinal);
+            var allMatchedEntities = new HashSet<string>(StringComparer.Ordinal);
+
+            foreach (var reg in validRegistries)
+            {
+                if (!entitiesByGroup.TryGetValue(reg.GroupFullName, out var matched))
                 {
                     continue;
                 }
 
-                foreach (var attr in manifestType.GetAttributes())
+                foreach (var entity in matched)
                 {
-                    if (!SymbolEqualityComparer.Default.Equals(attr.AttributeClass, entryAttrSymbol) ||
-                        attr.ConstructorArguments.Length != 2)
+                    allMatchedEntities.Add(entity);
+                    if (!registriesByEntity.TryGetValue(entity, out var regs))
                     {
-                        continue;
+                        regs = [];
+                        registriesByEntity[entity] = regs;
                     }
 
-                    if (attr.ConstructorArguments[0].Value is not INamedTypeSymbol markerType)
-                    {
-                        continue;
-                    }
+                    regs.Add(reg);
+                }
+            }
 
-                    var markerFullName = markerType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                    var secondArg = attr.ConstructorArguments[1];
-                    if (secondArg.Kind == TypedConstantKind.Array)
+            foreach (var kv in registriesByEntity)
+            {
+                if (kv.Value.Count > 1)
+                {
+                    var regNames = string.Join(", ", kv.Value
+                        .Select(r => GeneratorConstants.StripGlobalPrefix(r.FullTypeName))
+                        .OrderBy(x => x, StringComparer.Ordinal));
+                    foreach (var reg in kv.Value)
                     {
-                        foreach (var item in secondArg.Values)
-                        {
-                            if (item.Value is INamedTypeSymbol entityType)
-                            {
-                                Add(markerFullName, entityType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
-                            }
-                        }
-                    }
-                    else if (secondArg.Value is INamedTypeSymbol singleEntityType)
-                    {
-                        Add(markerFullName, singleEntityType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+                        spc.ReportDiagnostic(Diagnostic.Create(
+                            GeneratorConstants.DuplicateEntityAcrossRegistries,
+                            reg.Location?.ToLocation() ?? Location.None,
+                            GeneratorConstants.StripGlobalPrefix(kv.Key),
+                            regNames));
                     }
                 }
             }
+
+            foreach (var kv in validConfigByEntity)
+            {
+                if (!allMatchedEntities.Contains(kv.Key))
+                {
+                    spc.ReportDiagnostic(Diagnostic.Create(
+                        GeneratorConstants.OrphanEntityConfiguration,
+                        kv.Value.Location?.ToLocation() ?? Location.None,
+                        GeneratorConstants.StripGlobalPrefix(kv.Value.ConfigFullName),
+                        GeneratorConstants.StripGlobalPrefix(kv.Key)));
+                }
+            }
+
+            foreach (var reg in validRegistries)
+            {
+                entitiesByGroup.TryGetValue(reg.GroupFullName, out var matched);
+                EmitRegistryPartial(spc, reg, matched, validConfigByEntity);
+            }
+
+            EmitProjectAggregator(spc, meta.AssemblyName, validRegistries);
         }
 
+        if (rootMode)
+        {
+            EmitRootExtension(spc, meta.ReferencedAggregatorRegistries, validRegistries);
+        }
+    }
+
+    private static Dictionary<string, HashSet<string>> BuildEntitiesByGroup(
+        EquatableArray<EntityGroupEntry> referencedEntries,
+        EquatableArray<EntityGroupEntry> localDefault,
+        EquatableArray<EntityGroupEntry> localGrouped)
+    {
+        var map = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+
+        void Add(EquatableArray<EntityGroupEntry> entries)
+        {
+            foreach (var entry in entries)
+            {
+                if (!map.TryGetValue(entry.GroupFullName, out var set))
+                {
+                    set = new HashSet<string>(StringComparer.Ordinal);
+                    map[entry.GroupFullName] = set;
+                }
+
+                set.Add(entry.EntityFullName);
+            }
+        }
+
+        Add(localDefault);
+        Add(localGrouped);
+        Add(referencedEntries);
         return map;
     }
 
@@ -567,8 +651,7 @@ public sealed class EntityRegistryGenerator : IIncrementalGenerator
         }
 
         var cleanName = GeneratorConstants.StripGlobalPrefix(reg.FullTypeName);
-        var hintName = $"{GeneratorConstants.SanitizeAssemblyName(cleanName)}.g.cs";
-        spc.AddSource(hintName, sb.ToString());
+        spc.AddSource($"{GeneratorConstants.SanitizeAssemblyName(cleanName)}.g.cs", sb.ToString());
     }
 
     private static void EmitProjectAggregator(
@@ -600,7 +683,7 @@ public sealed class EntityRegistryGenerator : IIncrementalGenerator
 
     private static void EmitRootExtension(
         SourceProductionContext spc,
-        Compilation compilation,
+        EquatableArray<string> referencedRegistries,
         List<RegistryCandidate> localRegistries)
     {
         var registryFullNames = new HashSet<string>(StringComparer.Ordinal);
@@ -609,45 +692,9 @@ public sealed class EntityRegistryGenerator : IIncrementalGenerator
             registryFullNames.Add(reg.FullTypeName);
         }
 
-        // O(1) lookup of EntityRegistryAggregator_<Assembly> across all referenced assemblies
-        var entryAttrSymbol = compilation.GetTypeByMetadataName(GeneratorConstants.EntityRegistryAggregatorEntryAttributeMetadataName);
-        if (entryAttrSymbol is not null)
+        foreach (var reg in referencedRegistries)
         {
-            foreach (var refAssembly in compilation.SourceModule.ReferencedAssemblySymbols)
-            {
-                var aggMetadataName =
-                    $"{GeneratorConstants.GeneratedNamespace}.{GeneratorConstants.AggregatorPrefix}{GeneratorConstants.SanitizeAssemblyName(refAssembly.Name)}";
-                var aggType = refAssembly.GetTypeByMetadataName(aggMetadataName);
-                if (aggType is null)
-                {
-                    continue;
-                }
-
-                foreach (var attr in aggType.GetAttributes())
-                {
-                    if (!SymbolEqualityComparer.Default.Equals(attr.AttributeClass, entryAttrSymbol) ||
-                        attr.ConstructorArguments.Length != 1)
-                    {
-                        continue;
-                    }
-
-                    var arg = attr.ConstructorArguments[0];
-                    if (arg.Kind == TypedConstantKind.Array)
-                    {
-                        foreach (var item in arg.Values)
-                        {
-                            if (item.Value is INamedTypeSymbol regType)
-                            {
-                                registryFullNames.Add(regType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
-                            }
-                        }
-                    }
-                    else if (arg.Value is INamedTypeSymbol singleRegType)
-                    {
-                        registryFullNames.Add(singleRegType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
-                    }
-                }
-            }
+            registryFullNames.Add(reg);
         }
 
         var sb = new StringBuilder();

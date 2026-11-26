@@ -4,19 +4,19 @@
 
 ## The Three Building Blocks
 
-* **Entity (`[Entity]` or custom `EntityMarkerAttribute`)** — Your plain domain class. Marking it tells the compiler it maps to a database table without pulling EF Core or migration packages into your Domain project.
+* **Entity (`[Entity]` or `[Entity<TGroup>]`)** — Your plain domain class. Marking it tells the compiler it maps to a database table without pulling EF Core or migration packages into your Domain project.
 * **Entity Configuration (`[EntityConfiguration<T>]` + `IEntityConfiguration<T>`)** — Holds one table's mapping rules (table name, columns, keys, foreign keys, indexes) so domain classes stay clean. Entities without one still map by convention (`Id` as primary key).
 * **Entity Registry (`[EntityRegistry]` + `IEntityRegistry`)** — Groups related tables into a module/schema, defines sequences, and lets `db-migrator` order or target registries (`--registry SalesRegistry`).
 
 ## How They Connect
 
-1. **Domain:** Mark entities with `[Entity]` (or a custom marker).
+1. **Domain:** Mark entities with `[Entity]` (ungrouped) or `[Entity<TGroup>]` (with a `readonly record struct ... : IEntityGroup` tag).
 2. **Infrastructure:** Add `[EntityConfiguration<T>]` classes and a `sealed partial` `[EntityRegistry]` class.
 3. **Startup (`AssemblyInfo.cs`):** Add `[assembly: EntityRegistryRoot]` in `AssemblyInfo.cs`, then call `.AddGeneratedEntityRegistries()` in `Program.cs`.
 4. **Build & Run:** The source generator pairs every entity with its config, wires your registries, and catches mistakes (`SPM001`–`SPM007`) at compile time.
 
 ::: tip Put Assembly Attributes in `AssemblyInfo.cs`
-Keep `[assembly: EntityRegistryRoot]`, `[assembly: DiscoverEntitiesBy<T>]`, and `[assembly: DisableEntityDiscovery]` in each project's `AssemblyInfo.cs` so they are easy to find instead of buried in `Program.cs` or entity files.
+Keep `[assembly: EntityRegistryRoot]` and `[assembly: DisableEntityDiscovery]` in each project's `AssemblyInfo.cs` so they are easy to find instead of buried in `Program.cs` or entity files.
 :::
 
 ## Single-Project vs. Modular Monolith
@@ -50,18 +50,15 @@ public sealed partial class AppRegistry : IEntityRegistry
 ```
 
 ```csharp [Modular Monolith]
-// Billing.Domain
-public sealed class BillingEntityAttribute : EntityMarkerAttribute;
-
-// Billing.Domain/AssemblyInfo.cs
-[assembly: DiscoverEntitiesBy<BillingEntityAttribute>]
+// Billing.Domain/BillingGroup.cs
+public readonly record struct BillingGroup : IEntityGroup;
 
 // Billing.Domain/Invoice.cs
-[BillingEntity]
+[Entity<BillingGroup>]
 public sealed class Invoice { public Guid Id { get; set; } }
 
 // Billing.Infrastructure/BillingRegistry.cs
-[EntityRegistry<BillingEntityAttribute>]
+[EntityRegistry<BillingGroup>]
 public sealed partial class BillingRegistry : IEntityRegistry
 {
     public void Configure(IEntityRegistryBuilder registry) => registry.HasDefaultSchema("billing");

@@ -70,6 +70,43 @@ internal static class CodeFixSyntaxHelpers
         return updated.WithAdditionalAnnotations(Formatter.Annotation);
     }
 
+    public static TypeDeclarationSyntax EnsurePublic(TypeDeclarationSyntax typeDecl)
+    {
+        var existing = typeDecl.Modifiers.ToList();
+        var leadingTrivia = typeDecl.GetLeadingTrivia();
+        var hasLeading = typeDecl.Modifiers.Count > 0;
+
+        existing.RemoveAll(m =>
+            m.IsKind(SyntaxKind.PrivateKeyword) ||
+            m.IsKind(SyntaxKind.ProtectedKeyword) ||
+            m.IsKind(SyntaxKind.InternalKeyword) ||
+            m.IsKind(SyntaxKind.FileKeyword));
+
+        if (!existing.Any(m => m.IsKind(SyntaxKind.PublicKeyword)))
+        {
+            existing.Insert(0, SyntaxFactory.Token(SyntaxKind.PublicKeyword));
+        }
+
+        var normalized = existing
+            .Select(t => SyntaxFactory.Token(t.Kind()).WithTrailingTrivia(SyntaxFactory.Space))
+            .ToList();
+
+        if (normalized.Count > 0 && hasLeading)
+        {
+            normalized[0] = normalized[0].WithLeadingTrivia(leadingTrivia);
+        }
+
+        var updated = typeDecl.WithModifiers(SyntaxFactory.TokenList(normalized));
+        if (!hasLeading && normalized.Count > 0)
+        {
+            updated = updated
+                .WithKeyword(updated.Keyword.WithLeadingTrivia(SyntaxTriviaList.Empty))
+                .WithLeadingTrivia(leadingTrivia);
+        }
+
+        return updated.WithAdditionalAnnotations(Formatter.Annotation);
+    }
+
     public static ClassDeclarationSyntax EnsureBaseType(
         ClassDeclarationSyntax classDecl,
         string baseTypeName,

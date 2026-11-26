@@ -192,7 +192,7 @@ internal static class SchemaScanner
             propertyConventions,
             nullabilityContext);
 
-        if (entityType.GetCustomAttributes<EntityMarkerAttribute>(inherit: false).Any(static a => a.ReadOnly))
+        if (entityType.GetCustomAttributes(inherit: false).OfType<IEntityAttributeMetadata>().Any(static a => a.ReadOnly))
         {
             tableBuilder.ExcludeFromMigrations = true;
         }

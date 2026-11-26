@@ -422,12 +422,16 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
 
 internal static class OracleCommandHelper
 {
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, System.Reflection.PropertyInfo?> BindByNameCache = new();
+
     public static void EnableBindByName(DbCommand cmd)
     {
-        var prop = cmd.GetType().GetProperty("BindByName", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-        if (prop is not null && prop.CanWrite && prop.PropertyType == typeof(bool))
+        var prop = BindByNameCache.GetOrAdd(cmd.GetType(), static type =>
         {
-            prop.SetValue(cmd, true);
-        }
+            var p = type.GetProperty("BindByName", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+            return p is not null && p.CanWrite && p.PropertyType == typeof(bool) ? p : null;
+        });
+
+        prop?.SetValue(cmd, true);
     }
 }

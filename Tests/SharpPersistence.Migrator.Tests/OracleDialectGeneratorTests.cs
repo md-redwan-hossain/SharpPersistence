@@ -160,11 +160,10 @@ public sealed class OracleDialectGeneratorTests
             .UseOracle("Data Source=localhost/XEPDB1", oracle => oracle
                 .UseSqlCompatibility(OracleDbCompatibility.Oracle23))
             .UseNamingConvention(SqlIdentifierCase.UpperSnakeCase)
-            .UseMigrationsDirectory("db/oracle_migrations")
             .Build();
 
         Assert.Equal(SqlDialect.Oracle, options.Dialect);
         Assert.Equal(OracleDbCompatibility.Oracle23, options.OracleCompatibility);
-        Assert.Equal("db/oracle_migrations", options.MigrationsDirectory);
+        Assert.Equal(SqlIdentifierCase.UpperSnakeCase, options.IdentifierCase);
     }
 }

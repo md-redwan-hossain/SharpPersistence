@@ -3,10 +3,25 @@ using System.ComponentModel;
 namespace SharpPersistence.Abstractions.Attributes;
 
 /// <summary>
-/// Base class for module-specific entity marker attributes used by compile-time entity discovery.
+/// Marker interface for value-type entity group tags used with <see cref="EntityAttribute{TGroup}"/>
+/// (e.g., <c>public readonly record struct SalesGroup : IEntityGroup;</c>).
+/// </summary>
+public interface IEntityGroup;
+
+/// <summary>
+/// Internal metadata contract shared by <see cref="EntityAttribute"/> and <see cref="EntityAttribute{TGroup}"/>.
+/// </summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public interface IEntityAttributeMetadata
+{
+    bool ReadOnly { get; }
+}
+
+/// <summary>
+/// Marks a class as a discovered entity belonging to the default (ungrouped) entity registry.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
-public abstract class EntityMarkerAttribute : Attribute
+public sealed class EntityAttribute : Attribute, IEntityAttributeMetadata
 {
     /// <summary>
     /// Marks the entity as read-only (e.g., a cross-module stub or database view).
@@ -17,17 +32,19 @@ public abstract class EntityMarkerAttribute : Attribute
 }
 
 /// <summary>
-/// Built-in default entity marker attribute for projects that do not define a custom per-module marker attribute.
+/// Marks a class as a discovered entity belonging to the <typeparamref name="TGroup"/> entity group.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
-public sealed class EntityAttribute : EntityMarkerAttribute;
-
-/// <summary>
-/// Registers a custom <see cref="EntityMarkerAttribute"/> subclass for compile-time entity manifest generation in this assembly.
-/// </summary>
-[AttributeUsage(AttributeTargets.Assembly, AllowMultiple = true)]
-public sealed class DiscoverEntitiesByAttribute<TMarkerAttribute> : Attribute
-    where TMarkerAttribute : EntityMarkerAttribute;
+public sealed class EntityAttribute<TGroup> : Attribute, IEntityAttributeMetadata
+    where TGroup : struct, IEntityGroup
+{
+    /// <summary>
+    /// Marks the entity as read-only (e.g., a cross-module stub or database view).
+    /// Read-only entities are automatically excluded from migrations and generated as
+    /// <c>IQueryable&lt;T&gt;</c> (<c>AsNoTracking</c>) on bound EF Core <c>DbContext</c> classes.
+    /// </summary>
+    public bool ReadOnly { get; set; }
+}
 
 /// <summary>
 /// Disables compile-time entity discovery and registry source generation in this assembly.
@@ -43,12 +60,12 @@ public sealed class DisableEntityDiscoveryAttribute : Attribute;
 public sealed class EntityManifestAttribute : Attribute;
 
 /// <summary>
-/// Records discovered entities grouped by their marker attribute type on a generated entity manifest class.
+/// Records discovered entities grouped by their group type on a generated entity manifest class.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = true)]
-public sealed class EntityManifestEntryAttribute(Type markerType, params Type[] entityTypes) : Attribute
+public sealed class EntityManifestEntryAttribute(Type groupType, params Type[] entityTypes) : Attribute
 {
-    public Type MarkerType { get; } = markerType;
+    public Type GroupType { get; } = groupType;
     public Type[] EntityTypes { get; } = entityTypes;
 }

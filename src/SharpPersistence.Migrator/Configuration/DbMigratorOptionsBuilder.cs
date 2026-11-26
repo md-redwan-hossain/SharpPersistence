@@ -165,20 +165,6 @@ public class DbMigratorOptionsBuilder
         return this;
     }
 
-    public DbMigratorOptionsBuilder UseMigrationsDirectory(string migrationsDirectory)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(migrationsDirectory);
-        State.Options.MigrationsDirectory = migrationsDirectory;
-        return this;
-    }
-
-    public DbMigratorOptionsBuilder UseSnapshotDirectory(string snapshotDirectory)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(snapshotDirectory);
-        State.Options.SnapshotDirectory = snapshotDirectory;
-        return this;
-    }
-
     public DbMigratorOptionsBuilder UseRootPath(string rootPath)
     {
         State.Options.RootPath = rootPath;

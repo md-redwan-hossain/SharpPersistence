@@ -28,7 +28,7 @@ public sealed class MigratorUsageAnalyzerTests
             }
         }
 
-        refs.Add(MetadataReference.CreateFromFile(typeof(EntityMarkerAttribute).Assembly.Location));
+        refs.Add(MetadataReference.CreateFromFile(typeof(IEntityGroup).Assembly.Location));
         refs.Add(MetadataReference.CreateFromFile(typeof(IEntityRegistry).Assembly.Location));
         return [.. refs];
     }

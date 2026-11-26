@@ -35,6 +35,19 @@ public sealed class EntityRegistryCodeFixProvider : CodeFixProvider
         foreach (var diagnostic in context.Diagnostics)
         {
             var node = root.FindNode(diagnostic.Location.SourceSpan, getInnermostNodeForTie: true);
+
+            if (diagnostic.Id == DiagnosticIds.EntityOrMarkerMustBePublic &&
+                node.FirstAncestorOrSelf<TypeDeclarationSyntax>() is { } typeDecl)
+            {
+                context.RegisterCodeFix(
+                    CodeAction.Create(
+                        title: "Make type public",
+                        createChangedDocument: ct => MakeTypePublicAsync(context.Document, typeDecl, ct),
+                        equivalenceKey: $"{DiagnosticIds.EntityOrMarkerMustBePublic}_MakeTypePublic"),
+                    diagnostic);
+                continue;
+            }
+
             var classDecl = node.FirstAncestorOrSelf<ClassDeclarationSyntax>();
             if (classDecl is null)
             {
@@ -67,15 +80,6 @@ public sealed class EntityRegistryCodeFixProvider : CodeFixProvider
                             title: "Add Configure(IEntityRegistryBuilder registry) method",
                             createChangedDocument: ct => AddConfigureMethodAsync(context.Document, classDecl, ct),
                             equivalenceKey: $"{DiagnosticIds.RegistryMustDeclareConfigure}_AddConfigureMethod"),
-                        diagnostic);
-                    break;
-
-                case DiagnosticIds.EntityOrMarkerMustBePublic:
-                    context.RegisterCodeFix(
-                        CodeAction.Create(
-                            title: "Make type public",
-                            createChangedDocument: ct => MakeTypePublicAsync(context.Document, classDecl, ct),
-                            equivalenceKey: $"{DiagnosticIds.EntityOrMarkerMustBePublic}_MakeTypePublic"),
                         diagnostic);
                     break;
             }
@@ -171,7 +175,7 @@ public sealed class EntityRegistryCodeFixProvider : CodeFixProvider
 
     private static async Task<Document> MakeTypePublicAsync(
         Document document,
-        ClassDeclarationSyntax classDecl,
+        TypeDeclarationSyntax typeDecl,
         CancellationToken cancellationToken)
     {
         var root = await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
@@ -180,10 +184,10 @@ public sealed class EntityRegistryCodeFixProvider : CodeFixProvider
             return document;
         }
 
-        var classesToMakePublic = classDecl.AncestorsAndSelf().OfType<ClassDeclarationSyntax>().ToList();
+        var typesToMakePublic = typeDecl.AncestorsAndSelf().OfType<TypeDeclarationSyntax>().ToList();
         var newRoot = root.ReplaceNodes(
-            classesToMakePublic,
-            (_, current) => CodeFixSyntaxHelpers.EnsureModifiers(current, makePublic: true));
+            typesToMakePublic,
+            (_, current) => CodeFixSyntaxHelpers.EnsurePublic(current));
 
         return document.WithSyntaxRoot(newRoot);
     }

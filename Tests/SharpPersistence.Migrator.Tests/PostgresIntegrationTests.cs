@@ -251,7 +251,7 @@ public sealed class PostgresIntegrationTests(PostgresContainerFixture fixture)
             await managerV1.MigrateAsync(cancellationToken: ct);
 
             // Copy V1 snapshot under V2's registry name to simulate evolving the same registry
-            var stateDir = Path.Combine(tempRoot, "EntityChangelogs");
+            var stateDir = Path.Combine(tempRoot, DbMigratorOptions.DefaultSnapshotDirectory);
             File.Copy(
                 Path.Combine(stateDir, $"{nameof(PgBookingRegistryV1)}.json"),
                 Path.Combine(stateDir, $"{nameof(PgBookingRegistryV2)}.json"));
@@ -372,6 +372,59 @@ public sealed class PostgresIntegrationTests(PostgresContainerFixture fixture)
             var totalApplied = results[0].Count + results[1].Count;
             totalApplied.ShouldBe(2);
             (await managerA.GetPendingMigrationsAsync(ct)).ShouldBeEmpty();
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task CanConnectHasPendingAndDesignTimeState_WorkAsExpected()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var dbConnectionString = await fixture.CreateIsolatedDatabaseAsync(ct);
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"sp_pg_api_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+
+        try
+        {
+            DbMigratorState.IsDesignTime.ShouldBeFalse();
+            AppContext.SetData(DbMigratorState.DesignTimeDataKey, true);
+            try
+            {
+                DbMigratorState.IsDesignTime.ShouldBeTrue();
+            }
+            finally
+            {
+                AppContext.SetData(DbMigratorState.DesignTimeDataKey, null);
+            }
+
+            var manager = BuildManager(dbConnectionString, tempRoot, new PgBookingRegistryV1());
+            (await manager.CanConnectToDatabaseAsync(ct)).ShouldBeTrue();
+
+            var badManager = BuildManager("Host=127.0.0.1;Port=1;Database=nope;Timeout=1", tempRoot, new PgBookingRegistryV1());
+            (await badManager.CanConnectToDatabaseAsync(ct)).ShouldBeFalse();
+
+            using var canceledCts = new CancellationTokenSource();
+            await canceledCts.CancelAsync();
+            await Should.ThrowAsync<OperationCanceledException>(() => manager.CanConnectToDatabaseAsync(canceledCts.Token));
+
+            (await manager.HasPendingMigrationAsync(ct)).ShouldBeFalse();
+            (await manager.GetPendingMigrationsAsync(ct)).ShouldBeEmpty();
+
+            await manager.GenerateAsync("Initial", interactiveRenamePrompt: false, ct: ct);
+
+            (await manager.HasPendingMigrationAsync(ct)).ShouldBeTrue();
+            (await manager.GetPendingMigrationsAsync(ct)).Count.ShouldBe(2);
+
+            await manager.MigrateAsync(cancellationToken: ct);
+
+            (await manager.HasPendingMigrationAsync(ct)).ShouldBeFalse();
+            (await manager.GetPendingMigrationsAsync(ct)).ShouldBeEmpty();
         }
         finally
         {

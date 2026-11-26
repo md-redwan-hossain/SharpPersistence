@@ -37,11 +37,10 @@ internal sealed class MigrationScriptStore
 
         foreach (var (scriptId, registryName, scriptName, fullPath) in discovered)
         {
-            var content = await File.ReadAllTextAsync(fullPath, ct).ConfigureAwait(false);
-            var checksum = ComputeSha256(content);
-
             if (appliedMap.TryGetValue(scriptId, out var record))
             {
+                var content = await File.ReadAllTextAsync(fullPath, ct).ConfigureAwait(false);
+                var checksum = ComputeSha256(content);
                 var mismatch = !string.Equals(record.ChecksumSha256, checksum, StringComparison.OrdinalIgnoreCase);
                 items.Add(new MigrationStatusItem(scriptId, registryName, scriptName, fullPath, true, mismatch, record.AppliedAt));
             }

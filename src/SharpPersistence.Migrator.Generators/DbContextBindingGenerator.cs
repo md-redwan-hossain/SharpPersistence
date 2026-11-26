@@ -13,9 +13,36 @@ public sealed class DbContextBindingGenerator : IIncrementalGenerator
             .ForAttributeWithMetadataName(
                 GeneratorConstants.BindEntityRegistryAttributeMetadataName,
                 static (node, _) => node is ClassDeclarationSyntax,
-                static (ctx, _) => DbContextBindingAnalyzer.AnalyzeBoundDbContext(ctx))
+                static (ctx, ct) => DbContextBindingAnalyzer.AnalyzeBoundDbContext(ctx, ct))
             .Where(static x => x is not null)
             .Select(static (x, _) => x!);
+
+        var localDefaultEntities = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                GeneratorConstants.DefaultEntityAttributeMetadataName,
+                static (node, _) => node is ClassDeclarationSyntax,
+                static (ctx, _) => DbContextBindingAnalyzer.ExtractLocalDefaultEntity(ctx))
+            .Where(static x => x.HasValue)
+            .Select(static (x, _) => x!.Value)
+            .Collect()
+            .Select(static (arr, _) => new EquatableArray<LocalDiscoveredEntity>(arr));
+
+        var localGroupedEntities = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                GeneratorConstants.GenericEntityAttributeMetadataName,
+                static (node, _) => node is ClassDeclarationSyntax,
+                static (ctx, _) => DbContextBindingAnalyzer.ExtractLocalGroupedEntities(ctx))
+            .Where(static arr => arr.Length > 0)
+            .SelectMany(static (arr, _) => arr)
+            .Collect()
+            .Select(static (arr, _) => new EquatableArray<LocalDiscoveredEntity>(arr));
+
+        var localEntities = localDefaultEntities.Combine(localGroupedEntities);
+
+        var finalizedModels = boundDbContexts
+            .Combine(localEntities)
+            .Select(static (pair, _) =>
+                DbContextBindingAnalyzer.FinalizeModel(pair.Left, pair.Right.Left, pair.Right.Right));
 
         var orphanItemDiagnostics = context.SyntaxProvider
             .ForAttributeWithMetadataName(
@@ -24,7 +51,7 @@ public sealed class DbContextBindingGenerator : IIncrementalGenerator
                 static (ctx, _) => DbContextBindingAnalyzer.AnalyzeOrphanItemClass(ctx))
             .Where(static arr => arr.Length > 0);
 
-        context.RegisterSourceOutput(boundDbContexts, static (spc, model) =>
+        context.RegisterSourceOutput(finalizedModels, static (spc, model) =>
         {
             foreach (var diag in model.Diagnostics)
             {

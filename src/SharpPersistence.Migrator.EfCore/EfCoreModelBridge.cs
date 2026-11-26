@@ -46,17 +46,21 @@ public static class EfCoreModelBridge
             }
         }
 
-        var clrTypeByEntityName = schema.ByClrType.ToDictionary(
-            kvp => kvp.Value.EntityName,
-            kvp => kvp.Key,
-            StringComparer.Ordinal);
+        var clrTypeByEntityName = schema.ClrTypeByEntityName.Count > 0
+            ? schema.ClrTypeByEntityName
+            : schema.ByClrType.ToDictionary(
+                kvp => kvp.Value.EntityName,
+                kvp => kvp.Key,
+                StringComparer.Ordinal);
 
-        foreach (var (clrType, table) in schema.ByClrType)
+        IEnumerable<(Type ClrType, TableSchema Table)> targetEntries = includedSet is not null
+            ? includedSet
+                .Where(schema.ByClrType.ContainsKey)
+                .Select(t => (t, schema.ByClrType[t]))
+            : schema.ByClrType.Select(kvp => (kvp.Key, kvp.Value));
+
+        foreach (var (clrType, table) in targetEntries)
         {
-            if (includedSet is not null && !includedSet.Contains(clrType))
-            {
-                continue;
-            }
 
             modelBuilder.Entity(clrType, entity =>
             {

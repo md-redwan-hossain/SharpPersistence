@@ -105,6 +105,13 @@ public sealed class MigratorCodeFixTests
         var result = await ApplyCodeFixAsync(new EntityRegistryCodeFixProvider(), source, "SPM006", "Order");
         result.ShouldContain("public class Outer");
         result.ShouldContain("public class Order");
+
+        const string groupSource = """
+            internal readonly record struct SalesGroup : IEntityGroup;
+            """;
+
+        var groupResult = await ApplyCodeFixAsync(new EntityRegistryCodeFixProvider(), groupSource, "SPM006", "SalesGroup");
+        groupResult.ShouldContain("public readonly record struct SalesGroup : IEntityGroup;");
     }
 
     [Fact]

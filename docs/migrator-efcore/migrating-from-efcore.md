@@ -34,7 +34,7 @@ db-migrator translate-ef-configs src/Infrastructure/Configurations -o src/Infras
 
 ## Step 2: Translate Existing EF Core Migrations to SQL
 
-Translate existing EF Core C# migration files 1-to-1 into `MigrationScripts/_translated/`:
+Translate existing EF Core C# migration files 1-to-1 into `DbMigrator/Scripts/_translated/`:
 
 ```powershell
 db-migrator translate-ef-migration src/Infrastructure/Migrations --startup-project src/Api/Api.csproj

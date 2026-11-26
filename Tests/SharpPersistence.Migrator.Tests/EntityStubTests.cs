@@ -226,8 +226,8 @@ public sealed class EntityStubTests
         var tempRoot = Path.Combine(Path.GetTempPath(), $"sp_stub_scripts_{Guid.NewGuid():N}");
         try
         {
-            var accessDir = Path.Combine(tempRoot, "MigrationScripts", nameof(AccessControlRegistry));
-            var billingDir = Path.Combine(tempRoot, "MigrationScripts", nameof(BillingRegistry));
+            var accessDir = Path.Combine(tempRoot, DbMigratorOptions.DefaultMigrationsDirectory, nameof(AccessControlRegistry));
+            var billingDir = Path.Combine(tempRoot, DbMigratorOptions.DefaultMigrationsDirectory, nameof(BillingRegistry));
             Directory.CreateDirectory(accessDir);
             Directory.CreateDirectory(billingDir);
 

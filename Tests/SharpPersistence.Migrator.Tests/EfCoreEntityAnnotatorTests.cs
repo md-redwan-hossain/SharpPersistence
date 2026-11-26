@@ -64,17 +64,8 @@ public sealed class EfCoreEntityAnnotatorTests : IDisposable
     }
 
     [Fact]
-    public void AnnotateDirectory_CustomAttributeFile_ReadOnlyAndDryRun()
+    public void AnnotateDirectory_EntityGroupNameAndNamespace_ReadOnlyAndDryRun()
     {
-        var attrPath = Path.Combine(_tempDir, "AccessControlEntityAttribute.cs");
-        File.WriteAllText(attrPath, """
-            using SharpPersistence.Abstractions.Attributes;
-
-            namespace AccessControlModule.Domain.Attributes;
-
-            public sealed class AccessControlEntityAttribute : EntityMarkerAttribute;
-            """);
-
         var dbCtxPath = Path.Combine(_tempDir, "AccessControlDbContext.cs");
         File.WriteAllText(dbCtxPath, """
             using AccessControlModule.Domain.Entities;
@@ -103,19 +94,33 @@ public sealed class EfCoreEntityAnnotatorTests : IDisposable
             """;
         File.WriteAllText(userPath, originalUser);
 
-        var dry = EfCoreEntityAnnotator.AnnotateDirectory(dbCtxPath, entitiesDir, attrPath, readOnly: true, dryRun: true);
-        Assert.Equal("AccessControlEntity", dry.MarkerAttribute.AttributeShortName);
-        Assert.Equal("AccessControlModule.Domain.Attributes", dry.MarkerAttribute.AttributeNamespace);
+        var dry = EfCoreEntityAnnotator.AnnotateDirectory(
+            dbCtxPath,
+            entitiesDir,
+            entityGroupName: "AccessControlGroup",
+            entityGroupNamespace: "AccessControlModule.Domain",
+            readOnly: true,
+            dryRun: true);
+        Assert.Equal("Entity<AccessControlGroup>", dry.MarkerAttribute.AttributeShortName);
+        Assert.Equal("SharpPersistence.Abstractions.Attributes", dry.MarkerAttribute.AttributeNamespace);
+        Assert.Equal("AccessControlModule.Domain", dry.MarkerAttribute.GroupNamespace);
         Assert.Single(dry.Items);
         Assert.True(dry.Items[0].Modified);
         Assert.Equal(["MissingStub"], dry.UnmatchedEntityNames);
         Assert.Equal(originalUser, File.ReadAllText(userPath));
 
-        var applied = EfCoreEntityAnnotator.AnnotateDirectory(dbCtxPath, entitiesDir, attrPath, readOnly: true, dryRun: false);
+        var applied = EfCoreEntityAnnotator.AnnotateDirectory(
+            dbCtxPath,
+            entitiesDir,
+            entityGroupName: "AccessControlGroup",
+            entityGroupNamespace: "AccessControlModule.Domain",
+            readOnly: true,
+            dryRun: false);
         Assert.Single(applied.Items);
         var updated = File.ReadAllText(userPath);
-        Assert.Contains("using AccessControlModule.Domain.Attributes;", updated);
+        Assert.Contains("using SharpPersistence.Abstractions.Attributes;", updated);
+        Assert.Contains("using AccessControlModule.Domain;", updated);
         Assert.Contains("/// <summary>User entity.</summary>", updated);
-        Assert.Contains("[AccessControlEntity(ReadOnly = true)]", updated);
+        Assert.Contains("[Entity<AccessControlGroup>(ReadOnly = true)]", updated);
     }
 }

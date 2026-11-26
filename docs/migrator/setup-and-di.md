@@ -19,9 +19,7 @@ builder.Services.AddDbMigrator(opt =>
         .HasPostgresExtension("pg_trgm")
         .HasPostgresEnum<OrderStatus>("order_status");
 
-    opt.UseMigrationsDirectory("MigrationScripts")
-        .UseSnapshotDirectory("EntityChangelogs")
-        .UseHistoryTable("__db_migration_logs", schema: "public")
+    opt.UseHistoryTable("__db_migration_logs", schema: "public")
         .AddGeneratedEntityRegistries();
 });
 ```
@@ -55,9 +53,7 @@ builder.Services.AddDbMigrator(opt =>
 | `PluralizeTableNames(bool)` | `false` | Pluralizes convention-derived table names (`Order` → `orders`, `OrderCategory` → `order_categories`) |
 | `UseHistoryTable(name, schema?)` | `__db_migration_logs` | Customizes the applied-migrations tracking table |
 | `UseTableNameConvention(fn)` | — | Customizes convention-derived table names (`(entityType, defaultName) => ...`) |
-| `UseMigrationsDirectory(dir)` | `MigrationScripts` | Output folder for generated `.sql` scripts |
-| `UseSnapshotDirectory(dir)` | `EntityChangelogs` | Output folder for schema snapshot `.json` files |
-| `UseRootPath(path)` | Working dir | Base directory for relative migration/snapshot paths |
+| `UseRootPath(path)` | Working dir | Base directory for `DbMigrator/Scripts` and `DbMigrator/Snapshots` |
 | `ConfigureProperties<T>(action)` | — | Global CLR-type conventions (e.g. all `string` max length `255`, or `Enum`) |
 | `ConfigureEntities<T>(action)` | — | Global entity/interface conventions (e.g. shared audit FKs, keys, schemas) |
 | `ConfigureEntityStubs(cfg)` | — | Maps cross-module `Ref*` stub types to their owning entity (`stubs.Map<RefUser, User>()`) |
@@ -130,13 +126,23 @@ public sealed class DesignTimeDbMigratorFactory : IDesignTimeDbMigratorFactory
 Inject `IDbMigrator` to check status or apply migrations on startup:
 
 ```csharp
+using SharpPersistence.Migrator;
 using SharpPersistence.Migrator.Abstractions;
 
 await using var scope = app.Services.CreateAsyncScope();
 var migrator = scope.ServiceProvider.GetRequiredService<IDbMigrator>();
 
-IReadOnlyList<string> pending = await migrator.GetPendingMigrationsAsync(cancellationToken);
-if (pending.Count > 0)
+if (DbMigratorState.IsDesignTime)
+{
+    return;
+}
+
+if (!await migrator.CanConnectToDatabaseAsync(cancellationToken))
+{
+    return;
+}
+
+if (await migrator.HasPendingMigrationAsync(cancellationToken))
 {
     await migrator.MigrateAsync(cancellationToken: cancellationToken);
 }
@@ -170,6 +176,6 @@ public sealed partial class BillingDbContext : DbContext
 }
 ```
 
-- Entities decorated with `[Entity(ReadOnly = true)]` (or `[ModuleEntity(ReadOnly = true)]`) automatically get `ExcludeFromMigrations = true` in `SchemaScanner` and generate `IQueryable<T> => Set<T>().AsNoTracking();` on bound `DbContext` classes.
+- Entities decorated with `[Entity(ReadOnly = true)]` or `[Entity<TGroup>(ReadOnly = true)]` automatically get `ExcludeFromMigrations = true` in `SchemaScanner` and generate `IQueryable<T> => Set<T>().AsNoTracking();` on bound `DbContext` classes.
 - If you declare your own constructor or `OnModelCreating`, the generator automatically skips emitting its own (and emits `SPM013` if `DatabaseModel` / `ApplySchemaToEfCore` does not appear wired).
 - Compile-time rules `SPM008`–`SPM013` validate `sealed partial DbContext`, mutually exclusive `Exclude = true` with `ReadOnly`/`Pluralize`, duplicates, unmatched `[EntityRegistryItem<T>]`, property name collisions, and `ApplySchemaToEfCore` wiring.

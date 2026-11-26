@@ -34,9 +34,7 @@ builder.Services.AddDbMigrator(opt =>
     // Or Oracle (defaults: UpperSnakeCase, Oracle19)
     // opt.UseOracle(connectionString).UseSqlCompatibility(OracleDbCompatibility.Oracle23);
 
-    opt.UseMigrationsDirectory("MigrationScripts")
-        .UseSnapshotDirectory("EntityChangelogs")
-        .UseHistoryTable("__db_migration_logs", "public")
+    opt.UseHistoryTable("__db_migration_logs", "public")
         .UseNamingConvention(SqlIdentifierCase.LowerSnakeCase)
         .PluralizeTableNames()
         .UseTableNameConvention((entityType, defaultName) =>
@@ -55,7 +53,7 @@ builder.Services.AddDbMigrator(opt =>
 ```
 
 - Implement `IDesignTimeDbMigratorFactory` in class-library projects without `Program.cs`.
-- Inject `IDbMigrator` at runtime (`MigrateAsync(bool dryRun = false, CancellationToken cancellationToken = default)`, `GetStatusAsync(CancellationToken cancellationToken = default)`, `GetPendingMigrationsAsync(CancellationToken cancellationToken = default)`, `GetAppliedMigrationsAsync(CancellationToken cancellationToken = default)`, `EnsureHistoryTableAsync(CancellationToken cancellationToken = default)`).
+- Inject `IDbMigrator` at runtime (`CanConnectToDatabaseAsync(CancellationToken cancellationToken = default)`, `HasPendingMigrationAsync(CancellationToken cancellationToken = default)`, `MigrateAsync(bool dryRun = false, CancellationToken cancellationToken = default)`, `GetStatusAsync(CancellationToken cancellationToken = default)`, `GetPendingMigrationsAsync(CancellationToken cancellationToken = default)`, `GetAppliedMigrationsAsync(CancellationToken cancellationToken = default)`, `EnsureHistoryTableAsync(CancellationToken cancellationToken = default)`), and check `DbMigratorState.IsDesignTime` (equivalent to `EF.IsDesignTime`) to skip runtime migrations during `db-migrator` CLI bootstrapping.
 
 ## Entity Registries & Fluent Builders
 
@@ -127,8 +125,8 @@ public sealed partial class SalesRegistry : IEntityRegistry
 
 ## Compile-Time Discovery Attributes & Diagnostics
 
-- **Domain (`SharpPersistence.Abstractions`):** `[Entity]` (supports `ReadOnly = true` to auto-exclude stub/view entities from migrations), custom `EntityMarkerAttribute` + `[assembly: DiscoverEntitiesBy<TMarker>]`, `[assembly: DisableEntityDiscovery]` (or `<DisableEntityDiscovery>true</DisableEntityDiscovery>`).
-- **Migrator (`SharpPersistence.Migrator`):** `[EntityRegistry]`, `[EntityRegistry<TMarker>]`, `[EntityConfiguration<TEntity>]`, `[assembly: EntityRegistryRoot]` (or `<EntityRegistryRoot>true</EntityRegistryRoot>`).
+- **Domain (`SharpPersistence.Abstractions`):** `[Entity]` (default ungrouped) and `[Entity<TGroup>]` where `TGroup : struct, IEntityGroup` (e.g., `public readonly record struct SalesGroup : IEntityGroup;`) — both support `ReadOnly = true` to auto-exclude stub/view entities from migrations; `[assembly: DisableEntityDiscovery]` (or `<DisableEntityDiscovery>true</DisableEntityDiscovery>`).
+- **Migrator (`SharpPersistence.Migrator`):** `[EntityRegistry]`, `[EntityRegistry<TGroup>]`, `[EntityConfiguration<TEntity>]`, `[assembly: EntityRegistryRoot]` (or `<EntityRegistryRoot>true</EntityRegistryRoot>`).
 - **Diagnostics:**
   - `SPM001`-`SPM007`: registry/configuration declaration, duplicate config, missing `Configure`, duplicate entity across registries, non-public entity/marker, orphan config warning.
   - `SPM008`-`SPM013`: `[BindEntityRegistry<TRegistry>]` / `[EntityRegistryItem<TEntity>]` validation (`sealed partial DbContext`, valid registry type, duplicate bindings/items, unknown item, property collision, `DatabaseModel`/`ApplySchemaToEfCore` wiring). Most `SPM` diagnostics include bundled IDE Roslyn CodeFixes.
@@ -157,6 +155,7 @@ public sealed partial class SalesDbContext : DbContext
 
 ## Script Naming Convention, Runlist & History Table
 
+- **Convention folders (`DbMigrator/`)**: Generated SQL scripts and runlists always live in `DbMigrator/Scripts/`, and JSON schema snapshots live in `DbMigrator/Snapshots/`.
 - **Script filenames**: Every generated `.sql` file (registry, `_global`, and `_deferred`) uses `{guid_without_hyphens}_{yyyyMMddHHmmss}_{lower_snake_name}.sql` (e.g., `019ac0e8b3a27f1d9c4e5b2a1f8d3c01_20261126062500_add_trading_type.sql`).
   - Prefix is a 32-char lowercase hex UUIDv7 (`Guid.CreateVersion7().ToString("N")`) with no hyphens, so files sort chronologically and script IDs are read directly from filenames without opening `.sql` files.
   - Migration names are normalized to `lower_snake_case` (spaces, hyphens, and PascalCase become `_`).
@@ -177,6 +176,6 @@ public sealed partial class SalesDbContext : DbContext
 - `db-migrator runlist show [--recent <N>]` & `db-migrator runlist sync [--prune] [--dry-run]` - inspects the effective execution order (including `db-migration-runlist.overrides.json`) or prefixes unprefixed `.sql` files with a 32-char UUIDv7 and repairs `db-migration-runlist.json`.
 - `db-migrator migrate [--dry-run] [--sync-ef-history]` - applies pending scripts under distributed lock.
 - `db-migrator status` / `db-migrator pending` - inspects migration history and pending scripts.
-- `db-migrator annotate-dbcontext-entities --dbcontext <PATH> --search-directory <DIR> [--attribute <FILE_OR_NAME>] [--read-only] [--dry-run]` - annotates EF Core `DbContext` entity classes with `[Entity]` or a custom `EntityMarkerAttribute` `.cs` file.
+- `db-migrator annotate-dbcontext-entities --dbcontext <PATH> --search-directory <DIR> [--entity-group-name <NAME>] [--entity-group-namespace <NAMESPACE>] [--read-only] [--dry-run]` - annotates EF Core `DbContext` entity classes with `[Entity]` or `[Entity<TGroup>]`.
 - `db-migrator translate-ef-configs <CONFIGS_DIR> [-o <DIR>] [--dry-run] [--no-attribute]` - converts `IEntityTypeConfiguration<T>` to `IEntityConfiguration<T>`.
 - `db-migrator translate-ef-migration <MIGRATIONS_DIR>` & `db-migrator sync-ef-history` - translates EF Core migrations 1-to-1 and syncs `__EFMigrationsHistory`.

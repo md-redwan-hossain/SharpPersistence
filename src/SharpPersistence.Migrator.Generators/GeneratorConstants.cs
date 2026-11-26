@@ -13,9 +13,9 @@ internal static class GeneratorConstants
     public const string ManifestPrefix = "EntityManifest_";
     public const string AggregatorPrefix = "EntityRegistryAggregator_";
 
-    public const string EntityMarkerAttributeMetadataName = "SharpPersistence.Abstractions.Attributes.EntityMarkerAttribute";
+    public const string EntityGroupInterfaceMetadataName = "SharpPersistence.Abstractions.Attributes.IEntityGroup";
     public const string DefaultEntityAttributeMetadataName = "SharpPersistence.Abstractions.Attributes.EntityAttribute";
-    public const string DiscoverEntitiesByAttributeMetadataName = "SharpPersistence.Abstractions.Attributes.DiscoverEntitiesByAttribute`1";
+    public const string GenericEntityAttributeMetadataName = "SharpPersistence.Abstractions.Attributes.EntityAttribute`1";
     public const string DisableEntityDiscoveryAttributeMetadataName = "SharpPersistence.Abstractions.Attributes.DisableEntityDiscoveryAttribute";
     public const string EntityManifestAttributeMetadataName = "SharpPersistence.Abstractions.Attributes.EntityManifestAttribute";
     public const string EntityManifestEntryAttributeMetadataName = "SharpPersistence.Abstractions.Attributes.EntityManifestEntryAttribute";

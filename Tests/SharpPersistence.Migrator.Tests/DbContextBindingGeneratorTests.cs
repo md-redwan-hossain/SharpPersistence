@@ -34,7 +34,7 @@ public sealed class DbContextBindingGeneratorTests
             }
         }
 
-        refs.Add(MetadataReference.CreateFromFile(typeof(EntityMarkerAttribute).Assembly.Location));
+        refs.Add(MetadataReference.CreateFromFile(typeof(IEntityGroup).Assembly.Location));
         refs.Add(MetadataReference.CreateFromFile(typeof(IEntityRegistry).Assembly.Location));
         refs.Add(MetadataReference.CreateFromFile(typeof(BindEntityRegistryAttribute<>).Assembly.Location));
         refs.Add(MetadataReference.CreateFromFile(typeof(DbContext).Assembly.Location));
@@ -85,42 +85,39 @@ public sealed class DbContextBindingGeneratorTests
             using SharpPersistence.Migrator.Attributes;
             using SharpPersistence.Migrator.EfCore.Attributes;
 
-            [assembly: DiscoverEntitiesBy<Billing.BillingEntityAttribute>]
-            [assembly: DiscoverEntitiesBy<Billing.LookupEntityAttribute>]
-
             namespace Billing;
 
-            public sealed class BillingEntityAttribute : EntityMarkerAttribute;
-            public sealed class LookupEntityAttribute : EntityMarkerAttribute;
+            public readonly record struct BillingGroup : IEntityGroup;
+            public readonly record struct LookupGroup : IEntityGroup;
 
-            [BillingEntity]
+            [Entity<BillingGroup>]
             public sealed class Invoice { public Guid Id { get; set; } }
 
-            [BillingEntity]
+            [Entity<BillingGroup>]
             public sealed class AuditLog { public Guid Id { get; set; } }
 
-            [BillingEntity]
+            [Entity<BillingGroup>]
             public sealed class OutboxMessage { public Guid Id { get; set; } }
 
-            [BillingEntity]
+            [Entity<BillingGroup>]
             public sealed class PortfolioProduct { public Guid Id { get; set; } }
 
-            [BillingEntity]
+            [Entity<BillingGroup>]
             public sealed class InventoryCategory { public Guid Id { get; set; } }
 
-            [BillingEntity(ReadOnly = true)]
+            [Entity<BillingGroup>(ReadOnly = true)]
             public sealed class RefUser { public Guid Id { get; set; } }
 
-            [LookupEntity]
+            [Entity<LookupGroup>]
             public sealed class FinancialCurrency { public Guid Id { get; set; } }
 
-            [EntityRegistry<BillingEntityAttribute>]
+            [EntityRegistry<BillingGroup>]
             public sealed partial class BillingRegistry : IEntityRegistry
             {
                 public void Configure(IEntityRegistryBuilder registry) { }
             }
 
-            [EntityRegistry<LookupEntityAttribute>]
+            [EntityRegistry<LookupGroup>]
             public sealed partial class LookupRegistry : IEntityRegistry
             {
                 public void Configure(IEntityRegistryBuilder registry) { }

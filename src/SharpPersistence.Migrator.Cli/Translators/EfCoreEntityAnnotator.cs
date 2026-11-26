@@ -10,7 +10,8 @@ internal sealed record ResolvedMarkerAttribute(
     string AttributeFullName,
     string? AttributeNamespace,
     string? SourceFilePath,
-    string? Warning);
+    string? Warning,
+    string? GroupNamespace = null);
 
 internal sealed record AnnotatedEntityItem(
     string EntityName,
@@ -39,9 +40,18 @@ internal static class EfCoreEntityAnnotator
         "node_modules"
     };
 
-    public static ResolvedMarkerAttribute ResolveMarkerAttribute(string? attributeArg)
+    public static ResolvedMarkerAttribute ResolveMarkerAttribute(
+        string? entityGroupName,
+        string? entityGroupNamespace = null)
     {
-        if (string.IsNullOrWhiteSpace(attributeArg))
+        var hasName = !string.IsNullOrWhiteSpace(entityGroupName);
+        var hasNamespace = !string.IsNullOrWhiteSpace(entityGroupNamespace);
+        if (hasName != hasNamespace)
+        {
+            throw new ArgumentException("Both entity group name and entity group namespace must be provided together.");
+        }
+
+        if (!hasName)
         {
             return new ResolvedMarkerAttribute(
                 DefaultAttributeName,
@@ -51,29 +61,16 @@ internal static class EfCoreEntityAnnotator
                 null);
         }
 
-        var trimmed = attributeArg.Trim();
-        if (trimmed.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) || File.Exists(trimmed))
-        {
-            var fullPath = Path.GetFullPath(trimmed);
-            if (!File.Exists(fullPath))
-            {
-                throw new FileNotFoundException($"Attribute file not found: '{fullPath}'.");
-            }
+        var trimmedName = entityGroupName!.Trim();
+        var trimmedNs = entityGroupNamespace!.Trim();
 
-            var source = File.ReadAllText(fullPath);
-            return ParseMarkerAttributeSource(source, fullPath);
-        }
-
-        var shortName = StripAttributeSuffix(trimmed);
-        var fullName = shortName.EndsWith("Attribute", StringComparison.Ordinal)
-            ? shortName
-            : shortName + "Attribute";
-
-        var ns = string.Equals(shortName, DefaultAttributeName, StringComparison.Ordinal)
-            ? DefaultAttributeNamespace
-            : null;
-
-        return new ResolvedMarkerAttribute(shortName, fullName, ns, null, null);
+        return new ResolvedMarkerAttribute(
+            $"{DefaultAttributeName}<{trimmedName}>",
+            $"EntityAttribute<{trimmedName}>",
+            DefaultAttributeNamespace,
+            null,
+            null,
+            trimmedNs);
     }
 
     public static ResolvedMarkerAttribute ParseMarkerAttributeSource(string sourceCode, string? sourceFilePath = null)
@@ -83,6 +80,23 @@ internal static class EfCoreEntityAnnotator
         var tree = CSharpSyntaxTree.ParseText(sourceCode);
         var root = tree.GetCompilationUnitRoot();
 
+        var groupType = root.DescendantNodes()
+            .OfType<TypeDeclarationSyntax>()
+            .FirstOrDefault(t => (t is StructDeclarationSyntax or RecordDeclarationSyntax) && ImplementsEntityGroup(t));
+
+        if (groupType is not null)
+        {
+            var groupName = groupType.Identifier.ValueText;
+            var groupNs = GetDeclaredNamespace(groupType);
+            return new ResolvedMarkerAttribute(
+                $"{DefaultAttributeName}<{groupName}>",
+                $"EntityAttribute<{groupName}>",
+                DefaultAttributeNamespace,
+                sourceFilePath,
+                null,
+                groupNs);
+        }
+
         var classes = root.DescendantNodes()
             .OfType<ClassDeclarationSyntax>()
             .Where(c => !c.Modifiers.Any(SyntaxKind.AbstractKeyword) && !c.Modifiers.Any(SyntaxKind.StaticKeyword))
@@ -91,21 +105,16 @@ internal static class EfCoreEntityAnnotator
         if (classes.Count == 0)
         {
             throw new InvalidOperationException(
-                $"No concrete attribute class found in '{sourceFilePath ?? "attribute source"}'.");
+                $"No IEntityGroup struct or attribute class found in '{sourceFilePath ?? "attribute source"}'.");
         }
 
-        var attrClass = classes.FirstOrDefault(DerivesFromEntityMarker)
-                        ?? classes.FirstOrDefault(c => c.Identifier.ValueText.EndsWith("Attribute", StringComparison.Ordinal))
+        var attrClass = classes.FirstOrDefault(c => c.Identifier.ValueText.EndsWith("Attribute", StringComparison.Ordinal))
                         ?? classes[0];
 
         var rawName = attrClass.Identifier.ValueText;
         var shortName = StripAttributeSuffix(rawName);
         var ns = GetDeclaredNamespace(attrClass);
-        var warning = DerivesFromEntityMarker(attrClass)
-            ? null
-            : $"Class '{rawName}' does not appear to inherit from EntityMarkerAttribute.";
-
-        return new ResolvedMarkerAttribute(shortName, rawName, ns, sourceFilePath, warning);
+        return new ResolvedMarkerAttribute(shortName, rawName, ns, sourceFilePath, null);
     }
 
     public static (HashSet<string> EntityNames, HashSet<string> ImportedNamespaces) ExtractDbContextEntities(
@@ -201,7 +210,8 @@ internal static class EfCoreEntityAnnotator
     public static EntityAnnotationResult AnnotateDirectory(
         string dbContextPath,
         string searchDirectory,
-        string? attributeArg = null,
+        string? entityGroupName = null,
+        string? entityGroupNamespace = null,
         bool readOnly = false,
         bool dryRun = false)
     {
@@ -216,7 +226,7 @@ internal static class EfCoreEntityAnnotator
             throw new DirectoryNotFoundException($"Search directory not found: '{fullSearchDir}'.");
         }
 
-        var marker = ResolveMarkerAttribute(attributeArg);
+        var marker = ResolveMarkerAttribute(entityGroupName, entityGroupNamespace);
         var warnings = new List<string>();
         if (!string.IsNullOrWhiteSpace(marker.Warning))
         {
@@ -319,9 +329,18 @@ internal static class EfCoreEntityAnnotator
             newline);
 
         var rewrittenRoot = (CompilationUnitSyntax)rewriter.Visit(root);
-        if (rewriter.AnyModified && !string.IsNullOrWhiteSpace(marker.AttributeNamespace))
+        if (rewriter.AnyModified)
         {
-            rewrittenRoot = EnsureUsingDirective(rewrittenRoot, marker.AttributeNamespace, newline);
+            if (!string.IsNullOrWhiteSpace(marker.AttributeNamespace))
+            {
+                rewrittenRoot = EnsureUsingDirective(rewrittenRoot, marker.AttributeNamespace, newline);
+            }
+
+            if (!string.IsNullOrWhiteSpace(marker.GroupNamespace) &&
+                !string.Equals(marker.GroupNamespace, marker.AttributeNamespace, StringComparison.Ordinal))
+            {
+                rewrittenRoot = EnsureUsingDirective(rewrittenRoot, marker.GroupNamespace, newline);
+            }
         }
 
         return (rewrittenRoot.ToFullString(), rewriter.Changes);
@@ -408,18 +427,17 @@ internal static class EfCoreEntityAnnotator
         return false;
     }
 
-    private static bool DerivesFromEntityMarker(ClassDeclarationSyntax cls)
+    private static bool ImplementsEntityGroup(TypeDeclarationSyntax typeDecl)
     {
-        if (cls.BaseList is null)
+        if (typeDecl.BaseList is null)
         {
             return false;
         }
 
-        foreach (var baseType in cls.BaseList.Types)
+        foreach (var baseType in typeDecl.BaseList.Types)
         {
             var name = GetSimpleTypeName(baseType.Type);
-            if (string.Equals(name, "EntityMarkerAttribute", StringComparison.Ordinal) ||
-                string.Equals(name, "EntityMarker", StringComparison.Ordinal))
+            if (string.Equals(name, "IEntityGroup", StringComparison.Ordinal))
             {
                 return true;
             }

@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using SharpPersistence.Migrator.Constants;
 
 namespace SharpPersistence.Migrator.Generators;
 
@@ -38,21 +39,30 @@ internal static class RoslynSymbolHelper
         return false;
     }
 
-    public static bool IsMarkedReadOnly(INamedTypeSymbol entitySym, INamedTypeSymbol? entityMarkerBase)
+    public static bool IsMarkedReadOnly(
+        INamedTypeSymbol entitySym,
+        INamedTypeSymbol? defaultEntityAttr,
+        INamedTypeSymbol? genericEntityAttr)
     {
-        if (entityMarkerBase is null)
+        if (defaultEntityAttr is null && genericEntityAttr is null)
         {
             return false;
         }
 
         foreach (var attr in entitySym.GetAttributes())
         {
-            if (attr.AttributeClass is null || !InheritsFrom(attr.AttributeClass, entityMarkerBase))
+            var attrClass = attr.AttributeClass;
+            if (attrClass is null)
             {
                 continue;
             }
 
-            if (GetNamedBool(attr, "ReadOnly", out _))
+            var isEntityAttr =
+                (defaultEntityAttr is not null && SymbolEqualityComparer.Default.Equals(attrClass, defaultEntityAttr)) ||
+                (genericEntityAttr is not null && attrClass.IsGenericType &&
+                 SymbolEqualityComparer.Default.Equals(attrClass.OriginalDefinition, genericEntityAttr));
+
+            if (isEntityAttr && GetNamedBool(attr, KnownNames.AttributeProperties.ReadOnly, out _))
             {
                 return true;
             }
@@ -88,21 +98,5 @@ internal static class RoslynSymbolHelper
         }
 
         return false;
-    }
-
-    public static INamespaceSymbol? FindNamespace(INamespaceSymbol root, string fullName)
-    {
-        var current = root;
-        foreach (var part in fullName.Split('.'))
-        {
-            current = current.GetNamespaceMembers()
-                .FirstOrDefault(n => string.Equals(n.Name, part, StringComparison.Ordinal));
-            if (current is null)
-            {
-                return null;
-            }
-        }
-
-        return current;
     }
 }

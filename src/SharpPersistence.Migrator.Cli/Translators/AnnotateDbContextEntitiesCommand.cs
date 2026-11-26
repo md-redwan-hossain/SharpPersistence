@@ -14,9 +14,13 @@ internal sealed class AnnotateDbContextEntitiesSettings : CommandSettings
     [Description("Directory to recursively search for matching entity .cs files.")]
     public string SearchDirectory { get; init; } = string.Empty;
 
-    [CommandOption("--attribute <FILE_OR_NAME>")]
-    [Description("Path to a custom EntityMarkerAttribute .cs file (or attribute name). Defaults to built-in [Entity].")]
-    public string? Attribute { get; init; }
+    [CommandOption("--entity-group-name <NAME>")]
+    [Description("Optional IEntityGroup struct name to emit [Entity<TGroup>]. Defaults to [Entity].")]
+    public string? EntityGroupName { get; init; }
+
+    [CommandOption("--entity-group-namespace <NAMESPACE>")]
+    [Description("Optional namespace of the IEntityGroup struct to add as a using directive (requires --entity-group-name).")]
+    public string? EntityGroupNamespace { get; init; }
 
     [CommandOption("--read-only")]
     [Description("Emit ReadOnly = true on the marker attribute (e.g. [Entity(ReadOnly = true)]).")]
@@ -32,6 +36,10 @@ internal sealed class AnnotateDbContextEntitiesSettings : CommandSettings
             return ValidationResult.Error("--dbcontext <PATH> is required.");
         if (string.IsNullOrWhiteSpace(SearchDirectory))
             return ValidationResult.Error("--search-directory <DIR> is required.");
+        var hasGroupName = !string.IsNullOrWhiteSpace(EntityGroupName);
+        var hasGroupNs = !string.IsNullOrWhiteSpace(EntityGroupNamespace);
+        if (hasGroupName != hasGroupNs)
+            return ValidationResult.Error("--entity-group-name and --entity-group-namespace must be specified together.");
         return ValidationResult.Success();
     }
 }
@@ -43,7 +51,8 @@ internal sealed class AnnotateDbContextEntitiesCommand : Command<AnnotateDbConte
         var result = EfCoreEntityAnnotator.AnnotateDirectory(
             settings.DbContextPath,
             settings.SearchDirectory,
-            settings.Attribute,
+            settings.EntityGroupName,
+            settings.EntityGroupNamespace,
             settings.ReadOnly,
             settings.DryRun);
 

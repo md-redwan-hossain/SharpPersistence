@@ -31,7 +31,7 @@ public sealed class EntityRegistryGeneratorTests
             }
         }
 
-        refs.Add(MetadataReference.CreateFromFile(typeof(EntityMarkerAttribute).Assembly.Location));
+        refs.Add(MetadataReference.CreateFromFile(typeof(IEntityGroup).Assembly.Location));
         refs.Add(MetadataReference.CreateFromFile(typeof(IEntityRegistry).Assembly.Location));
         return [.. refs];
     }
@@ -140,29 +140,25 @@ public sealed class EntityRegistryGeneratorTests
         const string aclDomainSource = """
             using SharpPersistence.Abstractions.Attributes;
 
-            [assembly: DiscoverEntitiesBy<AccessControl.Domain.AccessControlEntityAttribute>]
-
             namespace AccessControl.Domain;
 
-            public sealed class AccessControlEntityAttribute : EntityMarkerAttribute;
+            public readonly record struct AccessControlGroup : IEntityGroup;
 
-            [AccessControlEntity]
+            [Entity<AccessControlGroup>]
             public sealed class Role { public Guid Id { get; set; } }
 
-            [AccessControlEntity]
+            [Entity<AccessControlGroup>]
             public sealed class UserRole { public Guid Id { get; set; } }
             """;
 
         const string billingDomainSource = """
             using SharpPersistence.Abstractions.Attributes;
 
-            [assembly: DiscoverEntitiesBy<Billing.Domain.BillingEntityAttribute>]
-
             namespace Billing.Domain;
 
-            public sealed class BillingEntityAttribute : EntityMarkerAttribute;
+            public readonly record struct BillingGroup : IEntityGroup;
 
-            [BillingEntity]
+            [Entity<BillingGroup>]
             public sealed class Invoice { public Guid Id { get; set; } }
             """;
 
@@ -190,7 +186,7 @@ public sealed class EntityRegistryGeneratorTests
                 public void Configure(EntityBuilder<Role> builder) => builder.ToTable("roles");
             }
 
-            [EntityRegistry<AccessControlEntityAttribute>]
+            [EntityRegistry<AccessControlGroup>]
             public sealed partial class AccessControlRegistry : IEntityRegistry
             {
                 public void Configure(IEntityRegistryBuilder registry)
@@ -410,5 +406,80 @@ public sealed class EntityRegistryGeneratorTests
         var (_, attrDiags, attrResult) = RunGenerators("DisabledDemoAttr", attrDisabledSource);
         Assert.Empty(attrDiags);
         Assert.Empty(attrResult.GeneratedTrees);
+    }
+
+    [Fact]
+    public void IncrementalCaching_UnrelatedEditAndCommentAboveEntity_ReusesCachedOutputs()
+    {
+        var parseOptions = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Preview);
+        const string entitySource = """
+            using SharpPersistence.Abstractions.Attributes;
+
+            namespace CacheDemo;
+
+            public readonly record struct SalesGroup : IEntityGroup;
+
+            [Entity<SalesGroup>]
+            public sealed class Order { public Guid Id { get; set; } }
+            """;
+
+        const string registrySource = """
+            using SharpPersistence.Migrator.Abstractions;
+            using SharpPersistence.Migrator.Attributes;
+
+            namespace CacheDemo;
+
+            [EntityRegistry<SalesGroup>]
+            public sealed partial class SalesRegistry : IEntityRegistry
+            {
+                public void Configure(IEntityRegistryBuilder registry) { }
+            }
+            """;
+
+        var ct = TestContext.Current.CancellationToken;
+        var entityTree = CSharpSyntaxTree.ParseText(entitySource, parseOptions, path: "Order.cs", cancellationToken: ct);
+        var registryTree = CSharpSyntaxTree.ParseText(registrySource, parseOptions, path: "SalesRegistry.cs", cancellationToken: ct);
+        var unrelatedTree = CSharpSyntaxTree.ParseText("namespace CacheDemo; public sealed class Helper { }", parseOptions, path: "Helper.cs", cancellationToken: ct);
+
+        var compilation = CSharpCompilation.Create(
+            "CacheDemo",
+            [CSharpSyntaxTree.ParseText("global using System;", parseOptions, cancellationToken: ct), entityTree, registryTree, unrelatedTree],
+            BaseReferences,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators:
+            [
+                new EntityManifestGenerator().AsSourceGenerator(),
+                new EntityRegistryGenerator().AsSourceGenerator()
+            ],
+            parseOptions: parseOptions,
+            driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: true));
+
+        driver = driver.RunGenerators(compilation, ct);
+
+        // Edit 1: add a comment/blank line above the valid [Entity<SalesGroup>] AND modify an unrelated class
+        var updatedEntityTree = CSharpSyntaxTree.ParseText("// comment\n\n" + entitySource, parseOptions, path: "Order.cs", cancellationToken: ct);
+        var updatedUnrelatedTree = CSharpSyntaxTree.ParseText("namespace CacheDemo; public sealed class Helper { public int X => 1; }", parseOptions, path: "Helper.cs", cancellationToken: ct);
+        var updatedCompilation = compilation
+            .ReplaceSyntaxTree(entityTree, updatedEntityTree)
+            .ReplaceSyntaxTree(unrelatedTree, updatedUnrelatedTree);
+
+        driver = driver.RunGenerators(updatedCompilation, TestContext.Current.CancellationToken);
+        var runResult = driver.GetRunResult();
+
+        foreach (var genResult in runResult.Results)
+        {
+            var outputSteps = genResult.TrackedOutputSteps
+                .SelectMany(kv => kv.Value)
+                .SelectMany(step => step.Outputs)
+                .ToList();
+
+            Assert.NotEmpty(outputSteps);
+            Assert.All(outputSteps, output =>
+                Assert.True(
+                    output.Reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged,
+                    $"Expected Cached/Unchanged for {genResult.Generator.GetGeneratorType().Name}, got {output.Reason}"));
+        }
     }
 }

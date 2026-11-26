@@ -216,7 +216,7 @@ public sealed class MigrationRunlistTests : IDisposable
     {
         var manager = CreateManager();
         var runlist = manager.CreateRunlistManager();
-        var dir = Path.Combine(_tempDir, "MigrationScripts", "Custom");
+        var dir = Path.Combine(_tempDir, "DbMigrator", "Scripts", "Custom");
         Directory.CreateDirectory(dir);
 
         var ids = Enumerable.Range(0, 5).Select(_ => Guid.CreateVersion7()).ToArray();
@@ -250,5 +250,43 @@ public sealed class MigrationRunlistTests : IDisposable
 
         var checks = runlist.Validate();
         Assert.DoesNotContain(checks, c => c.Severity == DoctorSeverity.Error);
+    }
+
+    [Fact]
+    public async Task CanConnectToDatabaseAsync_ReturnsFalse_WhenDatabaseUnreachable()
+    {
+        var builder = new DbMigratorOptionsBuilder();
+        builder.UsePostgreSql("Host=127.0.0.1;Port=1;Database=nonexistent;Timeout=1")
+            .UseRootPath(_tempDir);
+        var migrator = new DbMigrator(builder.Build(), new EmptyServiceProvider());
+
+        var canConnect = await migrator.CanConnectToDatabaseAsync(TestContext.Current.CancellationToken);
+        Assert.False(canConnect);
+    }
+
+    [Fact]
+    public async Task HasPendingMigrationAsync_ReturnsFalse_WhenNoScriptsExist()
+    {
+        var manager = CreateManager();
+        var hasPending = await manager.HasPendingMigrationAsync(TestContext.Current.CancellationToken);
+        Assert.False(hasPending);
+    }
+
+    [Fact]
+    public void DbMigratorState_IsDesignTime_ReflectsAppContextSwitch()
+    {
+        var original = AppContext.GetData(DbMigratorState.DesignTimeDataKey);
+        try
+        {
+            AppContext.SetData(DbMigratorState.DesignTimeDataKey, null);
+            Assert.False(DbMigratorState.IsDesignTime);
+
+            AppContext.SetData(DbMigratorState.DesignTimeDataKey, true);
+            Assert.True(DbMigratorState.IsDesignTime);
+        }
+        finally
+        {
+            AppContext.SetData(DbMigratorState.DesignTimeDataKey, original);
+        }
     }
 }

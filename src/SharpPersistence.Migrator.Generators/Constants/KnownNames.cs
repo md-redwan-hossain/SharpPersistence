@@ -23,6 +23,9 @@ internal static class KnownNames
         internal const string OnModelCreating = "OnModelCreating";
         internal const string OnModelCreatingPartial = "OnModelCreatingPartial";
         internal const string ApplySchemaToEfCore = "ApplySchemaToEfCore";
+        internal const string Map = "Map";
+        internal const string IsRequired = "IsRequired";
+        internal const string OwnsOne = "OwnsOne";
     }
 
     internal static class Types

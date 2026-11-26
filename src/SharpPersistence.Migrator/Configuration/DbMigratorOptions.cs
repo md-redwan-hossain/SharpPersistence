@@ -24,8 +24,12 @@ internal sealed class DbMigratorOptions
     public string HistoryTableName { get; internal set; } = "__db_migration_logs";
     public string? HistorySchema { get; internal set; }
     public string? RootPath { get; internal set; }
-    public string MigrationsDirectory { get; internal set; } = "MigrationScripts";
-    public string SnapshotDirectory { get; internal set; } = "EntityChangelogs";
+    public const string DefaultBaseDirectory = "DbMigrator";
+    public static readonly string DefaultMigrationsDirectory = Path.Combine(DefaultBaseDirectory, "Scripts");
+    public static readonly string DefaultSnapshotDirectory = Path.Combine(DefaultBaseDirectory, "Snapshots");
+
+    public string MigrationsDirectory => DefaultMigrationsDirectory;
+    public string SnapshotDirectory => DefaultSnapshotDirectory;
     public IReadOnlyList<IEntityRegistry> Registries { get; internal set; } = [];
     public IReadOnlyList<PropertyConventionRule> PropertyConventions { get; internal set; } = [];
     public IReadOnlyList<EntityConventionRule> EntityConventions { get; internal set; } = [];

@@ -278,13 +278,9 @@ public sealed class PostgresDialectGeneratorTests
         optionsBuilder
             .UsePostgreSql("Host=localhost;Database=test")
             .HasPostgresExtension("btree_gist")
-            .HasPostgresEnum<BookingStatus>()
-            .UseMigrationsDirectory("db/migrations")
-            .UseSnapshotDirectory("db/snapshots");
+            .HasPostgresEnum<BookingStatus>();
 
         var options = optionsBuilder.Build();
-        Assert.Equal("db/migrations", options.MigrationsDirectory);
-        Assert.Equal("db/snapshots", options.SnapshotDirectory);
         Assert.Single(options.Extensions, e => e.Name == "btree_gist");
         Assert.Single(options.Enums, e => e.Name == "booking_status");
 
@@ -374,11 +370,10 @@ public sealed class PostgresDialectGeneratorTests
                 .HasPostgresExtension("btree_gist")
                 .HasPostgresEnum<BookingStatus>())
             .UseNamingConvention(SqlIdentifierCase.LowerSnakeCase)
-            .UseMigrationsDirectory("db/pg_migrations")
             .Build();
 
         Assert.Equal(SqlDialect.PostgreSql, options.Dialect);
-        Assert.Equal("db/pg_migrations", options.MigrationsDirectory);
+        Assert.Equal(SqlIdentifierCase.LowerSnakeCase, options.IdentifierCase);
         Assert.Single(options.Extensions, e => e.Name == "btree_gist");
         Assert.Single(options.Enums, e => e.Name == "booking_status");
     }

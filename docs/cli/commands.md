@@ -13,7 +13,7 @@ Most commands load your `IServiceProvider` (from `Program.cs`) or `IDesignTimeDb
 | Option | Description |
 | --- | --- |
 | `-s`, `--startup-project <PATH>` | Startup `.csproj` or directory (auto-detected from CWD if omitted) |
-| `-d`, `--destination-project <PATH>` | Project where `MigrationScripts` and `EntityChangelogs` live |
+| `-d`, `--destination-project <PATH>` | Project where `DbMigrator/Scripts` and `DbMigrator/Snapshots` live |
 | `-o`, `--output-dir <DIR>` | Override output directory for scripts and snapshots |
 | `--no-build` | Skip `dotnet build` before loading the startup assembly |
 | `--ci`, `--non-interactive` | Disable interactive prompts (project pickers and rename prompts) |
@@ -61,7 +61,7 @@ Includes 5 views plus `Ctrl/Cmd + K` global search across entities, columns, ind
 - **Entities**: Tables, columns, index counts, foreign keys (`1:1` / `N:1`, required/optional), indexes (ordering, operators, included columns, filters, storage), and check/exclusion constraints.
 - **ERD**: Interactive table-level relationship graph with pan/zoom and per-registry filtering.
 - **Dependencies**: Topological registry dependency graph, cross-registry FK inspector, and `ConfigureEntityStubs` mappings.
-- **Migrations**: **Runlist** (effective execution order + syntax-highlighted SQL) and **Dry Run** (read-only pending schema diff vs. `EntityChangelogs/*.json`).
+- **Migrations**: **Runlist** (effective execution order + syntax-highlighted SQL) and **Dry Run** (read-only pending schema diff vs. `DbMigrator/Snapshots/*.json`).
 - **Doctor**: Offline wiring/schema checks plus on-demand **Run Live DB Check**.
 
 ### `doctor`
@@ -164,7 +164,7 @@ Every generated `.sql` script (registry, `_global`, and `_deferred`) follows the
 - **Normalized name (`{lower_snake_name}`)**: Migration names are normalized to `lower_snake_case` (spaces, hyphens, and PascalCase become `_`; e.g., `"Add Trading Type"` -> `add_trading_type`, `"AddedPat"` -> `added_pat`).
 - **Translated EF Core migrations (`_translated/`)**: `{guid_without_hyphens}_{normalized_ef_migration_id}.sql`.
 
-Script execution order is tracked in `MigrationScripts/db-migration-runlist.json` as an array of 32-character lowercase hex GUIDs (without hyphens). To manually reorder a subset of scripts (such as `--allow-empty` data migrations), add an optional `MigrationScripts/db-migration-runlist.overrides.json` containing arrays of 2 or more script IDs (supports `//` comments and trailing commas):
+Script execution order is tracked in `DbMigrator/Scripts/db-migration-runlist.json` as an array of 32-character lowercase hex GUIDs (without hyphens). To manually reorder a subset of scripts (such as `--allow-empty` data migrations), add an optional `DbMigrator/Scripts/db-migration-runlist.overrides.json` containing arrays of 2 or more script IDs (supports `//` comments and trailing commas):
 
 ```jsonc
 [
@@ -208,17 +208,17 @@ Options: `-o|--output-dir <DIR>`, `--no-attribute`, `--dry-run`.
 
 ### `annotate-dbcontext-entities`
 
-Annotates entity classes referenced by an EF Core `DbContext` (`DbSet<T>` properties and `modelBuilder.Entity<T>()` calls) with `[Entity]` or a custom `EntityMarkerAttribute` `.cs` file.
+Annotates entity classes referenced by an EF Core `DbContext` (`DbSet<T>` properties and `modelBuilder.Entity<T>()` calls) with `[Entity]` (default) or `[Entity<TGroup>]` when `--entity-group-name` is provided.
 
 ```powershell
-# Built-in [Entity]
+# Built-in ungrouped [Entity]
 db-migrator annotate-dbcontext-entities --dbcontext Infrastructure/AppDbContext.cs --search-directory Domain/Entities --dry-run
 
-# Custom per-module marker attribute (reads class name and namespace from the .cs file)
-db-migrator annotate-dbcontext-entities --dbcontext Modules/Sales/Infra/SalesDbContext.cs --search-directory Modules/Sales/Domain/Entities --attribute Modules/Sales/Domain/Attributes/SalesEntityAttribute.cs
+# Grouped [Entity<SalesGroup>] with its namespace
+db-migrator annotate-dbcontext-entities --dbcontext Modules/Sales/Infra/SalesDbContext.cs --search-directory Modules/Sales/Domain/Entities --entity-group-name SalesGroup --entity-group-namespace MyApp.Sales.Domain
 ```
 
-Options: `--dbcontext <PATH>` (required), `--search-directory <DIR>` (required), `--attribute <FILE_OR_NAME>`, `--read-only`, `--dry-run`.
+Options: `--dbcontext <PATH>` (required), `--search-directory <DIR>` (required), `--entity-group-name <NAME>` and `--entity-group-namespace <NAMESPACE>` (optional, must be provided together), `--read-only`, `--dry-run`.
 
 ### `translate-ef-migration` & `sync-ef-history`
 

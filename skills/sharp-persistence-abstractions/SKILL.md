@@ -101,26 +101,24 @@ DateTime? latestOrderAt = await orderRepo.Query()
 
 `SharpPersistence.Abstractions` provides zero-dependency domain attributes (and transitively includes the Roslyn entity manifest generator):
 
-- `[Entity]` - built-in marker for single-registry projects. Set `[Entity(ReadOnly = true)]` to automatically exclude read-only stub/view entities from migrations.
-- `EntityMarkerAttribute` + `[assembly: DiscoverEntitiesBy<TMarkerAttribute>]` - custom per-assembly marker attributes (also supports `ReadOnly = true`).
+- `[Entity]` - built-in attribute for ungrouped / single-registry projects. Set `[Entity(ReadOnly = true)]` to automatically exclude read-only stub/view entities from migrations.
+- `[Entity<TGroup>]` where `TGroup : struct, IEntityGroup` - typed per-module/group discovery (e.g., `public readonly record struct BillingGroup : IEntityGroup;`), paired 1-to-1 with `[EntityRegistry<TGroup>]` and also supporting `ReadOnly = true`.
 - `[assembly: DisableEntityDiscovery]` (or MSBuild `<DisableEntityDiscovery>true</DisableEntityDiscovery>`) - opts an assembly out of source generation.
 
 ```csharp
-using SharpPersistence.Abstractions;
+using SharpPersistence.Abstractions.Attributes;
 
-// Custom marker in Billing.Domain
-public sealed class BillingEntityAttribute : EntityMarkerAttribute;
+// Group tag in Billing.Domain
+public readonly record struct BillingGroup : IEntityGroup;
 
-[assembly: DiscoverEntitiesBy<BillingEntityAttribute>]
-
-[BillingEntity]
+[Entity<BillingGroup>]
 public sealed class Invoice
 {
     public Guid Id { get; set; }
 }
 
 // Read-only reference stub (automatically excluded from migrations)
-[BillingEntity(ReadOnly = true)]
+[Entity<BillingGroup>(ReadOnly = true)]
 public sealed class RefUser
 {
     public Guid Id { get; set; }
