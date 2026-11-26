@@ -1,5 +1,7 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using System.Runtime.Loader;
 using System.Xml.Linq;
 using Microsoft.Extensions.DependencyInjection;
@@ -8,6 +10,7 @@ using SharpPersistence.Migrator.Abstractions;
 using SharpPersistence.Migrator.Cli.Config;
 using SharpPersistence.Migrator.Configuration;
 using SharpPersistence.Migrator.Services;
+using Spectre.Console;
 
 namespace SharpPersistence.Migrator.Cli;
 
@@ -30,58 +33,90 @@ internal static class TargetAssemblyLoader
 
     public static LoadedMigrationContext CreateManagerContext(SharedSettings settings)
     {
+        var errConsole = CreateStderrConsole();
+        var totalSw = Stopwatch.StartNew();
+
         var resolvedPaths = ProjectResolutionService.Resolve(settings);
-        var (csprojPath, assemblyPath, startupDir) = ResolveStartupAssembly(resolvedPaths.StartupProjectPath, settings.NoBuild);
+        var csprojPath = ResolveCsprojOrDirectory(
+            resolvedPaths.StartupProjectPath ?? Directory.GetCurrentDirectory(),
+            "startup");
         var startupDisplayPath = Path.GetRelativePath(Directory.GetCurrentDirectory(), csprojPath);
         if (startupDisplayPath.StartsWith("..", StringComparison.Ordinal))
         {
             startupDisplayPath = csprojPath;
         }
+
+        double? buildSeconds = null;
+        if (!settings.NoBuild)
+        {
+            var buildSw = Stopwatch.StartNew();
+            RunWithStatus(errConsole, $"Building [cyan]{Markup.Escape(startupDisplayPath)}[/]...", () =>
+            {
+                BuildStartupProject(csprojPath);
+            });
+            buildSw.Stop();
+            buildSeconds = buildSw.Elapsed.TotalSeconds;
+        }
+
+        var (assemblyPath, startupDir) = LocateStartupAssembly(csprojPath);
         var destinationRoot = ResolveDestinationDirectory(resolvedPaths.DestinationProjectPath, startupDir);
         var outputRoot = ResolveOutputDirectory(settings.OutputDir, resolvedPaths.DestinationProjectPath is not null ? destinationRoot : null, destinationRoot);
 
-        var alc = new TargetLoadContext(assemblyPath);
-        var primaryAssembly = alc.LoadFromAssemblyPath(assemblyPath);
-        var hostName = primaryAssembly.GetName().Name ?? Path.GetFileNameWithoutExtension(assemblyPath);
-        var loadedAssemblies = new List<Assembly> { primaryAssembly };
+        var hostName = Path.GetFileNameWithoutExtension(assemblyPath);
+        var loadedAssemblies = new List<Assembly>();
+        Assembly primaryAssembly = null!;
 
-        var targetDir = Path.GetDirectoryName(assemblyPath)!;
-        foreach (var refName in primaryAssembly.GetReferencedAssemblies())
+        RunWithStatus(errConsole, $"Loading assemblies ([cyan]{Markup.Escape(hostName)}[/])...", () =>
         {
-            if (IsFrameworkOrCoreAssembly(refName.Name))
+            var alc = new TargetLoadContext(assemblyPath);
+            primaryAssembly = alc.LoadFromAssemblyPath(assemblyPath);
+            hostName = primaryAssembly.GetName().Name ?? hostName;
+            loadedAssemblies.Add(primaryAssembly);
+
+            var targetDir = Path.GetDirectoryName(assemblyPath)!;
+            var defaultAssemblyNames = AssemblyLoadContext.Default.Assemblies
+                .Select(a => a.GetName().Name)
+                .Where(n => !string.IsNullOrWhiteSpace(n))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var refName in primaryAssembly.GetReferencedAssemblies())
             {
-                continue;
+                if (IsFrameworkOrCoreAssembly(refName.Name) ||
+                    (refName.Name is not null && defaultAssemblyNames.Contains(refName.Name)))
+                {
+                    continue;
+                }
+
+                var candidate = Path.Combine(targetDir, $"{refName.Name}.dll");
+                if (File.Exists(candidate))
+                {
+                    try
+                    {
+                        loadedAssemblies.Add(alc.LoadFromAssemblyPath(candidate));
+                    }
+                    catch
+                    {
+                        // Ignore unloadable satellite/native assemblies
+                    }
+                }
             }
 
-            var candidate = Path.Combine(targetDir, $"{refName.Name}.dll");
-            if (File.Exists(candidate))
+            foreach (var providerDll in new[] { "Npgsql.dll", "Oracle.ManagedDataAccess.dll" })
             {
-                try
+                var providerPath = Path.Combine(targetDir, providerDll);
+                if (File.Exists(providerPath))
                 {
-                    loadedAssemblies.Add(alc.LoadFromAssemblyPath(candidate));
-                }
-                catch
-                {
-                    // Ignore unloadable satellite/native assemblies
+                    try
+                    {
+                        alc.LoadFromAssemblyPath(providerPath);
+                    }
+                    catch
+                    {
+                        // Ignore if already loaded or incompatible
+                    }
                 }
             }
-        }
-
-        foreach (var providerDll in new[] { "Npgsql.dll", "Oracle.ManagedDataAccess.dll" })
-        {
-            var providerPath = Path.Combine(targetDir, providerDll);
-            if (File.Exists(providerPath))
-            {
-                try
-                {
-                    alc.LoadFromAssemblyPath(providerPath);
-                }
-                catch
-                {
-                    // Ignore if already loaded or incompatible
-                }
-            }
-        }
+        });
 
         // Tier 1: Optional IDesignTimeDbMigratorFactory fallback (for class libraries or custom offline config)
         var factoryType = loadedAssemblies
@@ -90,21 +125,38 @@ internal static class TargetAssemblyLoader
 
         if (factoryType is not null)
         {
-            var designFactory = (IDesignTimeDbMigratorFactory)Activator.CreateInstance(factoryType)!;
-            var services = new ServiceCollection();
-            services.AddDbMigrator(options =>
+            ServiceProvider provider = null!;
+            DbMigrator manager = null!;
+            var bootstrapSw = Stopwatch.StartNew();
+
+            RunWithStatus(errConsole, $"Bootstrapping IDbMigrator via [cyan]{Markup.Escape(factoryType.Name)}[/]...", () =>
             {
-                designFactory.Configure(options, Environment.GetCommandLineArgs());
-                options.UseRootPath(outputRoot);
+                var designFactory = (IDesignTimeDbMigratorFactory)Activator.CreateInstance(factoryType)!;
+                var services = new ServiceCollection();
+                services.AddDbMigrator(options =>
+                {
+                    designFactory.Configure(options, Environment.GetCommandLineArgs());
+                    options.UseRootPath(outputRoot);
+                });
+
+                provider = services.BuildServiceProvider();
+                manager = (DbMigrator)provider.GetRequiredService<IDbMigrator>();
             });
 
-            var provider = services.BuildServiceProvider();
-            var manager = (DbMigrator)provider.GetRequiredService<IDbMigrator>();
+            bootstrapSw.Stop();
+            WriteLoadedSummary(errConsole, startupDisplayPath, factoryType.Name, buildSeconds, bootstrapSw.Elapsed.TotalSeconds, totalSw.Elapsed.TotalSeconds);
             return new LoadedMigrationContext(provider, manager, outputRoot, hostName, startupDisplayPath, factoryType.Name, loadedAssemblies);
         }
 
         // Tier 2: Resolve IHost / IServiceProvider from Program.Main via Microsoft.Extensions.Hosting DiagnosticListener
-        var host = ResolveHostFromEntryPoint(primaryAssembly, startupDir);
+        IHost host = null!;
+        var hostSw = Stopwatch.StartNew();
+        RunWithStatus(errConsole, $"Bootstrapping IDbMigrator via [cyan]{Markup.Escape(hostName)}[/] (Program.cs)...", () =>
+        {
+            host = ResolveHostFromEntryPoint(primaryAssembly, startupDir);
+        });
+        hostSw.Stop();
+
         var hostManager = host.Services.GetService<IDbMigrator>() as DbMigrator
             ?? throw new InvalidOperationException(
                 $"'{primaryAssembly.GetName().Name}' built an IHost, but IDbMigrator is not registered in DI. " +
@@ -113,7 +165,45 @@ internal static class TargetAssemblyLoader
         var options = host.Services.GetRequiredService<DbMigratorOptions>();
         options.OverrideRootPath(outputRoot);
 
+        WriteLoadedSummary(errConsole, startupDisplayPath, "Program.cs", buildSeconds, hostSw.Elapsed.TotalSeconds, totalSw.Elapsed.TotalSeconds);
         return new LoadedMigrationContext(host, hostManager, outputRoot, hostName, startupDisplayPath, "Program.cs", loadedAssemblies);
+    }
+
+    internal static IAnsiConsole CreateStderrConsole() =>
+        AnsiConsole.Create(new AnsiConsoleSettings
+        {
+            Out = new AnsiConsoleOutput(Console.Error)
+        });
+
+    internal static void RunWithStatus(IAnsiConsole errConsole, string markupMessage, Action action)
+    {
+        if (Console.IsErrorRedirected)
+        {
+            errConsole.MarkupLine($"[grey]{markupMessage}[/]");
+            action();
+            return;
+        }
+
+        errConsole.Status()
+            .Spinner(Spinner.Known.Dots)
+            .SpinnerStyle(Style.Parse("cyan"))
+            .Start(markupMessage, _ => action());
+    }
+
+    private static void WriteLoadedSummary(
+        IAnsiConsole errConsole,
+        string startupDisplayPath,
+        string bootstrapSource,
+        double? buildSeconds,
+        double bootstrapSeconds,
+        double totalSeconds)
+    {
+        var buildPart = buildSeconds.HasValue
+            ? $"Built {Markup.Escape(startupDisplayPath)} ({buildSeconds.Value.ToString("0.0", CultureInfo.InvariantCulture)}s) | "
+            : string.Empty;
+
+        errConsole.MarkupLine(
+            $"[grey]{buildPart}Bootstrapped via {Markup.Escape(bootstrapSource)} ({bootstrapSeconds.ToString("0.0", CultureInfo.InvariantCulture)}s, total {totalSeconds.ToString("0.0", CultureInfo.InvariantCulture)}s)[/]");
     }
 
     public static async ValueTask DisposeAsync(object? owner)
@@ -133,13 +223,13 @@ internal static class TargetAssemblyLoader
     {
         var entryPoint = primaryAssembly.EntryPoint
             ?? throw new InvalidOperationException(
-                $"'{primaryAssembly.GetName().Name}' has no entry point (Program.Main) and no IDesignTimeMigrationFactory was found.");
+                $"'{primaryAssembly.GetName().Name}' has no entry point (Program.Main) and no IDesignTimeDbMigratorFactory was found.");
 
         IHost? capturedHost = null;
         using var observer = new HostBuiltObserver(host =>
         {
             capturedHost = host;
-            throw new HostFactoryAbortedException();
+            throw new HostAbortedException();
         });
         using var subscription = DiagnosticListener.AllListeners.Subscribe(observer);
 
@@ -155,11 +245,15 @@ internal static class TargetAssemblyLoader
                 task.GetAwaiter().GetResult();
             }
         }
-        catch (TargetInvocationException ex) when (ex.InnerException is HostFactoryAbortedException)
+        catch (TargetInvocationException ex) when (ex.InnerException is HostAbortedException)
         {
             // Expected abort right after HostBuilt
         }
-        catch (HostFactoryAbortedException)
+        catch (TargetInvocationException ex) when (ex.InnerException is not null)
+        {
+            ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
+        }
+        catch (HostAbortedException)
         {
             // Expected abort right after HostBuilt
         }
@@ -170,10 +264,8 @@ internal static class TargetAssemblyLoader
 
         return capturedHost ?? throw new InvalidOperationException(
             $"Could not capture IHost from '{primaryAssembly.GetName().Name}'. " +
-            "Ensure Program.cs uses WebApplication.CreateBuilder / Host.CreateApplicationBuilder, or implement IDesignTimeMigrationFactory.");
+            "Ensure Program.cs uses WebApplication.CreateBuilder / Host.CreateApplicationBuilder, or implement IDesignTimeDbMigratorFactory.");
     }
-
-    private sealed class HostFactoryAbortedException : Exception;
 
     private sealed class HostBuiltObserver : IObserver<DiagnosticListener>, IObserver<KeyValuePair<string, object?>>, IDisposable
     {
@@ -203,17 +295,8 @@ internal static class TargetAssemblyLoader
         public void Dispose() => _listenerSubscription?.Dispose();
     }
 
-    private static (string CsprojPath, string AssemblyPath, string StartupDir) ResolveStartupAssembly(string? startupArg, bool noBuild)
+    private static (string AssemblyPath, string StartupDir) LocateStartupAssembly(string csprojPath)
     {
-        var csprojPath = ResolveCsprojOrDirectory(
-            startupArg ?? Directory.GetCurrentDirectory(),
-            "startup");
-
-        if (!noBuild)
-        {
-            BuildStartupProject(csprojPath);
-        }
-
         var startupDir = Path.GetDirectoryName(csprojPath)!;
         var assemblyName = ReadAssemblyName(csprojPath);
         var binDir = Path.Combine(startupDir, "bin");
@@ -236,7 +319,7 @@ internal static class TargetAssemblyLoader
                 $"Compiled assembly '{assemblyName}.dll' not found under '{binDir}'. Run 'dotnet build' first.");
         }
 
-        return (csprojPath, dll, startupDir);
+        return (dll, startupDir);
     }
 
     private static void BuildStartupProject(string csprojPath)
@@ -251,14 +334,15 @@ internal static class TargetAssemblyLoader
         using var process = Process.Start(psi)
             ?? throw new InvalidOperationException("Failed to start 'dotnet build'.");
 
-        var stdout = process.StandardOutput.ReadToEnd();
-        var stderr = process.StandardError.ReadToEnd();
+        var stdoutTask = process.StandardOutput.ReadToEndAsync();
+        var stderrTask = process.StandardError.ReadToEndAsync();
+        Task.WhenAll(stdoutTask, stderrTask).GetAwaiter().GetResult();
         process.WaitForExit();
 
         if (process.ExitCode != 0)
         {
             throw new InvalidOperationException(
-                $"Building '{csprojPath}' failed (exit code {process.ExitCode}).{Environment.NewLine}{stdout}{stderr}");
+                $"Building '{csprojPath}' failed (exit code {process.ExitCode}).{Environment.NewLine}{stdoutTask.Result}{stderrTask.Result}");
         }
     }
 
@@ -337,14 +421,18 @@ internal static class TargetAssemblyLoader
         return Path.GetFileNameWithoutExtension(csprojPath);
     }
 
+    private static bool IsSharedCliAssembly(string? name) =>
+        !string.IsNullOrWhiteSpace(name) &&
+        (name.Equals("SharpPersistence", StringComparison.OrdinalIgnoreCase) ||
+         name.Equals("SharpPersistence.Abstractions", StringComparison.OrdinalIgnoreCase) ||
+         name.Equals("SharpPersistence.Migrator", StringComparison.OrdinalIgnoreCase) ||
+         name.Equals("Humanizer", StringComparison.OrdinalIgnoreCase));
+
     private static bool IsFrameworkOrCoreAssembly(string? name) =>
         string.IsNullOrWhiteSpace(name) ||
         name.StartsWith("System.", StringComparison.OrdinalIgnoreCase) ||
         name.StartsWith("Microsoft.", StringComparison.OrdinalIgnoreCase) ||
-        name.Equals("SharpPersistence", StringComparison.OrdinalIgnoreCase) ||
-        name.Equals("SharpPersistence.Migrator", StringComparison.OrdinalIgnoreCase) ||
-        name.Equals("SharpPersistence.Migrator.EfCore", StringComparison.OrdinalIgnoreCase) ||
-        name.Equals("Humanizer", StringComparison.OrdinalIgnoreCase);
+        IsSharedCliAssembly(name);
 
     private sealed class TargetLoadContext : AssemblyLoadContext
     {
@@ -357,7 +445,8 @@ internal static class TargetAssemblyLoader
 
         protected override Assembly? Load(AssemblyName assemblyName)
         {
-            if (Default.Assemblies.Any(a =>
+            if (IsSharedCliAssembly(assemblyName.Name) ||
+                Default.Assemblies.Any(a =>
                     string.Equals(a.GetName().Name, assemblyName.Name, StringComparison.OrdinalIgnoreCase)))
             {
                 return null;

@@ -1,12 +1,13 @@
 namespace SharpPersistence.Migrator.Models;
 
 public sealed record AppliedMigrationRecord(
-    string RegistryName,
+    Guid ScriptId,
     string ScriptName,
     string ChecksumSha256,
     DateTimeOffset AppliedAt);
 
 public sealed record MigrationStatusItem(
+    Guid ScriptId,
     string RegistryName,
     string ScriptName,
     string FullPath,

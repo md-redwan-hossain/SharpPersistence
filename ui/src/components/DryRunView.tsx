@@ -214,7 +214,7 @@ export function DryRunView({ dryRun, onLoaded }: Props) {
           {/* Summary Counters */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full sm:w-auto">
-              <CounterPill label="Registries" value={dryRun.changedRegistryCount} tone="neutral" />
+              <CounterPill label="Sources" value={dryRun.changedRegistryCount} tone="neutral" />
               <CounterPill label="Additions" value={dryRun.addCount} tone="emerald" />
               <CounterPill label="Alterations" value={dryRun.alterCount} tone="amber" />
               <CounterPill label="Drops" value={dryRun.dropCount} tone={dryRun.dropCount > 0 ? "rose" : "neutral"} />

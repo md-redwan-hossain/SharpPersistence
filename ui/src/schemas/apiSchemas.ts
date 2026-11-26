@@ -336,3 +336,66 @@ export async function fetchValidatedJson<T>(
 
   return parsed.data;
 }
+
+
+export const UiDdlStatementSchema = z.object({
+  index: z.number(),
+  action: z.string(),
+  objectType: z.string(),
+  schema: z.string().nullable(),
+  tableName: z.string().nullable(),
+  objectName: z.string(),
+  target: z.string(),
+  sql: z.string(),
+});
+
+export const UiScriptDdlsSchema = z.object({
+  scriptId: z.string(),
+  statements: z.array(UiDdlStatementSchema),
+});
+
+export const UiDdlCheckResultSchema = z.object({
+  index: z.number().nullable(),
+  target: z.string(),
+  passed: z.boolean(),
+  existsInDb: z.boolean(),
+  detail: z.string(),
+  error: z.string().nullable(),
+});
+
+export const UiScriptLiveCheckSchema = z.object({
+  scriptId: z.string(),
+  connected: z.boolean(),
+  isAppliedInHistory: z.boolean().nullable(),
+  elapsedMs: z.number(),
+  error: z.string().nullable(),
+  results: z.array(UiDdlCheckResultSchema),
+});
+
+export type UiDdlStatement = z.infer<typeof UiDdlStatementSchema>;
+export type UiScriptDdls = z.infer<typeof UiScriptDdlsSchema>;
+export type UiDdlCheckResult = z.infer<typeof UiDdlCheckResultSchema>;
+export type UiScriptLiveCheck = z.infer<typeof UiScriptLiveCheckSchema>;
+
+export async function postValidatedJson<T>(
+  url: string,
+  body: unknown,
+  schema: z.ZodType<T>,
+  signal?: AbortSignal
+): Promise<T> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal,
+  });
+  if (!res.ok) {
+    throw new Error(`Request to ${url} failed with HTTP ${res.status}`);
+  }
+  const raw: unknown = await res.json();
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error(`API schema validation failed for ${url}`);
+  }
+  return parsed.data;
+}

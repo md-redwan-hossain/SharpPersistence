@@ -18,11 +18,11 @@ internal sealed class MigrationScriptStore
 
     public string ResolveSnapshotDirectory() => ResolvePath(_options.SnapshotDirectory);
 
-    public List<(string RegistryName, string ScriptName, string FullPath)> DiscoverScripts()
+    public List<(Guid ScriptId, string RegistryName, string ScriptName, string FullPath)> DiscoverScripts()
     {
         var runlist = new MigrationRunlistManager(_options, this);
         return runlist.ResolveEffectiveOrder()
-            .Select(e => (e.RegistryName, e.ScriptName, e.FullPath))
+            .Select(e => (e.Id, e.RegistryName, e.ScriptName, e.FullPath))
             .ToList();
     }
 
@@ -30,26 +30,24 @@ internal sealed class MigrationScriptStore
         IReadOnlyList<AppliedMigrationRecord> applied,
         CancellationToken ct)
     {
-        var appliedMap = applied.ToDictionary(
-            a => (a.RegistryName, a.ScriptName),
-            a => a);
+        var appliedMap = applied.ToDictionary(a => a.ScriptId, a => a);
 
         var discovered = DiscoverScripts();
         var items = new List<MigrationStatusItem>(discovered.Count);
 
-        foreach (var (registryName, scriptName, fullPath) in discovered)
+        foreach (var (scriptId, registryName, scriptName, fullPath) in discovered)
         {
             var content = await File.ReadAllTextAsync(fullPath, ct).ConfigureAwait(false);
             var checksum = ComputeSha256(content);
 
-            if (appliedMap.TryGetValue((registryName, scriptName), out var record))
+            if (appliedMap.TryGetValue(scriptId, out var record))
             {
                 var mismatch = !string.Equals(record.ChecksumSha256, checksum, StringComparison.OrdinalIgnoreCase);
-                items.Add(new MigrationStatusItem(registryName, scriptName, fullPath, true, mismatch, record.AppliedAt));
+                items.Add(new MigrationStatusItem(scriptId, registryName, scriptName, fullPath, true, mismatch, record.AppliedAt));
             }
             else
             {
-                items.Add(new MigrationStatusItem(registryName, scriptName, fullPath, false, false, null));
+                items.Add(new MigrationStatusItem(scriptId, registryName, scriptName, fullPath, false, false, null));
             }
         }
 

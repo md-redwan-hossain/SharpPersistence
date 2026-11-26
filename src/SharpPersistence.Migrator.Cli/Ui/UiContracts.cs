@@ -263,3 +263,42 @@ internal sealed record UiSearchHitDto(
     string EntityName,
     string ShortEntityName,
     string QualifiedName);
+
+
+internal sealed record UiDdlStatementDto(
+    int Index,
+    string Action,
+    string ObjectType,
+    string? Schema,
+    string? TableName,
+    string ObjectName,
+    string Target,
+    string Sql);
+
+internal sealed record UiScriptDdlsDto(
+    string ScriptId,
+    IReadOnlyList<UiDdlStatementDto> Statements);
+
+internal sealed record UiDdlCheckRequestDto(
+    string Action,
+    string ObjectType,
+    string? Schema,
+    string? TableName,
+    string ObjectName,
+    string Target);
+
+internal sealed record UiDdlCheckResultDto(
+    int? Index,
+    string Target,
+    bool Passed,
+    bool ExistsInDb,
+    string Detail,
+    string? Error);
+
+internal sealed record UiScriptLiveCheckDto(
+    string ScriptId,
+    bool Connected,
+    bool? IsAppliedInHistory,
+    long ElapsedMs,
+    string? Error,
+    IReadOnlyList<UiDdlCheckResultDto> Results);

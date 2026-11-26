@@ -11,6 +11,7 @@ import { Badge } from "./ui/badge";
 import { Card, CardContent } from "./ui/card";
 import { Input } from "./ui/input";
 import { SqlCodeBlock } from "./ui/sql-code-block";
+import { RunlistDdlPanel } from "./RunlistDdlPanel";
 
 export function RunlistView() {
   const [runlist, setRunlist] = useState<UiRunlist | null>(null);
@@ -183,6 +184,7 @@ export function RunlistView() {
                 </div>
               </div>
             </div>
+            <RunlistDdlPanel scriptId={activeScript.id} />
             <div className="flex-1 overflow-auto">
               {loadingSql ? (
                 <div className="p-4 flex items-center gap-2 text-xs text-muted-foreground">

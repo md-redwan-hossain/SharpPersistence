@@ -84,16 +84,24 @@ public sealed class MigrationRunlistTests : IDisposable
     }
 
     [Fact]
-    public async Task GenerateAsync_StampsHeaders_AndWritesRunlistJson_WithoutFallback()
+    public async Task GenerateAsync_PrefixesFilenamesWithUuidN_NormalizesSnakeCase_AndWritesHyphenlessRunlist()
     {
         var manager = CreateManager();
-        var generated = await manager.GenerateAsync("Initial", ct: TestContext.Current.CancellationToken);
+        var generated = await manager.GenerateAsync("Add Trading Type", ct: TestContext.Current.CancellationToken);
 
         Assert.Equal(2, generated.Count);
-        Assert.All(generated, g => Assert.True(MigrationScriptHeader.TryParseId(g.SqlScript, out _)));
+        Assert.All(generated, g =>
+        {
+            Assert.NotNull(g.ScriptPath);
+            Assert.True(MigrationScriptHeader.TryParseIdFromFileName(g.ScriptPath!, out _));
+            Assert.EndsWith("_add_trading_type.sql", Path.GetFileName(g.ScriptPath!), StringComparison.Ordinal);
+            Assert.DoesNotContain("-- migration-script-id:", g.SqlScript, StringComparison.Ordinal);
+        });
 
         var runlist = manager.CreateRunlistManager();
         Assert.True(File.Exists(runlist.RunlistPath));
+        var runlistJson = await File.ReadAllTextAsync(runlist.RunlistPath, TestContext.Current.CancellationToken);
+        Assert.DoesNotContain("-", runlistJson, StringComparison.Ordinal);
 
         var effective = runlist.ResolveEffectiveOrder();
         Assert.Equal(2, effective.Count);
@@ -212,11 +220,18 @@ public sealed class MigrationRunlistTests : IDisposable
         Directory.CreateDirectory(dir);
 
         var ids = Enumerable.Range(0, 5).Select(_ => Guid.CreateVersion7()).ToArray();
-        var names = new[] { "01_A.sql", "02_B.sql", "03_C.sql", "04_D.sql", "05_E.sql" };
+        var names = new[]
+        {
+            $"{ids[0]:N}_01_a.sql",
+            $"{ids[1]:N}_02_b.sql",
+            $"{ids[2]:N}_03_c.sql",
+            $"{ids[3]:N}_04_d.sql",
+            $"{ids[4]:N}_05_e.sql"
+        };
         for (var i = 0; i < 5; i++)
         {
             // Include SQL comments mentioning REFERENCES to confirm comment stripping works too
-            var content = $"-- migration-script-id: {ids[i]:D}\n-- REFERENCES non_existent_table\nSELECT {i + 1};\n";
+            var content = $"-- REFERENCES non_existent_table\nSELECT {i + 1};\n";
             await File.WriteAllTextAsync(Path.Combine(dir, names[i]), content, TestContext.Current.CancellationToken);
         }
 
@@ -225,12 +240,12 @@ public sealed class MigrationRunlistTests : IDisposable
         // Move E before B: expected [A, E, B, C, D] (B -> C -> D must stay intact)
         await File.WriteAllTextAsync(
             runlist.OverridesPath,
-            $"[[\"{ids[4]:D}\", \"{ids[1]:D}\"]]",
+            $"[[\"{ids[4]:N}\", \"{ids[1]:N}\"]]",
             TestContext.Current.CancellationToken);
 
         var effective = runlist.ResolveEffectiveOrder();
         Assert.Equal(
-            ["01_A.sql", "05_E.sql", "02_B.sql", "03_C.sql", "04_D.sql"],
+            [names[0], names[4], names[1], names[2], names[3]],
             effective.Select(e => e.ScriptName).ToArray());
 
         var checks = runlist.Validate();

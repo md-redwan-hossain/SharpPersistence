@@ -628,7 +628,7 @@ internal sealed class RunlistShowCommand : AsyncCommand<RunlistShowSettings>
                 var e = display[i];
                 table.AddRow(
                     (startIndex + i).ToString(),
-                    $"[grey]{e.Id:D}[/]",
+                    $"[grey]{e.Id:N}[/]",
                     Markup.Escape(e.RegistryName),
                     Markup.Escape(e.ScriptName),
                     e.IsOverridden ? "[yellow]yes[/]" : "[grey]-[/]");

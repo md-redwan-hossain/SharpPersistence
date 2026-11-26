@@ -1,8 +1,83 @@
+using System.Text;
+
 namespace SharpPersistence.Migrator.Services;
 
 internal static class MigrationScriptHeader
 {
     public const string HeaderPrefix = "-- migration-script-id:";
+
+    public static bool TryParseIdFromFileName(string fileNameOrPath, out Guid id)
+    {
+        id = Guid.Empty;
+        if (string.IsNullOrWhiteSpace(fileNameOrPath))
+        {
+            return false;
+        }
+
+        var fileName = Path.GetFileName(fileNameOrPath);
+        if (fileName.Length <= 33 || fileName[32] != '_')
+        {
+            return false;
+        }
+
+        return Guid.TryParseExact(fileName.AsSpan(0, 32), "N", out id) && id != Guid.Empty;
+    }
+
+    public static string StripIdPrefix(string fileNameWithoutExt) =>
+        fileNameWithoutExt.Length > 33 &&
+        fileNameWithoutExt[32] == '_' &&
+        Guid.TryParseExact(fileNameWithoutExt.AsSpan(0, 32), "N", out var id) &&
+        id != Guid.Empty
+            ? fileNameWithoutExt[33..]
+            : fileNameWithoutExt;
+
+    public static string FormatScriptFileName(Guid id, string timestamp, string migrationName)
+    {
+        var normalized = NormalizeScriptName(migrationName);
+        return $"{id:N}_{timestamp}_{normalized}.sql";
+    }
+
+    public static string NormalizeScriptName(string rawName)
+    {
+        if (string.IsNullOrWhiteSpace(rawName))
+        {
+            return "migration";
+        }
+
+        var sb = new StringBuilder(rawName.Length + 8);
+        var prevUnderscore = true;
+        var prevWasLowerOrDigit = false;
+
+        for (var i = 0; i < rawName.Length; i++)
+        {
+            var c = rawName[i];
+            if (char.IsLetterOrDigit(c))
+            {
+                var isUpper = char.IsUpper(c);
+                if (isUpper && !prevUnderscore)
+                {
+                    var nextIsLower = i + 1 < rawName.Length && char.IsLower(rawName[i + 1]);
+                    if (prevWasLowerOrDigit || nextIsLower)
+                    {
+                        sb.Append('_');
+                    }
+                }
+
+                sb.Append(char.ToLowerInvariant(c));
+                prevUnderscore = false;
+                prevWasLowerOrDigit = char.IsLower(c) || char.IsDigit(c);
+            }
+            else if (!prevUnderscore)
+            {
+                sb.Append('_');
+                prevUnderscore = true;
+                prevWasLowerOrDigit = false;
+            }
+        }
+
+        var result = sb.ToString().Trim('_');
+        return result.Length == 0 ? "migration" : result;
+    }
 
     public static bool TryParseId(string sql, out Guid id)
     {

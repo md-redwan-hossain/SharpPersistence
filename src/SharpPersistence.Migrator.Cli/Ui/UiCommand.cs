@@ -38,7 +38,11 @@ internal sealed class UiCommand : AsyncCommand<UiSettings>
         {
             var htmlTemplate = LoadEmbeddedHtml();
             var dataService = new UiDataService(loaded);
-            var overview = dataService.BuildOverview();
+            UiOverviewDto overview = null!;
+            TargetAssemblyLoader.RunWithStatus(
+                TargetAssemblyLoader.CreateStderrConsole(),
+                "Scanning registries & building UI overview...",
+                () => overview = dataService.BuildOverview());
 
             var url = $"http://127.0.0.1:{settings.Port}";
             var builder = WebApplication.CreateSlimBuilder();
@@ -89,6 +93,36 @@ internal sealed class UiCommand : AsyncCommand<UiSettings>
                 return sql is null
                     ? Results.NotFound(new { error = $"Migration script '{id}' not found." })
                     : Results.Content(sql, "text/plain; charset=utf-8");
+            });
+
+            app.MapGet("/api/runlist/{id}/ddls", (string id) =>
+            {
+                var sql = dataService.ReadRunlistScriptSql(id);
+                if (sql is null)
+                    return Results.NotFound(new { error = $"Migration script '{id}' not found." });
+
+                var stmts = UiDdlCatalogChecker.ParseScriptDdls(sql, loaded.Manager.Options.Dialect);
+                return Results.Json(new UiScriptDdlsDto(id, stmts), UiDataService.JsonOptions);
+            });
+
+            app.MapGet("/api/runlist/{id}/check-live", async (string id, CancellationToken ct) =>
+            {
+                var sql = dataService.ReadRunlistScriptSql(id);
+                if (sql is null)
+                    return Results.NotFound(new { error = $"Migration script '{id}' not found." });
+
+                var result = await UiDdlCatalogChecker.CheckScriptAsync(loaded.Manager.Options, loaded.Manager.ConnectionOpener, id, sql, ct);
+                return Results.Json(result, UiDataService.JsonOptions);
+            });
+
+            app.MapPost("/api/ddl/check-live", async (HttpRequest httpRequest, CancellationToken ct) =>
+            {
+                var req = await httpRequest.ReadFromJsonAsync<UiDdlCheckRequestDto>(UiDataService.JsonOptions, ct);
+                if (req is null)
+                    return Results.BadRequest(new { error = "Invalid DDL check request." });
+
+                var result = await UiDdlCatalogChecker.CheckSingleAsync(loaded.Manager.Options, loaded.Manager.ConnectionOpener, req, ct);
+                return Results.Json(result, UiDataService.JsonOptions);
             });
 
             app.MapGet("/api/doctor", async (bool? checkDb, CancellationToken ct) =>

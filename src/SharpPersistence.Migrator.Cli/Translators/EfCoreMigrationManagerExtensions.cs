@@ -40,11 +40,12 @@ internal static class EfCoreMigrationManagerExtensions
         var scriptIds = new List<Guid>(translated.Count);
         foreach (var item in translated)
         {
-            var (stampedSql, scriptId, _) = MigrationScriptHeader.StampHeader(item.SqlScript);
-            var scriptPath = Path.Combine(legacyDir, $"{item.MigrationId}.sql");
+            var scriptId = Guid.CreateVersion7();
+            var normalizedName = MigrationScriptHeader.NormalizeScriptName(item.MigrationId);
+            var scriptPath = Path.Combine(legacyDir, $"{scriptId:N}_{normalizedName}.sql");
             if (!dryRun)
             {
-                await File.WriteAllTextAsync(scriptPath, stampedSql, ct);
+                await File.WriteAllTextAsync(scriptPath, item.SqlScript, ct).ConfigureAwait(false);
             }
 
             scriptIds.Add(scriptId);
@@ -52,7 +53,7 @@ internal static class EfCoreMigrationManagerExtensions
                 "_translated",
                 scriptPath,
                 null,
-                stampedSql,
+                item.SqlScript,
                 string.Empty,
                 false));
         }

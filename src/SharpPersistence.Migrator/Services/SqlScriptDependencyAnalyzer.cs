@@ -286,10 +286,12 @@ internal static partial class SqlScriptDependencyAnalyzer
 
     private static string ExtractTimestampPrefix(string scriptName)
     {
-        var idx = scriptName.IndexOf('_', StringComparison.Ordinal);
-        if (idx >= 8 && scriptName[..idx].All(char.IsDigit))
+        var fileName = Path.GetFileName(scriptName);
+        var withoutId = MigrationScriptHeader.StripIdPrefix(fileName);
+        var idx = withoutId.IndexOf('_', StringComparison.Ordinal);
+        if (idx >= 8 && withoutId[..idx].All(char.IsDigit))
         {
-            return scriptName[..idx];
+            return withoutId[..idx];
         }
 
         return "99999999999999";

@@ -169,11 +169,11 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
         cmd.CommandText =
             $"""
             {schemaCreate}CREATE TABLE IF NOT EXISTS {table} (
-                "registry_name" text NOT NULL,
-                "script_name" text NOT NULL,
-                "checksum_sha256" text NOT NULL,
+                "script_id" uuid NOT NULL,
+                "script_name" varchar(512) NOT NULL,
+                "checksum_sha256" varchar(64) NOT NULL,
                 "applied_at" timestamp with time zone NOT NULL DEFAULT now(),
-                CONSTRAINT "pk_{options.HistoryTableName}" PRIMARY KEY ("registry_name", "script_name")
+                CONSTRAINT "pk_{options.HistoryTableName}" PRIMARY KEY ("script_id")
             );
             """;
         await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
@@ -194,7 +194,7 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
     public async Task RecordAppliedAsync(
         DbConnection conn,
         DbMigratorOptions options,
-        string registryName,
+        Guid scriptId,
         string scriptName,
         string checksum,
         CancellationToken ct,
@@ -204,11 +204,11 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
         await using var cmd = conn.CreateCommand();
         cmd.Transaction = transaction;
         cmd.CommandText =
-            $"INSERT INTO {table} (\"registry_name\", \"script_name\", \"checksum_sha256\") VALUES (@reg, @script, @sum) ON CONFLICT (\"registry_name\", \"script_name\") DO NOTHING;";
+            $"INSERT INTO {table} (\"script_id\", \"script_name\", \"checksum_sha256\") VALUES (@id, @script, @sum) ON CONFLICT (\"script_id\") DO NOTHING;";
 
         var p1 = cmd.CreateParameter();
-        p1.ParameterName = "@reg";
-        p1.Value = registryName;
+        p1.ParameterName = "@id";
+        p1.Value = scriptId;
         cmd.Parameters.Add(p1);
 
         var p2 = cmd.CreateParameter();

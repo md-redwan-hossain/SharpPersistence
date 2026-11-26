@@ -29,12 +29,17 @@ internal sealed class MigrationHistoryStore
         var records = new List<AppliedMigrationRecord>();
         await using var cmd = conn.CreateCommand();
         cmd.CommandText =
-            $"SELECT \"registry_name\", \"script_name\", \"checksum_sha256\", \"applied_at\" FROM {Qualify(_options.HistorySchema, _options.HistoryTableName)} ORDER BY \"applied_at\", \"registry_name\", \"script_name\"";
+            $"SELECT \"script_id\", \"script_name\", \"checksum_sha256\", \"applied_at\" FROM {Qualify(_options.HistorySchema, _options.HistoryTableName)} ORDER BY \"applied_at\", \"script_id\"";
 
         await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
         while (await reader.ReadAsync(ct).ConfigureAwait(false))
         {
-            var reg = reader.GetString(0);
+            var rawId = reader.GetValue(0);
+            var scriptId = rawId switch
+            {
+                Guid g => g,
+                _ => Guid.Parse(rawId.ToString()!)
+            };
             var script = reader.GetString(1);
             var checksum = reader.GetString(2);
             var rawAppliedAt = reader.GetValue(3);
@@ -44,7 +49,7 @@ internal sealed class MigrationHistoryStore
                 DateTime dt => new DateTimeOffset(DateTime.SpecifyKind(dt, DateTimeKind.Utc)),
                 _ => DateTimeOffset.Parse(rawAppliedAt.ToString()!, CultureInfo.InvariantCulture)
             };
-            records.Add(new AppliedMigrationRecord(reg, script, checksum, appliedAt));
+            records.Add(new AppliedMigrationRecord(scriptId, script, checksum, appliedAt));
         }
 
         return records;
@@ -52,12 +57,12 @@ internal sealed class MigrationHistoryStore
 
     public Task RecordAppliedAsync(
         DbConnection conn,
-        string registryName,
+        Guid scriptId,
         string scriptName,
         string checksum,
         CancellationToken ct,
         DbTransaction? transaction = null) =>
-        _dialect.RecordAppliedAsync(conn, _options, registryName, scriptName, checksum, ct, transaction);
+        _dialect.RecordAppliedAsync(conn, _options, scriptId, scriptName, checksum, ct, transaction);
 
     public Task<IReadOnlyList<string>> ReadEfCoreMigrationIdsAsync(DbConnection conn, CancellationToken ct) =>
         _dialect.ReadEfCoreMigrationIdsAsync(conn, ct);

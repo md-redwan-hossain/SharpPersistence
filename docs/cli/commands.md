@@ -131,16 +131,47 @@ db-migrator migrate --dry-run
 db-migrator migrate --sync-ef-history
 ```
 
-### `runlist show` & `runlist sync`
+#### Migration History Table Columns
 
-Every generated `.sql` script is stamped with `-- migration-script-id: <uuidv7>` and tracked in `MigrationScripts/db-migration-runlist.json` so multi-registry migrations replay in deterministic order. To manually reorder a subset of scripts (such as `--allow-empty` data migrations), add an optional `MigrationScripts/db-migration-runlist.overrides.json` containing arrays of 2 or more script IDs (supports `//` comments and trailing commas):
+Applied migrations are recorded in the history table (default `__db_migration_logs`, configurable via `UseHistoryTable(tableName, schema)`), keyed by `script_id` so renaming a registry, folder, or script filename never causes re-execution:
+
+| Column | PostgreSQL | Oracle | Description |
+| :--- | :--- | :--- | :--- |
+| `script_id` *(PK)* | `uuid NOT NULL` | `VARCHAR2(36) NOT NULL` | Unique UUIDv7 script ID from the filename prefix (stored without hyphens in Oracle) |
+| `script_name` | `varchar(512) NOT NULL` | `NVARCHAR2(512) NOT NULL` | Relative path under the migrations directory (e.g., `SalesRegistry/019ac0..._20261126062500_initial.sql`) |
+| `checksum_sha256` | `varchar(64) NOT NULL` | `VARCHAR2(64) NOT NULL` | Lowercase hex SHA-256 hash of the normalized SQL body (tamper detection) |
+| `applied_at` | `timestamp with time zone NOT NULL DEFAULT now()` | `TIMESTAMP(7) WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL` | UTC timestamp recorded by the database |
+
+#### How Checksum Verification (`checksum_sha256`) Works
+
+`SharpPersistence.Migrator` guards against accidentally editing already-applied `.sql` files (which would silently cause fresh environments and existing production databases to diverge):
+
+1. **On first apply (`db-migrator migrate`)**: The migrator strips any leading UTF-8 BOM, normalizes line endings (`\r\n` and `\r` -> `\n` so Windows and Linux Git checkouts produce the same hash), computes the lowercase hex SHA-256 hash of the SQL body, and stores it in `checksum_sha256` alongside `script_id`.
+2. **Before any subsequent `db-migrator migrate`**: Every script on disk whose `script_id` already exists in the history table is re-hashed and compared against the stored `checksum_sha256`. If any applied script was modified on disk, `migrate` **aborts immediately before executing any pending scripts** and lists the tampered file(s).
+3. **Read-only inspection (`status` & `doctor --check-db`)**: Both run the same comparison without modifying the database and report mismatches as `CHECKSUM MISMATCH` / `Error`.
+4. **Resolving a mismatch**: Revert the edits to the already-applied `.sql` file and generate a new migration (`db-migrator generate --name <Name>`) for the new schema change instead.
+
+### Script Naming Convention & `runlist`
+
+Every generated `.sql` script (registry, `_global`, and `_deferred`) follows the uniform naming format:
+
+```text
+{guid_without_hyphens}_{yyyyMMddHHmmss}_{lower_snake_name}.sql
+```
+
+- **Script ID (`{guid_without_hyphens}`)**: 32-character lowercase hex UUIDv7 (`Guid.CreateVersion7().ToString("N")`) at the start of the filename. Because UUIDv7 is time-ordered, files sort chronologically in Git and File Explorer, and `db-migrator` identifies scripts directly from filenames without opening `.sql` files.
+- **Timestamp (`{yyyyMMddHHmmss}`)**: UTC generation timestamp.
+- **Normalized name (`{lower_snake_name}`)**: Migration names are normalized to `lower_snake_case` (spaces, hyphens, and PascalCase become `_`; e.g., `"Add Trading Type"` -> `add_trading_type`, `"AddedPat"` -> `added_pat`).
+- **Translated EF Core migrations (`_translated/`)**: `{guid_without_hyphens}_{normalized_ef_migration_id}.sql`.
+
+Script execution order is tracked in `MigrationScripts/db-migration-runlist.json` as an array of 32-character lowercase hex GUIDs (without hyphens). To manually reorder a subset of scripts (such as `--allow-empty` data migrations), add an optional `MigrationScripts/db-migration-runlist.overrides.json` containing arrays of 2 or more script IDs (supports `//` comments and trailing commas):
 
 ```jsonc
 [
   [
-    "0195c810-...", // AddNote
-    "0195c812-...", // Custom backfill
-    "0195c811-..."  // DropOldCol
+    "019ac0e8b3a27f1d9c4e5b2a1f8d3c01", // add_note
+    "019ac0e8b3a37f1d9c4e5b2a1f8d3c02", // custom_backfill
+    "019ac0e8b3a47f1d9c4e5b2a1f8d3c03"  // drop_old_col
   ]
 ]
 ```
@@ -150,7 +181,7 @@ Every generated `.sql` script is stamped with `-- migration-script-id: <uuidv7>`
 db-migrator runlist show --startup-project WebApi/WebApi.csproj
 db-migrator runlist show --recent 10 --startup-project WebApi/WebApi.csproj
 
-# Stamp missing -- migration-script-id headers and generate/update db-migration-runlist.json
+# Prefix any unprefixed .sql files with a 32-char UUIDv7 and update db-migration-runlist.json
 db-migrator runlist sync --startup-project WebApi/WebApi.csproj
 db-migrator runlist sync --prune --dry-run
 ```
@@ -174,6 +205,20 @@ db-migrator translate-ef-configs Infrastructure/Configurations --output-dir Infr
 ```
 
 Options: `-o|--output-dir <DIR>`, `--no-attribute`, `--dry-run`.
+
+### `annotate-dbcontext-entities`
+
+Annotates entity classes referenced by an EF Core `DbContext` (`DbSet<T>` properties and `modelBuilder.Entity<T>()` calls) with `[Entity]` or a custom `EntityMarkerAttribute` `.cs` file.
+
+```powershell
+# Built-in [Entity]
+db-migrator annotate-dbcontext-entities --dbcontext Infrastructure/AppDbContext.cs --search-directory Domain/Entities --dry-run
+
+# Custom per-module marker attribute (reads class name and namespace from the .cs file)
+db-migrator annotate-dbcontext-entities --dbcontext Modules/Sales/Infra/SalesDbContext.cs --search-directory Modules/Sales/Domain/Entities --attribute Modules/Sales/Domain/Attributes/SalesEntityAttribute.cs
+```
+
+Options: `--dbcontext <PATH>` (required), `--search-directory <DIR>` (required), `--attribute <FILE_OR_NAME>`, `--read-only`, `--dry-run`.
 
 ### `translate-ef-migration` & `sync-ef-history`
 

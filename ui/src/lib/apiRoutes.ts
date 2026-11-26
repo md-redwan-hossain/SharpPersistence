@@ -10,4 +10,7 @@ export const API_ROUTES = {
     registry === "ALL" ? "/api/erd" : `/api/erd?registry=${encodeURIComponent(registry)}`,
   runlist: "/api/runlist",
   runlistSql: (scriptId: string) => `/api/runlist/${encodeURIComponent(scriptId)}/sql`,
+  runlistDdls: (scriptId: string) => `/api/runlist/${encodeURIComponent(scriptId)}/ddls`,
+  runlistCheckLive: (scriptId: string) => `/api/runlist/${encodeURIComponent(scriptId)}/check-live`,
+  ddlCheckLive: "/api/ddl/check-live",
 } as const;

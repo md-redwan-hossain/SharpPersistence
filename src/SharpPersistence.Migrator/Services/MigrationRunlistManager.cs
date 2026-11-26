@@ -51,8 +51,8 @@ internal sealed class MigrationRunlistManager
         if (missingHeaders.Count > 0)
         {
             throw new InvalidOperationException(
-                $"Migration script(s) missing '{MigrationScriptHeader.HeaderPrefix}' header: {string.Join(", ", missingHeaders)}. " +
-                "Run 'db-migrator runlist sync' to stamp IDs and update the runlist.");
+                $"Migration script(s) missing 32-char GUID filename prefix ('<guidN>_<timestamp>_<name>.sql'): {string.Join(", ", missingHeaders)}. " +
+                "Run 'db-migrator runlist sync' to prefix IDs and update the runlist.");
         }
 
         if (duplicateIds.Count > 0)
@@ -138,7 +138,7 @@ internal sealed class MigrationRunlistManager
             Directory.CreateDirectory(dir);
         }
 
-        var json = JsonSerializer.Serialize(updated, WriteJsonOptions);
+        var json = JsonSerializer.Serialize(updated.Select(id => id.ToString("N")).ToList(), WriteJsonOptions);
         await File.WriteAllTextAsync(RunlistPath, json, ct).ConfigureAwait(false);
     }
 
@@ -154,20 +154,36 @@ internal sealed class MigrationRunlistManager
 
         foreach (var (registryName, scriptName, fullPath) in diskFiles)
         {
-            var sql = await File.ReadAllTextAsync(fullPath, ct).ConfigureAwait(false);
-            var (stampedSql, id, alreadyHad) = MigrationScriptHeader.StampHeader(sql);
-            if (!alreadyHad)
+            var effectivePath = fullPath;
+            var effectiveScriptName = scriptName;
+
+            if (!MigrationScriptHeader.TryParseIdFromFileName(fullPath, out var id))
             {
-                stampedCount++;
-                if (!dryRun)
+                if (!MigrationScriptHeader.TryParseIdFromFile(fullPath, out id))
                 {
-                    await File.WriteAllTextAsync(fullPath, stampedSql, ct).ConfigureAwait(false);
+                    id = Guid.CreateVersion7();
                 }
+
+                stampedCount++;
+                var dir = Path.GetDirectoryName(fullPath)!;
+                var stem = Path.GetFileNameWithoutExtension(fullPath);
+                var normalizedStem = MigrationScriptHeader.NormalizeScriptName(stem);
+                var newFileName = $"{id:N}_{normalizedStem}.sql";
+                var newFullPath = Path.Combine(dir, newFileName);
+
+                if (!dryRun && !string.Equals(fullPath, newFullPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    File.Move(fullPath, newFullPath);
+                }
+
+                effectivePath = dryRun ? fullPath : newFullPath;
+                var relDir = Path.GetDirectoryName(scriptName)?.Replace('\\', '/');
+                effectiveScriptName = string.IsNullOrEmpty(relDir) ? newFileName : $"{relDir}/{newFileName}";
             }
 
-            if (!scriptsById.TryAdd(id, new RunlistScriptEntry(id, registryName, scriptName, fullPath)))
+            if (!scriptsById.TryAdd(id, new RunlistScriptEntry(id, registryName, effectiveScriptName, effectivePath)))
             {
-                duplicateIds.Add($"{id} ({registryName}/{scriptName})");
+                duplicateIds.Add($"{id:N} ({registryName}/{effectiveScriptName})");
             }
         }
 
@@ -219,7 +235,7 @@ internal sealed class MigrationRunlistManager
                 Directory.CreateDirectory(dir);
             }
 
-            var json = JsonSerializer.Serialize(finalIds, WriteJsonOptions);
+            var json = JsonSerializer.Serialize(finalIds.Select(id => id.ToString("N")).ToList(), WriteJsonOptions);
             await File.WriteAllTextAsync(RunlistPath, json, ct).ConfigureAwait(false);
         }
 
@@ -292,8 +308,8 @@ internal sealed class MigrationRunlistManager
         {
             checks.Add(new DoctorCheckItem(
                 DoctorSeverity.Error,
-                $"{missingHeaders.Count} migration script(s) missing '{MigrationScriptHeader.HeaderPrefix}' header: {string.Join(", ", missingHeaders)}",
-                Hint: "Run 'db-migrator runlist sync' to stamp headers."));
+                $"{missingHeaders.Count} migration script(s) missing 32-char GUID filename prefix: {string.Join(", ", missingHeaders)}",
+                Hint: "Run 'db-migrator runlist sync' to prefix script filenames with their IDs."));
         }
 
         if (duplicateIds.Count > 0)
@@ -376,14 +392,14 @@ internal sealed class MigrationRunlistManager
                 if (applied is { Count: > 0 })
                 {
                     var appliedSet = applied
-                        .Select(a => (a.RegistryName, a.ScriptName))
+                        .Select(a => a.ScriptId)
                         .ToHashSet();
 
                     var seenUnapplied = false;
                     string? firstUnapplied = null;
                     foreach (var s in effectiveOrder)
                     {
-                        var isApplied = appliedSet.Contains((s.RegistryName, s.ScriptName));
+                        var isApplied = appliedSet.Contains(s.Id);
                         if (!isApplied)
                         {
                             seenUnapplied = true;
@@ -432,7 +448,7 @@ internal sealed class MigrationRunlistManager
 
         foreach (var (registryName, scriptName, fullPath) in files)
         {
-            if (!MigrationScriptHeader.TryParseIdFromFile(fullPath, out var id))
+            if (!MigrationScriptHeader.TryParseIdFromFileName(fullPath, out var id))
             {
                 missingHeaders.Add($"{registryName}/{scriptName}");
                 continue;
@@ -440,7 +456,7 @@ internal sealed class MigrationRunlistManager
 
             if (!scriptsById.TryAdd(id, new RunlistScriptEntry(id, registryName, scriptName, fullPath)))
             {
-                duplicateIds.Add($"{id} ({registryName}/{scriptName})");
+                duplicateIds.Add($"{id:N} ({registryName}/{scriptName})");
             }
         }
 

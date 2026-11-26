@@ -1,5 +1,6 @@
 using SharpPersistence.Migrator.Cli;
 using SharpPersistence.Migrator.Cli.Config;
+using SharpPersistence.Migrator.Cli.Translators;
 using SharpPersistence.Migrator.Cli.Ui;
 using Spectre.Console.Cli;
 
@@ -29,6 +30,10 @@ app.Configure(config =>
     config.AddCommand<TranslateEfConfigsCommand>("translate-ef-configs")
         .WithDescription("Translate EF Core IEntityTypeConfiguration<T> C# files into SharpPersistence.Migrator IEntityConfiguration<T> files.")
         .WithExample("translate-ef-configs", "Infrastructure/Configurations", "--output-dir", "Infrastructure/MigratorConfigs", "--dry-run");
+
+    config.AddCommand<AnnotateDbContextEntitiesCommand>("annotate-dbcontext-entities")
+        .WithDescription("Annotate entity classes referenced by an EF Core DbContext with a SharpPersistence entity marker attribute.")
+        .WithExample("annotate-dbcontext-entities", "--dbcontext", "Infrastructure/AppDbContext.cs", "--search-directory", "Domain/Entities", "--dry-run");
 
     config.AddCommand<SyncEfCoreHistoryCommand>("sync-ef-history")
         .WithDescription("Mark _translated scripts already present in __EFMigrationsHistory as applied.");

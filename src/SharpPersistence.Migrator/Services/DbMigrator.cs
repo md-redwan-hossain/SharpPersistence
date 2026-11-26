@@ -28,6 +28,7 @@ internal sealed class DbMigrator : IDbMigrator
     }
 
     internal DbMigratorOptions Options => _options;
+    internal MigrationConnectionOpener ConnectionOpener => _connectionOpener;
 
     public async Task<IReadOnlyList<GeneratedMigrationItem>> GenerateAsync(
         string migrationName,
@@ -101,9 +102,10 @@ internal sealed class DbMigrator : IDbMigrator
                     continue;
                 }
 
+                var emptyId = Guid.CreateVersion7();
                 var emptyDir = Path.Combine(sqlRootDir, registryName);
-                var emptySqlPath = Path.Combine(emptyDir, $"{timestamp}_{migrationName}.sql");
-                var (emptySql, emptyId, _) = MigrationScriptHeader.StampHeader(_dialect.FormatEmptyMigration(migrationName));
+                var emptySqlPath = Path.Combine(emptyDir, MigrationScriptHeader.FormatScriptFileName(emptyId, timestamp, migrationName));
+                var emptySql = _dialect.FormatEmptyMigration(migrationName);
 
                 if (!dryRun)
                 {
@@ -123,9 +125,9 @@ internal sealed class DbMigrator : IDbMigrator
 
             if (!string.IsNullOrWhiteSpace(mainSql))
             {
-                (mainSql, var mainId, _) = MigrationScriptHeader.StampHeader(mainSql);
+                var mainId = Guid.CreateVersion7();
                 var registrySqlDir = Path.Combine(sqlRootDir, registryName);
-                mainPath = Path.Combine(registrySqlDir, $"{timestamp}_{migrationName}.sql");
+                mainPath = Path.Combine(registrySqlDir, MigrationScriptHeader.FormatScriptFileName(mainId, timestamp, migrationName));
                 if (!dryRun)
                 {
                     Directory.CreateDirectory(registrySqlDir);
@@ -137,8 +139,8 @@ internal sealed class DbMigrator : IDbMigrator
 
             if (!string.IsNullOrWhiteSpace(deferredSql))
             {
-                (deferredSql, var deferredId, _) = MigrationScriptHeader.StampHeader(deferredSql);
-                deferredPath = Path.Combine(deferredDir, $"{timestamp}_{registryName}_{migrationName}.sql");
+                var deferredId = Guid.CreateVersion7();
+                deferredPath = Path.Combine(deferredDir, MigrationScriptHeader.FormatScriptFileName(deferredId, timestamp, migrationName));
                 if (!dryRun)
                 {
                     Directory.CreateDirectory(deferredDir);
@@ -235,13 +237,13 @@ internal sealed class DbMigrator : IDbMigrator
             await _historyStore.EnsureHistoryTableAsync(conn, ct).ConfigureAwait(false);
 
             var applied = await _historyStore.ReadAppliedAsync(conn, ct).ConfigureAwait(false);
-            var appliedMap = applied.ToDictionary(a => (a.RegistryName, a.ScriptName));
+            var appliedMap = applied.ToDictionary(a => a.ScriptId);
 
             var scripts = _scriptStore.DiscoverScripts();
             var checksumMismatches = new List<string>();
-            foreach (var (registryName, scriptName, fullPath) in scripts)
+            foreach (var (scriptId, registryName, scriptName, fullPath) in scripts)
             {
-                if (appliedMap.TryGetValue((registryName, scriptName), out var record))
+                if (appliedMap.TryGetValue(scriptId, out var record))
                 {
                     var existingSql = await File.ReadAllTextAsync(fullPath, ct).ConfigureAwait(false);
                     var currentChecksum = MigrationScriptStore.ComputeSha256(existingSql);
@@ -261,15 +263,16 @@ internal sealed class DbMigrator : IDbMigrator
 
             var executed = new List<string>();
 
-            foreach (var (registryName, scriptName, fullPath) in scripts)
+            foreach (var (scriptId, registryName, scriptName, fullPath) in scripts)
             {
-                if (appliedMap.ContainsKey((registryName, scriptName)))
+                if (appliedMap.ContainsKey(scriptId))
                 {
                     continue;
                 }
 
                 var sql = await File.ReadAllTextAsync(fullPath, ct).ConfigureAwait(false);
                 var checksum = MigrationScriptStore.ComputeSha256(sql);
+                var relativeScriptName = $"{registryName}/{scriptName}";
 
                 if (_dialect.TryStripOuterTransaction(sql, out var innerSql))
                 {
@@ -289,7 +292,7 @@ internal sealed class DbMigrator : IDbMigrator
                             await execCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
                         }
 
-                        await _historyStore.RecordAppliedAsync(conn, registryName, scriptName, checksum, ct, tx).ConfigureAwait(false);
+                        await _historyStore.RecordAppliedAsync(conn, scriptId, relativeScriptName, checksum, ct, tx).ConfigureAwait(false);
                         await tx.CommitAsync(ct).ConfigureAwait(false);
                     }
                     catch
@@ -312,10 +315,10 @@ internal sealed class DbMigrator : IDbMigrator
                         await execCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
                     }
 
-                    await _historyStore.RecordAppliedAsync(conn, registryName, scriptName, checksum, ct).ConfigureAwait(false);
+                    await _historyStore.RecordAppliedAsync(conn, scriptId, relativeScriptName, checksum, ct).ConfigureAwait(false);
                 }
 
-                executed.Add($"{registryName}/{scriptName}");
+                executed.Add(relativeScriptName);
             }
 
             return executed;
@@ -344,12 +347,20 @@ internal sealed class DbMigrator : IDbMigrator
             return [];
         }
 
-        var legacyScripts = Directory.GetFiles(translatedDir, "*.sql")
-            .OrderBy(Path.GetFileName, StringComparer.Ordinal)
-            .ToDictionary(
-                path => Path.GetFileNameWithoutExtension(path),
-                path => (ScriptName: Path.GetFileName(path), FullPath: path),
-                StringComparer.Ordinal);
+        var legacyScripts = new Dictionary<string, (Guid ScriptId, string ScriptName, string FullPath)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var path in Directory.GetFiles(translatedDir, "*.sql").OrderBy(Path.GetFileName, StringComparer.Ordinal))
+        {
+            var fileName = Path.GetFileName(path);
+            var stem = Path.GetFileNameWithoutExtension(path);
+            var hasId = MigrationScriptHeader.TryParseIdFromFileName(path, out var scriptId);
+            if (!hasId)
+            {
+                continue;
+            }
+
+            var key = MigrationScriptHeader.StripIdPrefix(stem);
+            legacyScripts[key] = (scriptId, fileName, path);
+        }
 
         if (legacyScripts.Count == 0)
         {
@@ -367,26 +378,29 @@ internal sealed class DbMigrator : IDbMigrator
             }
 
             var existingApplied = (await _historyStore.ReadAppliedAsync(conn, ct).ConfigureAwait(false))
-                .Select(a => (a.RegistryName, a.ScriptName))
+                .Select(a => a.ScriptId)
                 .ToHashSet();
 
             var synced = new List<string>();
             foreach (var migrationId in efAppliedIds)
             {
-                if (!legacyScripts.TryGetValue(migrationId, out var match) ||
-                    existingApplied.Contains(("_translated", match.ScriptName)))
+                var normalizedId = MigrationScriptHeader.NormalizeScriptName(migrationId);
+                if ((!legacyScripts.TryGetValue(migrationId, out var match) &&
+                     !legacyScripts.TryGetValue(normalizedId, out match)) ||
+                    existingApplied.Contains(match.ScriptId))
                 {
                     continue;
                 }
 
+                var relativeScriptName = $"_translated/{match.ScriptName}";
                 if (!dryRun)
                 {
                     var sql = await File.ReadAllTextAsync(match.FullPath, ct).ConfigureAwait(false);
                     var checksum = MigrationScriptStore.ComputeSha256(sql);
-                    await _historyStore.RecordAppliedAsync(conn, "_translated", match.ScriptName, checksum, ct).ConfigureAwait(false);
+                    await _historyStore.RecordAppliedAsync(conn, match.ScriptId, relativeScriptName, checksum, ct).ConfigureAwait(false);
                 }
 
-                synced.Add($"_translated/{match.ScriptName}");
+                synced.Add(relativeScriptName);
             }
 
             return synced;
@@ -465,9 +479,9 @@ internal sealed class DbMigrator : IDbMigrator
         var globalId = Guid.Empty;
         if (!string.IsNullOrWhiteSpace(globalSql))
         {
-            (globalSql, globalId, _) = MigrationScriptHeader.StampHeader(globalSql);
+            globalId = Guid.CreateVersion7();
             var globalDir = Path.Combine(sqlRootDir, "_global");
-            globalSqlPath = Path.Combine(globalDir, $"{timestamp}_{migrationName}.sql");
+            globalSqlPath = Path.Combine(globalDir, MigrationScriptHeader.FormatScriptFileName(globalId, timestamp, migrationName));
             if (!dryRun)
             {
                 Directory.CreateDirectory(globalDir);

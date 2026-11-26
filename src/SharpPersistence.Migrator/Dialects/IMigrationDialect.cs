@@ -38,7 +38,7 @@ internal interface IMigrationDialect : ISqlDialectMetadata
     Task RecordAppliedAsync(
         DbConnection conn,
         DbMigratorOptions options,
-        string registryName,
+        Guid scriptId,
         string scriptName,
         string checksum,
         CancellationToken ct,

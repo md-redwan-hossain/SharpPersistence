@@ -261,7 +261,7 @@ public sealed class PostgresIntegrationTests(PostgresContainerFixture fixture)
             v2Generated.ShouldContain(g => g.RegistryName == nameof(PgBookingRegistryV2));
 
             var v2Applied = await managerV2.MigrateAsync(ct: ct);
-            v2Applied.ShouldContain(s => s.Contains("AddCustomerEmail", StringComparison.Ordinal));
+            v2Applied.ShouldContain(s => s.Contains("add_customer_email", StringComparison.Ordinal));
 
             var v2Report = await managerV2.DiagnoseAsync(checkDatabase: true, ct: ct);
             v2Report.HasErrors.ShouldBeFalse();

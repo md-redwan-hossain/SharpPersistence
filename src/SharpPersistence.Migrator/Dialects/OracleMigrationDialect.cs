@@ -210,11 +210,11 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
         var table = Qualify(options.HistorySchema, options.HistoryTableName);
         var createSql =
             $"CREATE TABLE {table} (" +
-            "\"registry_name\" NVARCHAR2(256) NOT NULL, " +
-            "\"script_name\" NVARCHAR2(256) NOT NULL, " +
+            "\"script_id\" VARCHAR2(36) NOT NULL, " +
+            "\"script_name\" NVARCHAR2(512) NOT NULL, " +
             "\"checksum_sha256\" VARCHAR2(64) NOT NULL, " +
             "\"applied_at\" TIMESTAMP(7) WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL, " +
-            $"CONSTRAINT \"pk_{options.HistoryTableName}\" PRIMARY KEY (\"registry_name\", \"script_name\"))";
+            $"CONSTRAINT \"pk_{options.HistoryTableName}\" PRIMARY KEY (\"script_id\"))";
 
         await using var oracleCmd = conn.CreateCommand();
         oracleCmd.CommandText =
@@ -239,7 +239,7 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
     public async Task RecordAppliedAsync(
         DbConnection conn,
         DbMigratorOptions options,
-        string registryName,
+        Guid scriptId,
         string scriptName,
         string checksum,
         CancellationToken ct,
@@ -251,14 +251,14 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
         OracleCommandHelper.EnableBindByName(cmd);
         cmd.CommandText =
             $"MERGE INTO {table} t " +
-            "USING (SELECT :reg AS \"registry_name\", :script AS \"script_name\", :sum AS \"checksum_sha256\" FROM DUAL) s " +
-            "ON (t.\"registry_name\" = s.\"registry_name\" AND t.\"script_name\" = s.\"script_name\") " +
-            "WHEN NOT MATCHED THEN INSERT (\"registry_name\", \"script_name\", \"checksum_sha256\") " +
-            "VALUES (s.\"registry_name\", s.\"script_name\", s.\"checksum_sha256\")";
+            "USING (SELECT :id AS \"script_id\", :script AS \"script_name\", :sum AS \"checksum_sha256\" FROM DUAL) s " +
+            "ON (t.\"script_id\" = s.\"script_id\") " +
+            "WHEN NOT MATCHED THEN INSERT (\"script_id\", \"script_name\", \"checksum_sha256\") " +
+            "VALUES (s.\"script_id\", s.\"script_name\", s.\"checksum_sha256\")";
 
         var p1 = cmd.CreateParameter();
-        p1.ParameterName = "reg";
-        p1.Value = registryName;
+        p1.ParameterName = "id";
+        p1.Value = scriptId.ToString("N");
         cmd.Parameters.Add(p1);
 
         var p2 = cmd.CreateParameter();

@@ -158,14 +158,28 @@ public sealed partial class SalesDbContext(
 
 - `HasConversion<TProvider>()` and `HasConversion(Type)` are built into `ColumnBuilder` (`SharpPersistence.Migrator`); use `SharpPersistence.Migrator.EfCore`'s `.HasConversion(ValueConverter)` when you need a custom EF Core `ValueConverter` at runtime.
 
+## Script Naming Convention, Runlist & History Table
+
+- **Script filenames**: Every generated `.sql` file (registry, `_global`, and `_deferred`) uses `{guid_without_hyphens}_{yyyyMMddHHmmss}_{lower_snake_name}.sql` (e.g., `019ac0e8b3a27f1d9c4e5b2a1f8d3c01_20261126062500_add_trading_type.sql`).
+  - Prefix is a 32-char lowercase hex UUIDv7 (`Guid.CreateVersion7().ToString("N")`) with no hyphens, so files sort chronologically and script IDs are read directly from filenames without opening `.sql` files.
+  - Migration names are normalized to `lower_snake_case` (spaces, hyphens, and PascalCase become `_`).
+  - Translated EF Core scripts in `_translated/` use `{guid_without_hyphens}_{normalized_ef_migration_id}.sql`.
+- **Runlist (`db-migration-runlist.json` & `db-migration-runlist.overrides.json`)**: Stores script IDs as 32-char lowercase hex GUID strings without hyphens.
+- **History table columns** (default `__db_migration_logs`, configurable via `UseHistoryTable(tableName, schema)`):
+  - `script_id` *(PK)*: `uuid NOT NULL` (PostgreSQL) / `VARCHAR2(36) NOT NULL` (Oracle, 32-char hex without hyphens) - identifies scripts independently of registry/folder/filename renames.
+  - `script_name`: `varchar(512) NOT NULL` (PostgreSQL) / `NVARCHAR2(512) NOT NULL` (Oracle) - informational relative path under the migrations directory.
+  - `checksum_sha256`: `varchar(64) NOT NULL` (PostgreSQL & Oracle) - lowercase hex SHA-256 of the normalized SQL body for tamper detection.
+  - `applied_at`: `timestamp with time zone NOT NULL DEFAULT now()` (PostgreSQL) / `TIMESTAMP(7) WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL` (Oracle).
+
 ## `db-migrator` CLI Commands
 
-- `db-migrator config --generate` - scans the solution and writes `db-migrator.config.json` (qualifying startup projects, registry projects, and defaults for the searchable interactive project picker; pass `--ci` to disable prompts).
+- `db-migrator config --generate` - scans the solution and writes `db-migrator-config.json` (qualifying startup projects, registry projects, and defaults for the searchable interactive project picker; pass `--ci` to disable prompts).
 - `db-migrator ui [--port <PORT>] [--no-open]` - launches the local browser UI (Entities explorer, Table ERD, Registry Dependencies & Stubs graph, Migrations Runlist + Dry Run diff, Doctor, and `Ctrl/Cmd+K` search).
 - `db-migrator doctor [--registry <Name>] [--check-db] [--runlist]` - validates DI wiring, entity configs, FK types, cross-registry collisions, runlist/override integrity, SQL DDL dependencies, and migration script coverage (read-only).
-- `db-migrator generate --name <Name> [--registry <Name>] [--dry-run] [--ci] [--allow-empty]` - generates idempotent SQL scripts stamped with `-- migration-script-id: <uuidv7>` and appends them to `db-migration-runlist.json`.
-- `db-migrator runlist show [--recent <N>]` & `db-migrator runlist sync [--prune] [--dry-run]` - inspects the effective execution order (including `db-migration-runlist.overrides.json`) or stamps headers / repairs `db-migration-runlist.json`.
+- `db-migrator generate --name <Name> [--registry <Name>] [--dry-run] [--ci] [--allow-empty]` - generates idempotent SQL scripts named `{guidN}_{timestamp}_{lower_snake_name}.sql` and appends their 32-char GUIDs to `db-migration-runlist.json`.
+- `db-migrator runlist show [--recent <N>]` & `db-migrator runlist sync [--prune] [--dry-run]` - inspects the effective execution order (including `db-migration-runlist.overrides.json`) or prefixes unprefixed `.sql` files with a 32-char UUIDv7 and repairs `db-migration-runlist.json`.
 - `db-migrator migrate [--dry-run] [--sync-ef-history]` - applies pending scripts under distributed lock.
 - `db-migrator status` / `db-migrator pending` - inspects migration history and pending scripts.
+- `db-migrator annotate-dbcontext-entities --dbcontext <PATH> --search-directory <DIR> [--attribute <FILE_OR_NAME>] [--read-only] [--dry-run]` - annotates EF Core `DbContext` entity classes with `[Entity]` or a custom `EntityMarkerAttribute` `.cs` file.
 - `db-migrator translate-ef-configs <CONFIGS_DIR> [-o <DIR>] [--dry-run] [--no-attribute]` - converts `IEntityTypeConfiguration<T>` to `IEntityConfiguration<T>`.
 - `db-migrator translate-ef-migration <MIGRATIONS_DIR>` & `db-migrator sync-ef-history` - translates EF Core migrations 1-to-1 and syncs `__EFMigrationsHistory`.
