@@ -159,7 +159,7 @@ public sealed class UiSnapshotBuilderTests
             var loaded = new LoadedMigrationContext(sp, manager, tempRoot, "TestHost", "TestHost.csproj", "Test", []);
             var dataService = new UiDataService(loaded);
 
-            // 1. Dependencies graph & stub map
+            // 1. Dependencies graph & entity type replacements
             var deps = dataService.BuildDependencies();
             Assert.Equal(3, deps.Nodes.Count);
             var idOrder = deps.Nodes.Single(n => n.RegistryName == nameof(UiIdentityRegistry)).Order;
@@ -172,11 +172,11 @@ public sealed class UiSnapshotBuilderTests
             var fk = Assert.Single(edge.ForeignKeys);
             Assert.Equal("fk_audit_invoices_user", fk.ConstraintName);
 
-            var stub = Assert.Single(deps.Stubs);
-            Assert.Equal(nameof(UiRefUser), stub.ShortStubEntity);
-            Assert.Equal(nameof(UiUser), stub.ShortTargetEntity);
-            Assert.Equal(nameof(UiIdentityRegistry), stub.TargetRegistry);
-            Assert.Equal("identity.users", stub.TargetTable);
+            var replacement = Assert.Single(deps.EntityTypeReplacements);
+            Assert.Equal(nameof(UiRefUser), replacement.ShortSourceEntity);
+            Assert.Equal(nameof(UiUser), replacement.ShortTargetEntity);
+            Assert.Equal(nameof(UiIdentityRegistry), replacement.TargetRegistry);
+            Assert.Equal("identity.users", replacement.TargetTable);
 
             // 2. Dry Run (no snapshots on disk yet -> all registries have pending additions)
             var dryRun = dataService.BuildDryRun();

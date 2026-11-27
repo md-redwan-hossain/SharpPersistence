@@ -115,15 +115,15 @@ internal static class UiDependencyGraphBuilder
                 ForeignKeys: kv.Value))
             .ToList();
 
-        var stubs = options.EntityReplacements
+        var replacements = options.EntityReplacements
             .OrderBy(static kv => kv.Key.Name, StringComparer.Ordinal)
             .Select(kv =>
             {
                 var targetFull = kv.Value.FullName ?? kv.Value.Name;
                 ownerByEntity.TryGetValue(targetFull, out var owner);
-                return new UiEntityStubDto(
-                    StubEntity: kv.Key.FullName ?? kv.Key.Name,
-                    ShortStubEntity: kv.Key.Name,
+                return new UiEntityTypeReplacementDto(
+                    SourceEntity: kv.Key.FullName ?? kv.Key.Name,
+                    ShortSourceEntity: kv.Key.Name,
                     TargetEntity: targetFull,
                     ShortTargetEntity: kv.Value.Name,
                     TargetRegistry: owner.Registry,
@@ -131,6 +131,6 @@ internal static class UiDependencyGraphBuilder
             })
             .ToList();
 
-        return new UiDependenciesDto(nodes, edges, stubs);
+        return new UiDependenciesDto(nodes, edges, replacements);
     }
 }

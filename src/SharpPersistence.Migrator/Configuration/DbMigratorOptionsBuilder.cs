@@ -150,10 +150,10 @@ public class DbMigratorOptionsBuilder
         return this;
     }
 
-    public DbMigratorOptionsBuilder UseTableNameConvention(Func<Type, string, string> convention)
+    public DbMigratorOptionsBuilder MapTableNames(Func<Type, string, string> mapper)
     {
-        ArgumentNullException.ThrowIfNull(convention);
-        State.Options.TableNameConvention = convention;
+        ArgumentNullException.ThrowIfNull(mapper);
+        State.Options.TableNameConvention = mapper;
         return this;
     }
 

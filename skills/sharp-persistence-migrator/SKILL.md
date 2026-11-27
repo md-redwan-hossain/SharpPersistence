@@ -26,7 +26,7 @@ using SharpPersistence.Migrator.Generated;
 
 builder.Services.AddDbMigrator(opt =>
 {
-    // PostgreSQL (defaults: LowerSnakeCase, history table __db_migration_logs in public)
+    // PostgreSQL (defaults: LowerSnakeCase, history table __db_migrator_logs in public)
     opt.UsePostgreSql(connectionString)
         .HasPostgresExtension("btree_gist")
         .HasPostgresEnum<BookingStatus>("booking_status");
@@ -34,10 +34,10 @@ builder.Services.AddDbMigrator(opt =>
     // Or Oracle (defaults: UpperSnakeCase, Oracle19)
     // opt.UseOracle(connectionString).UseSqlCompatibility(OracleDbCompatibility.Oracle23);
 
-    opt.UseHistoryTable("__db_migration_logs", "public")
+    opt.UseHistoryTable("__db_migrator_logs", "public")
         .UseNamingConvention(SqlIdentifierCase.LowerSnakeCase)
         .PluralizeTableNames()
-        .UseTableNameConvention((entityType, defaultName) =>
+        .MapTableNames((entityType, defaultName) =>
             typeof(ILookupEntity).IsAssignableFrom(entityType) ? $"lk_{defaultName}" : defaultName)
         .ConfigureProperties<string>(c => c.HasMaxLength(200))
         .ConfigureEntities<ICreateTracking>(e =>
@@ -53,7 +53,7 @@ builder.Services.AddDbMigrator(opt =>
 ```
 
 - Implement `IDesignTimeDbMigratorFactory` in class-library projects without `Program.cs`.
-- Inject `IDbMigrator` at runtime (`CanConnectToDatabaseAsync(CancellationToken cancellationToken = default)`, `HasPendingMigrationAsync(CancellationToken cancellationToken = default)`, `MigrateAsync(bool dryRun = false, CancellationToken cancellationToken = default)`, `GetStatusAsync(CancellationToken cancellationToken = default)`, `GetPendingMigrationsAsync(CancellationToken cancellationToken = default)`, `GetAppliedMigrationsAsync(CancellationToken cancellationToken = default)`, `EnsureHistoryTableAsync(CancellationToken cancellationToken = default)`), and check `DbMigratorState.IsDesignTime` (equivalent to `EF.IsDesignTime`) to skip runtime migrations during `db-migrator` CLI bootstrapping.
+- Inject `IDbMigrator` at runtime (`CanConnectToDatabaseAsync(CancellationToken cancellationToken = default)`, `HasPendingMigrationAsync(CancellationToken cancellationToken = default)`, `MigrateAsync(bool dryRun = false, bool skipPermissionCheck = false, CancellationToken cancellationToken = default)`, `GetStatusAsync(CancellationToken cancellationToken = default)`, `GetPendingMigrationsAsync(CancellationToken cancellationToken = default)`, `GetAppliedMigrationsAsync(CancellationToken cancellationToken = default)`, `EnsureHistoryTableAsync(CancellationToken cancellationToken = default)`), and check `DbMigratorState.IsDesignTime` (equivalent to `EF.IsDesignTime`) to skip runtime migrations during `db-migrator` CLI bootstrapping.
 
 ## Entity Registries & Fluent Builders
 
@@ -120,7 +120,7 @@ public sealed partial class SalesRegistry : IEntityRegistry
 ## Global Conventions & Entity Replacements
 
 - Use `ConfigureEntities<T>` (works with interfaces and base classes) instead of reflection loops for shared FKs, keys, identity columns, and lookup indexes. It runs before `IEntityConfiguration<T>`, so per-entity configs can override a conventional FK or unnamed index without duplicates.
-- Use `UseTableNameConvention((entityType, defaultName) => ...)` for custom table prefixes (e.g., `lk_` for lookup entities).
+- Use `MapTableNames((entityType, defaultName) => ...)` for custom table prefixes (e.g., `lk_` for lookup entities).
 - Point external FKs to local `Ref*` types (`[Entity(ReadOnly = true)]` + `References<RefUser>(u => u.Id)`) and wire `ReplaceEntityTypes(r => r.Replace<RefUser, User>())` once in the startup project so registries sort accurately and FKs target the owning table without leaking domain entities across assemblies.
 
 ## Compile-Time Discovery Attributes & Diagnostics
@@ -161,7 +161,7 @@ public sealed partial class SalesDbContext : DbContext
   - Migration names are normalized to `lower_snake_case` (spaces, hyphens, and PascalCase become `_`).
   - Translated EF Core scripts in `_translated/` use `{guid_without_hyphens}_{normalized_ef_migration_id}.sql`.
 - **Runlist (`db-migration-runlist.json` & `db-migration-runlist.overrides.json`)**: Stores script IDs as 32-char lowercase hex GUID strings without hyphens.
-- **History table columns** (default `__db_migration_logs`, configurable via `UseHistoryTable(tableName, schema)`):
+- **History table columns** (default `__db_migrator_logs`, configurable via `UseHistoryTable(tableName, schema)`):
   - `script_id` *(PK)*: `uuid NOT NULL` (PostgreSQL) / `VARCHAR2(36) NOT NULL` (Oracle, 32-char hex without hyphens) - identifies scripts independently of registry/folder/filename renames.
   - `script_name`: `varchar(512) NOT NULL` (PostgreSQL) / `NVARCHAR2(512) NOT NULL` (Oracle) - informational relative path under the migrations directory.
   - `checksum_sha256`: `varchar(64) NOT NULL` (PostgreSQL & Oracle) - lowercase hex SHA-256 of the normalized SQL body for tamper detection.
@@ -170,11 +170,11 @@ public sealed partial class SalesDbContext : DbContext
 ## `db-migrator` CLI Commands
 
 - `db-migrator config --generate | --set-default-startup <PATH> | --show` - scans the solution and writes, updates, or inspects `db-migrator-config.json` (qualifying startup projects, registry projects, and defaults for the searchable interactive project picker; pass `--ci` to disable prompts).
-- `db-migrator ui [--port <PORT>] [--no-open]` - launches the local browser UI (Entities explorer, Table ERD, Registry Dependencies & Stubs graph, Migrations Runlist + Dry Run diff, Doctor, and `Ctrl/Cmd+K` search).
-- `db-migrator doctor [--registry <Name>] [--check-db] [--runlist]` - validates DI wiring, entity configs, FK types, cross-registry collisions, runlist/override integrity, SQL DDL dependencies, and migration script coverage (read-only).
+- `db-migrator ui [--port <PORT>] [--no-open]` - launches the local browser UI (Entities explorer, Table ERD, Registry Dependencies & Entity Type Replacements graph, Migrations Runlist + Dry Run diff, Doctor, and `Ctrl/Cmd+K` search).
+- `db-migrator doctor [--registry <Name>] [--check-db] [--runlist]` - validates DI wiring, entity configs, FK types, cross-registry collisions, runlist/override integrity, SQL DDL dependencies, and migration script coverage (read-only); with `--check-db`, also verifies live DB connectivity, `__db_migrator_logs`, database user permissions across all persisted scripts (applied + pending), and live schema drift.
 - `db-migrator generate --name <Name> [--registry <Name>] [--dry-run] [--ci] [--allow-empty]` - generates idempotent SQL scripts named `{guidN}_{timestamp}_{lower_snake_name}.sql` and appends their 32-char GUIDs to `db-migration-runlist.json`.
 - `db-migrator runlist show [--recent <N>]` & `db-migrator runlist sync [--prune] [--dry-run]` - inspects the effective execution order (including `db-migration-runlist.overrides.json`) or prefixes unprefixed `.sql` files with a 32-char UUIDv7 and repairs `db-migration-runlist.json`.
-- `db-migrator migrate [--dry-run] [--sync-ef-history]` - applies pending scripts under distributed lock.
+- `db-migrator migrate [--dry-run] [--sync-ef-history] [--skip-permission-check]` - runs a read-only database permission preflight against pending scripts by default (failing fast with copy-pasteable `GRANT`/`ALTER USER` hints before any DDL runs), then applies pending scripts under distributed lock.
 - `db-migrator status` / `db-migrator pending` - inspects migration history and pending scripts.
 - `db-migrator annotate-dbcontext-entities --dbcontext <PATH> --search-directory <DIR> [--entity-group-name <NAME>] [--entity-group-namespace <NAMESPACE>] [--read-only] [--dry-run]` - annotates EF Core `DbContext` entity classes with `[Entity]` or `[Entity<TGroup>]`.
 - `db-migrator translate-ef-configs --source-path <DIR> [--output-path <DIR>] [--dry-run] [--no-attribute]` - converts `IEntityTypeConfiguration<T>` to `IEntityConfiguration<T>` without overwriting originals (defaults to `<source-path>/TranslatedEfConfigs`).

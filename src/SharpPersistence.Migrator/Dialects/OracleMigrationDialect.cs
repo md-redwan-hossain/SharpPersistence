@@ -391,6 +391,12 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
         return BitConverter.ToInt32(hash, 0) & 0x3FFFFFFF;
     }
 
+    public Task<IReadOnlyList<DoctorCheckItem>> CheckPermissionsAsync(
+        DbConnection conn,
+        DatabasePermissionRequirements requirements,
+        CancellationToken ct) =>
+        OraclePermissionChecker.CheckAsync(conn, requirements, ct);
+
     private static async Task ReleaseLockAsync(DbConnection conn, int lockId)
     {
         try

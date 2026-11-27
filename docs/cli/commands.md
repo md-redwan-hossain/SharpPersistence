@@ -63,13 +63,13 @@ db-migrator ui --port 5099 --no-open --startup-project WebApi/WebApi.csproj
 Includes 5 views plus `Ctrl/Cmd + K` global search across entities, columns, indexes, foreign keys, and constraints:
 - **Entities**: Tables, columns, index counts, foreign keys (`1:1` / `N:1`, required/optional), indexes (ordering, operators, included columns, filters, storage), and check/exclusion constraints.
 - **ERD**: Interactive table-level relationship graph with pan/zoom and per-registry filtering.
-- **Dependencies**: Topological registry dependency graph, cross-registry FK inspector, and `ConfigureEntityStubs` mappings.
+- **Dependencies**: Topological registry dependency graph, cross-registry FK inspector, and `ReplaceEntityTypes` mappings.
 - **Migrations**: **Runlist** (effective execution order + syntax-highlighted SQL) and **Dry Run** (read-only pending schema diff vs. `DbMigrator/Snapshots/*.json`).
 - **Doctor**: Offline wiring/schema checks plus on-demand **Run Live DB Check**.
 
 ### `doctor`
 
-Validates DI wiring, entity registries, configs, foreign key type compatibility, cross-registry table/index/constraint collisions, entity stub mappings, and migration script coverage **offline by default**. Pass `--check-db` to also verify live DB connectivity, `__db_migration_logs`, and live table/column/nullability/SQL-type drift (read-only).
+Validates DI wiring, entity registries, configs, foreign key type compatibility, cross-registry table/index/constraint collisions, entity type replacements, and migration script coverage **offline by default**. Pass `--check-db` to also verify live DB connectivity, `__db_migrator_logs`, database user permissions across all persisted scripts (applied and pending), and live table/column/nullability/SQL-type drift (read-only).
 
 ```powershell
 # Offline check (CI-safe)
@@ -105,7 +105,7 @@ Migration Scripts:
 
 Live Database:
   ✓ Connected to PostgreSQL 18.0 (db: app_dev, 8 ms)
-  ✓ Migration history table '__db_migration_logs' verified (4 applied, 0 pending)
+  ✓ Migration history table '__db_migrator_logs' verified (4 applied, 0 pending)
   ✓ Live database matches your migration scripts
 
 ──────────────────────────────────────────────────────────────────────────────
@@ -135,11 +135,14 @@ Applies all pending SQL migration scripts inside a distributed lock (`pg_advisor
 db-migrator migrate --startup-project WebApi/WebApi.csproj
 db-migrator migrate --dry-run
 db-migrator migrate --sync-ef-history
+db-migrator migrate --skip-permission-check
 ```
+
+Before executing statement #1 (or creating `__db_migrator_logs`), `migrate` automatically runs a read-only catalog preflight against the pending scripts for both PostgreSQL and Oracle and aborts with copy-pasteable `GRANT` / `ALTER USER` hints if any required privilege is missing. Pass `--skip-permission-check` to opt out (e.g., in disposable integration-test containers).
 
 #### Migration History Table Columns
 
-Applied migrations are recorded in the history table (default `__db_migration_logs`, configurable via `UseHistoryTable(tableName, schema)`), keyed by `script_id` so renaming a registry, folder, or script filename never causes re-execution:
+Applied migrations are recorded in the history table (default `__db_migrator_logs`, configurable via `UseHistoryTable(tableName, schema)`), keyed by `script_id` so renaming a registry, folder, or script filename never causes re-execution:
 
 | Column | PostgreSQL | Oracle | Description |
 | :--- | :--- | :--- | :--- |

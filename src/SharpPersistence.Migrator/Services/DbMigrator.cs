@@ -354,7 +354,10 @@ internal sealed class DbMigrator : IDbMigrator
         return await _scriptStore.BuildStatusItemsAsync(applied, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<IReadOnlyList<string>> MigrateAsync(bool dryRun = false, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<string>> MigrateAsync(
+        bool dryRun = false,
+        bool skipPermissionCheck = false,
+        CancellationToken cancellationToken = default)
     {
         if (dryRun)
         {
@@ -367,23 +370,30 @@ internal sealed class DbMigrator : IDbMigrator
         try
         {
             migrationLock = await _dialect.AcquireLockAsync(conn, _options, cancellationToken).ConfigureAwait(false);
-            await _historyStore.EnsureHistoryTableAsync(conn, cancellationToken).ConfigureAwait(false);
-
-            var applied = await _historyStore.ReadAppliedAsync(conn, cancellationToken).ConfigureAwait(false);
+            var historyExists = await _historyStore.HistoryTableExistsAsync(conn, cancellationToken).ConfigureAwait(false);
+            var applied = historyExists
+                ? await _historyStore.ReadAppliedAsync(conn, cancellationToken).ConfigureAwait(false)
+                : [];
             var appliedMap = applied.ToDictionary(a => a.ScriptId);
 
             var scripts = _scriptStore.DiscoverScripts();
             var checksumMismatches = new List<string>();
+            var pendingScripts = new List<(Guid ScriptId, string RelativeScriptName, string Sql)>();
+
             foreach (var (scriptId, registryName, scriptName, fullPath) in scripts)
             {
+                var sql = await File.ReadAllTextAsync(fullPath, cancellationToken).ConfigureAwait(false);
                 if (appliedMap.TryGetValue(scriptId, out var record))
                 {
-                    var existingSql = await File.ReadAllTextAsync(fullPath, cancellationToken).ConfigureAwait(false);
-                    var currentChecksum = MigrationScriptStore.ComputeSha256(existingSql);
+                    var currentChecksum = MigrationScriptStore.ComputeSha256(sql);
                     if (!string.Equals(record.ChecksumSha256, currentChecksum, StringComparison.OrdinalIgnoreCase))
                     {
                         checksumMismatches.Add($"{registryName}/{scriptName}");
                     }
+                }
+                else
+                {
+                    pendingScripts.Add((scriptId, $"{registryName}/{scriptName}", sql));
                 }
             }
 
@@ -394,18 +404,38 @@ internal sealed class DbMigrator : IDbMigrator
                     $"{string.Join(", ", checksumMismatches)}. Create a new migration script instead of editing applied ones.");
             }
 
-            var executed = new List<string>();
-
-            foreach (var (scriptId, registryName, scriptName, fullPath) in scripts)
+            if (!skipPermissionCheck && (pendingScripts.Count > 0 || !historyExists))
             {
-                if (appliedMap.ContainsKey(scriptId))
+                var requirements = SqlPermissionRequirementExtractor.Extract(
+                    pendingScripts.Select(static p => p.Sql),
+                    _options,
+                    _dialect,
+                    historyExists);
+                var permissionChecks = await _dialect.CheckPermissionsAsync(conn, requirements, cancellationToken).ConfigureAwait(false);
+                var permissionErrors = permissionChecks.Where(static c => c.Severity == DoctorSeverity.Error).ToList();
+                if (permissionErrors.Count > 0)
                 {
-                    continue;
+                    var details = string.Join(
+                        Environment.NewLine,
+                        permissionErrors.Select(static e =>
+                            string.IsNullOrWhiteSpace(e.Hint)
+                                ? $"  - {e.Message}"
+                                : $"  - {e.Message}{Environment.NewLine}    Hint: {e.Hint}"));
+                    throw new InvalidOperationException(
+                        $"Migration aborted: database user is missing required permissions:{Environment.NewLine}{details}");
                 }
+            }
 
-                var sql = await File.ReadAllTextAsync(fullPath, cancellationToken).ConfigureAwait(false);
+            if (!historyExists)
+            {
+                await _historyStore.EnsureHistoryTableAsync(conn, cancellationToken).ConfigureAwait(false);
+            }
+
+            var executed = new List<string>(pendingScripts.Count);
+
+            foreach (var (scriptId, relativeScriptName, sql) in pendingScripts)
+            {
                 var checksum = MigrationScriptStore.ComputeSha256(sql);
-                var relativeScriptName = $"{registryName}/{scriptName}";
 
                 if (_dialect.TryStripOuterTransaction(sql, out var innerSql))
                 {

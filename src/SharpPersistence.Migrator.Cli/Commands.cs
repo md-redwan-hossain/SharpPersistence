@@ -58,6 +58,10 @@ internal sealed class MigrateSettings : SharedSettings
     [CommandOption("--sync-ef-history")]
     [Description("Sync applied entries from __EFMigrationsHistory before running migrations.")]
     public bool SyncEfHistory { get; init; }
+
+    [CommandOption("--skip-permission-check")]
+    [Description("Skip pre-migration database permission verification (useful for ephemeral integration-test databases).")]
+    public bool SkipPermissionCheck { get; init; }
 }
 
 internal sealed class TranslateEfSettings : SharedSettings
@@ -278,7 +282,9 @@ internal sealed class MigrateCommand : AsyncCommand<MigrateSettings>
                 }
             }
 
-            var applied = await manager.MigrateAsync(dryRun: settings.DryRun);
+            var applied = await manager.MigrateAsync(
+                dryRun: settings.DryRun,
+                skipPermissionCheck: settings.SkipPermissionCheck);
             if (applied.Count == 0)
             {
                 AnsiConsole.MarkupLine("[grey]No pending migrations.[/]");

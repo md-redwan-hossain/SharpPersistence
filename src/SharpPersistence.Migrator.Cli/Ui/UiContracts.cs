@@ -191,7 +191,7 @@ internal sealed record UiDoctorItemDto(
 internal sealed record UiDependenciesDto(
     IReadOnlyList<UiDependencyNodeDto> Nodes,
     IReadOnlyList<UiDependencyEdgeDto> Edges,
-    IReadOnlyList<UiEntityStubDto> Stubs);
+    IReadOnlyList<UiEntityTypeReplacementDto> EntityTypeReplacements);
 
 internal sealed record UiDependencyNodeDto(
     int Order,
@@ -219,9 +219,9 @@ internal sealed record UiDependencyFkDto(
     string OnDelete,
     bool IsCircular);
 
-internal sealed record UiEntityStubDto(
-    string StubEntity,
-    string ShortStubEntity,
+internal sealed record UiEntityTypeReplacementDto(
+    string SourceEntity,
+    string ShortSourceEntity,
     string TargetEntity,
     string ShortTargetEntity,
     string? TargetRegistry,

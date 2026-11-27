@@ -92,11 +92,11 @@ public static class CommonMigratorConventions
 
 ## Keys, Lookups & Table Naming Conventions
 
-`ConfigureEntities<T>` also handles primary keys, identity columns, schemas, max lengths, and indexes—alongside `UseTableNameConvention` for custom table prefixes:
+`ConfigureEntities<T>` also handles primary keys, identity columns, schemas, max lengths, and indexes—alongside `MapTableNames` for custom table prefixes:
 
 ```csharp
 // Prefix lookup tables with lk_ (e.g., Currency -> lk_currencies)
-options.UseTableNameConvention((entityType, defaultTableName) =>
+options.MapTableNames((entityType, defaultTableName) =>
 {
     var isLookup = !entityType.Name.StartsWith("Lk", StringComparison.Ordinal)
         && entityType.GetInterfaces().Any(i =>

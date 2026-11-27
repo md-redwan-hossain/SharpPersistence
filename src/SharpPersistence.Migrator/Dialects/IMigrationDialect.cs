@@ -48,6 +48,10 @@ internal interface IMigrationDialect : ISqlDialectMetadata
         DbConnection conn,
         IReadOnlyList<(string RegistryName, TableSchema Table)> expectedTables,
         CancellationToken ct);
+    Task<IReadOnlyList<DoctorCheckItem>> CheckPermissionsAsync(
+        DbConnection conn,
+        DatabasePermissionRequirements requirements,
+        CancellationToken ct);
 }
 
 internal static class MigrationDialectRegistry

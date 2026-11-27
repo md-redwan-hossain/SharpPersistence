@@ -291,22 +291,22 @@ public sealed class PostgresIntegrationTests(PostgresContainerFixture fixture)
             var generated = await manager.GenerateAsync("Initial", interactiveRenamePrompt: false, ct: ct);
             var mainScriptPath = generated.First(g => g.RegistryName == nameof(PgBookingRegistryV1)).ScriptPath!;
 
-            // 1. Before MigrateAsync: doctor --check-db must NOT create __db_migration_logs
+            // 1. Before MigrateAsync: doctor --check-db must NOT create __db_migrator_logs
             var beforeReport = await manager.DiagnoseAsync(checkDatabase: true, ct: ct);
             beforeReport.DatabaseChecks.ShouldContain(c =>
                 c.Severity == DoctorSeverity.Warning &&
-                c.Message.Contains("__db_migration_logs", StringComparison.Ordinal) &&
+                c.Message.Contains("__db_migrator_logs", StringComparison.Ordinal) &&
                 c.Message.Contains("does not exist yet", StringComparison.Ordinal));
             beforeReport.DatabaseChecks.ShouldContain(c =>
                 c.Severity == DoctorSeverity.Error &&
                 c.Message.Contains("Live database does not match your migration scripts", StringComparison.Ordinal));
 
-            // Confirm __db_migration_logs was genuinely not created (read-only guarantee)
+            // Confirm __db_migrator_logs was genuinely not created (read-only guarantee)
             await using (var verifyConn = new NpgsqlConnection(dbConnectionString))
             {
                 await verifyConn.OpenAsync(ct);
                 await using var checkCmd = verifyConn.CreateCommand();
-                checkCmd.CommandText = "SELECT to_regclass('\"public\".\"__db_migration_logs\"') IS NOT NULL;";
+                checkCmd.CommandText = "SELECT to_regclass('\"public\".\"__db_migrator_logs\"') IS NOT NULL;";
                 (await checkCmd.ExecuteScalarAsync(ct)).ShouldBe(false);
             }
 
@@ -425,6 +425,101 @@ public sealed class PostgresIntegrationTests(PostgresContainerFixture fixture)
 
             (await manager.HasPendingMigrationAsync(ct)).ShouldBeFalse();
             (await manager.GetPendingMigrationsAsync(ct)).ShouldBeEmpty();
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task PermissionPreflight_BlocksRestrictedRoleBeforeDdl_AndDoctorDetectsRevokedGrantAfterApply()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var adminConnStr = await fixture.CreateIsolatedDatabaseAsync(ct);
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"sp_pg_perms_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+
+        var roleName = $"limited_{Guid.NewGuid():N}"[..16];
+        var rolePassword = "TestRolePassword123!";
+        var adminCsb = new NpgsqlConnectionStringBuilder(adminConnStr);
+        var restrictedCsb = new NpgsqlConnectionStringBuilder(adminConnStr)
+        {
+            Username = roleName,
+            Password = rolePassword
+        };
+
+        try
+        {
+            await using (var adminConn = new NpgsqlConnection(adminConnStr))
+            {
+                await adminConn.OpenAsync(ct);
+                await using var cmd = adminConn.CreateCommand();
+                cmd.CommandText = $"""
+                    CREATE ROLE "{roleName}" LOGIN PASSWORD '{rolePassword}';
+                    REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+                    GRANT CONNECT ON DATABASE "{adminCsb.Database}" TO "{roleName}";
+                    GRANT USAGE ON SCHEMA public TO "{roleName}";
+                    """;
+                await cmd.ExecuteNonQueryAsync(ct);
+            }
+
+            var restrictedManager = BuildManager(restrictedCsb.ConnectionString, tempRoot, new PgBookingRegistryV1());
+            await restrictedManager.GenerateAsync("Initial", interactiveRenamePrompt: false, ct: ct);
+
+            // 1. MigrateAsync fails fast before creating __db_migrator_logs or running any DDL
+            var ex = await Should.ThrowAsync<InvalidOperationException>(() =>
+                restrictedManager.MigrateAsync(cancellationToken: ct));
+            ex.Message.ShouldContain("missing required permissions");
+            ex.Message.ShouldContain("CREATE privilege on schema 'public'");
+
+            await using (var verifyConn = new NpgsqlConnection(adminConnStr))
+            {
+                await verifyConn.OpenAsync(ct);
+                await using var checkCmd = verifyConn.CreateCommand();
+                checkCmd.CommandText = "SELECT to_regclass('\"public\".\"__db_migrator_logs\"') IS NOT NULL;";
+                (await checkCmd.ExecuteScalarAsync(ct)).ShouldBe(false);
+            }
+
+            // 2. doctor --check-db reports the exact missing privilege + GRANT hint
+            var beforeDoctor = await restrictedManager.DiagnoseAsync(checkDatabase: true, ct: ct);
+            beforeDoctor.DatabaseChecks.ShouldContain(c =>
+                c.Severity == DoctorSeverity.Error &&
+                c.Message.Contains("CREATE privilege on schema 'public'", StringComparison.Ordinal) &&
+                c.Hint != null &&
+                c.Hint.Contains("GRANT CREATE ON SCHEMA \"public\"", StringComparison.Ordinal));
+
+            // 3. Grant CREATE on public + database -> MigrateAsync succeeds
+            await using (var adminConn = new NpgsqlConnection(adminConnStr))
+            {
+                await adminConn.OpenAsync(ct);
+                await using var cmd = adminConn.CreateCommand();
+                cmd.CommandText = $"""
+                    GRANT CREATE ON DATABASE "{adminCsb.Database}" TO "{roleName}";
+                    GRANT CREATE ON SCHEMA public TO "{roleName}";
+                    """;
+                await cmd.ExecuteNonQueryAsync(ct);
+            }
+
+            var applied = await restrictedManager.MigrateAsync(cancellationToken: ct);
+            applied.Count.ShouldBe(2);
+
+            // 4. Revoke CREATE on public after migrations are applied -> doctor --check-db still catches it
+            await using (var adminConn = new NpgsqlConnection(adminConnStr))
+            {
+                await adminConn.OpenAsync(ct);
+                await using var cmd = adminConn.CreateCommand();
+                cmd.CommandText = $"REVOKE CREATE ON SCHEMA public FROM \"{roleName}\";";
+                await cmd.ExecuteNonQueryAsync(ct);
+            }
+
+            var afterRevokeDoctor = await restrictedManager.DiagnoseAsync(checkDatabase: true, ct: ct);
+            afterRevokeDoctor.DatabaseChecks.ShouldContain(c =>
+                c.Severity == DoctorSeverity.Error &&
+                c.Message.Contains("CREATE privilege on schema 'public'", StringComparison.Ordinal));
         }
         finally
         {

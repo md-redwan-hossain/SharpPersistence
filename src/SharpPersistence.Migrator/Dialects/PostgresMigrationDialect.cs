@@ -367,6 +367,12 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
         return lower;
     }
 
+    public Task<IReadOnlyList<DoctorCheckItem>> CheckPermissionsAsync(
+        DbConnection conn,
+        DatabasePermissionRequirements requirements,
+        CancellationToken ct) =>
+        PostgresPermissionChecker.CheckAsync(conn, requirements, ct);
+
     private static string UnquoteIfSimpleLowercase(string identifier)
     {
         var t = identifier.Trim();

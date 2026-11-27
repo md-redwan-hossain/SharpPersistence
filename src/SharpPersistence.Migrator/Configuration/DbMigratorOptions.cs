@@ -21,7 +21,7 @@ internal sealed class DbMigratorOptions
     public string? ConnectionString { get; internal set; }
     public DbProviderFactory? ProviderFactory { get; internal set; }
     public Func<IServiceProvider, DbConnection>? ConnectionFactory { get; internal set; }
-    public string HistoryTableName { get; internal set; } = "__db_migration_logs";
+    public string HistoryTableName { get; internal set; } = "__db_migrator_logs";
     public string? HistorySchema { get; internal set; }
     public string? RootPath { get; internal set; }
     public const string DefaultBaseDirectory = "DbMigrator";

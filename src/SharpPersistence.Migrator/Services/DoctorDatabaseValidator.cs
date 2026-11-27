@@ -58,7 +58,8 @@ internal sealed class DoctorDatabaseValidator(
 
         try
         {
-            await CheckHistoryTableAsync(conn, registryFilter, checks, ct).ConfigureAwait(false);
+            var historyExists = await CheckHistoryTableAsync(conn, registryFilter, checks, ct).ConfigureAwait(false);
+            await CheckPermissionsAsync(conn, registryFilter, historyExists, checks, ct).ConfigureAwait(false);
 
             if (!hasSchemaErrors)
             {
@@ -83,7 +84,7 @@ internal sealed class DoctorDatabaseValidator(
         return checks;
     }
 
-    private async Task CheckHistoryTableAsync(
+    private async Task<bool> CheckHistoryTableAsync(
         DbConnection conn,
         string? registryFilter,
         List<DoctorCheckItem> checks,
@@ -96,7 +97,7 @@ internal sealed class DoctorDatabaseValidator(
                 DoctorSeverity.Warning,
                 $"Migration history table '{options.HistoryTableName}' does not exist yet",
                 Hint: "Run `db-migrator migrate` to initialize it and apply pending scripts."));
-            return;
+            return false;
         }
 
         var applied = await historyStore.ReadAppliedAsync(conn, ct).ConfigureAwait(false);
@@ -146,6 +147,44 @@ internal sealed class DoctorDatabaseValidator(
                 DoctorSeverity.Warning,
                 $"Could not verify pending scripts against '{options.HistoryTableName}': {ex.Message}",
                 Hint: "Fix the runlist errors above or run `db-migrator runlist sync`."));
+        }
+
+        return true;
+    }
+
+    private async Task CheckPermissionsAsync(
+        DbConnection conn,
+        string? registryFilter,
+        bool historyExists,
+        List<DoctorCheckItem> checks,
+        CancellationToken ct)
+    {
+        try
+        {
+            var scripts = scriptStore.DiscoverScripts();
+            if (!string.IsNullOrWhiteSpace(registryFilter))
+            {
+                scripts = scripts
+                    .Where(s => string.Equals(s.RegistryName, registryFilter, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
+
+            var bodies = new List<string>(scripts.Count);
+            foreach (var (_, _, _, fullPath) in scripts)
+            {
+                bodies.Add(await File.ReadAllTextAsync(fullPath, ct).ConfigureAwait(false));
+            }
+
+            var requirements = SqlPermissionRequirementExtractor.Extract(bodies, options, dialect, historyExists);
+            var permissionChecks = await dialect.CheckPermissionsAsync(conn, requirements, ct).ConfigureAwait(false);
+            checks.AddRange(permissionChecks);
+        }
+        catch (Exception ex)
+        {
+            var root = MigrationDoctor.UnwrapException(ex);
+            checks.Add(new DoctorCheckItem(
+                DoctorSeverity.Warning,
+                $"Could not verify database permissions: {root.Message}"));
         }
     }
 

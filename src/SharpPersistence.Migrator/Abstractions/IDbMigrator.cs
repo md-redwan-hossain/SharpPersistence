@@ -16,5 +16,8 @@ public interface IDbMigrator
 
     Task<IReadOnlyList<MigrationStatusItem>> GetStatusAsync(CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<string>> MigrateAsync(bool dryRun = false, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<string>> MigrateAsync(
+        bool dryRun = false,
+        bool skipPermissionCheck = false,
+        CancellationToken cancellationToken = default);
 }

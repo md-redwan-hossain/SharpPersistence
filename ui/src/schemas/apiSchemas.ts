@@ -238,9 +238,9 @@ export const UiDependencyEdgeSchema = z.object({
   foreignKeys: z.array(UiDependencyFkSchema),
 });
 
-export const UiEntityStubSchema = z.object({
-  stubEntity: z.string(),
-  shortStubEntity: z.string(),
+export const UiEntityTypeReplacementSchema = z.object({
+  sourceEntity: z.string(),
+  shortSourceEntity: z.string(),
   targetEntity: z.string(),
   shortTargetEntity: z.string(),
   targetRegistry: z.string().nullable(),
@@ -250,7 +250,7 @@ export const UiEntityStubSchema = z.object({
 export const UiDependenciesSchema = z.object({
   nodes: z.array(UiDependencyNodeSchema),
   edges: z.array(UiDependencyEdgeSchema),
-  stubs: z.array(UiEntityStubSchema),
+  entityTypeReplacements: z.array(UiEntityTypeReplacementSchema),
 });
 
 export const UiDryRunOperationSchema = z.object({

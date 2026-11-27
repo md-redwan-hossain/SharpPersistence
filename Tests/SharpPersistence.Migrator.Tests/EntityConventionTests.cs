@@ -104,7 +104,7 @@ public sealed class EntityConventionTests
             .UsePostgreSql("Host=localhost;Database=test")
             .UseNamingConvention(SqlIdentifierCase.LowerSnakeCase)
             .PluralizeTableNames()
-            .UseTableNameConvention((entityType, defaultName) =>
+            .MapTableNames((entityType, defaultName) =>
                 typeof(ILookupEntity).IsAssignableFrom(entityType)
                     ? $"lk_{defaultName}"
                     : defaultName)

@@ -42,7 +42,7 @@ db-migrator translate-ef-migrations --source-path src/Infrastructure/Migrations 
 
 ## Step 3: Sync `__EFMigrationsHistory`
 
-Mark already-applied `_translated` scripts as applied in `__db_migration_logs` so `migrate` won't re-run historical scripts:
+Mark already-applied `_translated` scripts as applied in `__db_migrator_logs` so `migrate` won't re-run historical scripts:
 
 ```powershell
 # Preview what will be synced

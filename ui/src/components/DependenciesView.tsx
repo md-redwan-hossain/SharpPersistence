@@ -152,7 +152,7 @@ export function DependenciesView({ dependencies, onLoaded, onOpenInErd, onOpenIn
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <Badge variant="secondary">{dependencies.nodes.length} registries</Badge>
             <Badge variant="info">{dependencies.edges.length} cross-registry links</Badge>
-            <Badge variant="violet">{dependencies.stubs.length} entity stubs</Badge>
+            <Badge variant="violet">{dependencies.entityTypeReplacements.length} entity type replacements</Badge>
             <span className="hidden sm:inline">
               Left-to-right topological dependency order. Click any registry or edge to inspect.
             </span>
@@ -462,42 +462,42 @@ export function DependenciesView({ dependencies, onLoaded, onOpenInErd, onOpenIn
           </Card>
         )}
 
-        {/* Entity Stub Mappings */}
+        {/* Entity Type Replacements */}
         <Card className="overflow-hidden">
           <CardHeader>
             <CardTitle>
               <Layers className="w-4 h-4 text-muted-foreground" />
-              Entity Stubs ({dependencies.stubs.length})
+              Entity Type Replacements ({dependencies.entityTypeReplacements.length})
             </CardTitle>
           </CardHeader>
-          {dependencies.stubs.length === 0 ? (
+          {dependencies.entityTypeReplacements.length === 0 ? (
             <CardContent className="text-xs text-muted-foreground">
-              No <code className="font-mono">ConfigureEntityStubs(...)</code> mappings configured.
+              No <code className="font-mono">ReplaceEntityTypes(...)</code> mappings configured.
             </CardContent>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Stub Type</TableHead>
+                  <TableHead>Source Type</TableHead>
                   <TableHead>Owning Entity</TableHead>
                   <TableHead>Owning Registry</TableHead>
                   <TableHead>Target Table</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {dependencies.stubs.map((s) => (
-                  <TableRow key={s.stubEntity}>
+                {dependencies.entityTypeReplacements.map((r) => (
+                  <TableRow key={r.sourceEntity}>
                     <TableCell className="font-mono font-medium">
-                      <div>{s.shortStubEntity}</div>
-                      <div className="text-[11px] text-muted-foreground font-normal">{s.stubEntity}</div>
+                      <div>{r.shortSourceEntity}</div>
+                      <div className="text-[11px] text-muted-foreground font-normal">{r.sourceEntity}</div>
                     </TableCell>
                     <TableCell className="font-mono">
-                      <div>{s.shortTargetEntity}</div>
-                      <div className="text-[11px] text-muted-foreground font-normal">{s.targetEntity}</div>
+                      <div>{r.shortTargetEntity}</div>
+                      <div className="text-[11px] text-muted-foreground font-normal">{r.targetEntity}</div>
                     </TableCell>
-                    <TableCell className="font-mono">{s.targetRegistry ?? "—"}</TableCell>
+                    <TableCell className="font-mono">{r.targetRegistry ?? "—"}</TableCell>
                     <TableCell className="font-mono text-sky-700 dark:text-sky-400">
-                      {s.targetTable ?? "—"}
+                      {r.targetTable ?? "—"}
                     </TableCell>
                   </TableRow>
                 ))}

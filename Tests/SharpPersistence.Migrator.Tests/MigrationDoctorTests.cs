@@ -171,10 +171,10 @@ public sealed class MigrationDoctorTests
         throw new InvalidOperationException("Offline doctor should not open a DB connection.");
 
     [Fact]
-    public void DefaultHistoryTableName_IsDbMigrationLogs()
+    public void DefaultHistoryTableName_IsDbMigratorLogs()
     {
         var options = new DbMigratorOptions();
-        options.HistoryTableName.ShouldBe("__db_migration_logs");
+        options.HistoryTableName.ShouldBe("__db_migrator_logs");
     }
 
     [Fact]

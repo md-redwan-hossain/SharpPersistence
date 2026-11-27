@@ -19,7 +19,7 @@ builder.Services.AddDbMigrator(opt =>
         .HasPostgresExtension("pg_trgm")
         .HasPostgresEnum<OrderStatus>("order_status");
 
-    opt.UseHistoryTable("__db_migration_logs", schema: "public")
+    opt.UseHistoryTable("__db_migrator_logs", schema: "public")
         .AddGeneratedEntityRegistries();
 });
 ```
@@ -51,8 +51,8 @@ builder.Services.AddDbMigrator(opt =>
 | `UseOracle(connStr / factory)` | — | Sets dialect to `Oracle` and identifier case to `UpperSnakeCase` |
 | `UseNamingConvention(case)` | Dialect default | `LowerSnakeCase`, `UpperSnakeCase`, `PascalCase`, `CamelCase`, `LowerCase`, or `UpperCase` |
 | `PluralizeTableNames(bool)` | `false` | Pluralizes convention-derived table names (`Order` → `orders`, `OrderCategory` → `order_categories`) |
-| `UseHistoryTable(name, schema?)` | `__db_migration_logs` | Customizes the applied-migrations tracking table |
-| `UseTableNameConvention(fn)` | — | Customizes convention-derived table names (`(entityType, defaultName) => ...`) |
+| `UseHistoryTable(name, schema?)` | `__db_migrator_logs` | Customizes the applied-migrations tracking table |
+| `MapTableNames(fn)` | — | Maps convention-derived table names (`(entityType, defaultName) => ...`) |
 | `UseRootPath(path)` | Working dir | Base directory for `DbMigrator/Scripts` and `DbMigrator/Snapshots` |
 | `ConfigureProperties<T>(action)` | — | Global CLR-type conventions (e.g. all `string` max length `255`, or `Enum`) |
 | `ConfigureEntities<T>(action)` | — | Global entity/interface conventions (e.g. shared audit FKs, keys, schemas) |
@@ -75,7 +75,7 @@ opt.ConfigureProperties<string>(c => c.HasMaxLength(200))
 Apply shared foreign keys, primary keys, lookup indexes, or table-naming rules across interfaces and base classes without reflection—and replace `Ref*` types in your startup project so modules stay isolated:
 
 ```csharp
-opt.UseTableNameConvention((entityType, defaultName) =>
+opt.MapTableNames((entityType, defaultName) =>
     typeof(ILookupEntity).IsAssignableFrom(entityType) ? $"lk_{defaultName}" : defaultName);
 
 opt.ConfigureEntities<ICreateTracking>(e =>
@@ -150,7 +150,7 @@ if (await migrator.HasPendingMigrationAsync(cancellationToken))
 }
 ```
 
-`MigrateAsync` automatically acquires a distributed lock (`pg_advisory_lock` on PostgreSQL, `DBMS_LOCK` on Oracle) so multiple app instances starting concurrently never race.
+`MigrateAsync` automatically acquires a distributed lock (`pg_advisory_lock` on PostgreSQL, `DBMS_LOCK` on Oracle) so multiple app instances starting concurrently never race, and runs a read-only database permission preflight against pending scripts before executing any DDL (pass `skipPermissionCheck: true` to opt out in disposable integration-test databases).
 
 ## EF Core `DbContext` Binding (`[BindEntityRegistry<TRegistry>]`)
 
