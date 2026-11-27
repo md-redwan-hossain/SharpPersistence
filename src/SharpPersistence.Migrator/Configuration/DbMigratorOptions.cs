@@ -33,7 +33,7 @@ internal sealed class DbMigratorOptions
     public IReadOnlyList<IEntityRegistry> Registries { get; internal set; } = [];
     public IReadOnlyList<PropertyConventionRule> PropertyConventions { get; internal set; } = [];
     public IReadOnlyList<EntityConventionRule> EntityConventions { get; internal set; } = [];
-    public IReadOnlyDictionary<Type, Type> EntityStubs { get; internal set; } = new Dictionary<Type, Type>();
+    public IReadOnlyDictionary<Type, Type> EntityReplacements { get; internal set; } = new Dictionary<Type, Type>();
     public IReadOnlyList<PostgresExtensionSchema> Extensions { get; internal set; } = [];
     public IReadOnlyList<PostgresEnumSchema> Enums { get; internal set; } = [];
     public SqlExpressionBuilderOptions SqlExpressionOptions { get; } = new();

@@ -13,9 +13,32 @@ internal static class StandaloneSchemaDiffer
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         Converters = { new JsonStringEnumConverter() }
     };
+
+    internal static DatabaseModel? DeserializeSnapshot(string? snapshotJson, SqlDialect? expectedDialect = null)
+    {
+        if (string.IsNullOrWhiteSpace(snapshotJson))
+        {
+            return null;
+        }
+
+        var model = JsonSerializer.Deserialize<DatabaseModel>(snapshotJson, JsonOptions);
+        if (model is not null &&
+            expectedDialect.HasValue &&
+            model.Dialect.HasValue &&
+            model.Dialect.Value != expectedDialect.Value)
+        {
+            throw new InvalidOperationException(
+                $"Snapshot dialect mismatch: snapshot was generated for '{model.Dialect.Value}', " +
+                $"but the migrator is configured for '{expectedDialect.Value}'.");
+        }
+
+        return model;
+    }
 
     public static SchemaDiffResult GenerateDiff(
         DatabaseModel currentSchema,
@@ -26,11 +49,7 @@ internal static class StandaloneSchemaDiffer
         Func<string, bool>? confirmRename = null)
     {
         var migratableCurrent = FilterMigratableSchema(currentSchema);
-        DatabaseModel? previousSchema = null;
-        if (!string.IsNullOrWhiteSpace(existingSnapshotJson))
-        {
-            previousSchema = JsonSerializer.Deserialize<DatabaseModel>(existingSnapshotJson, JsonOptions);
-        }
+        var previousSchema = DeserializeSnapshot(existingSnapshotJson, sqlDialect);
 
         var prompter = interactiveRenamePrompt ? confirmRename : null;
         var operations = ComputeOperations(previousSchema, migratableCurrent, prompter, sqlDialect);
@@ -58,7 +77,8 @@ internal static class StandaloneSchemaDiffer
 
         var sql = mainOps.Count > 0 ? generator.GenerateSql(mainOps) : string.Empty;
         var deferredSql = deferredOps.Count > 0 ? generator.GenerateSql(deferredOps) : string.Empty;
-        var updatedJson = JsonSerializer.Serialize(migratableCurrent, JsonOptions);
+        var canonical = CanonicalizeForSnapshot(migratableCurrent, sqlDialect);
+        var updatedJson = JsonSerializer.Serialize(canonical, JsonOptions);
 
         return new SchemaDiffResult(true, sql, deferredSql, updatedJson, operations);
     }
@@ -69,11 +89,7 @@ internal static class StandaloneSchemaDiffer
         SqlDialect sqlDialect = SqlDialect.PostgreSql)
     {
         var migratableCurrent = FilterMigratableSchema(currentSchema);
-        DatabaseModel? previousSchema = null;
-        if (!string.IsNullOrWhiteSpace(existingSnapshotJson))
-        {
-            previousSchema = JsonSerializer.Deserialize<DatabaseModel>(existingSnapshotJson, JsonOptions);
-        }
+        var previousSchema = DeserializeSnapshot(existingSnapshotJson, sqlDialect);
 
         return ComputeOperations(previousSchema, migratableCurrent, confirmRename: null, sqlDialect).Count;
     }
@@ -92,6 +108,81 @@ internal static class StandaloneSchemaDiffer
             Sequences = schema.Sequences,
             Tables = schema.Tables.Where(t => !t.ExcludeFromMigrations).ToList()
         };
+    }
+
+    private static DatabaseModel CanonicalizeForSnapshot(DatabaseModel schema, SqlDialect dialect)
+    {
+        return new DatabaseModel
+        {
+            SnapshotVersion = DatabaseModel.CurrentSnapshotVersion,
+            Dialect = dialect,
+            Extensions = schema.Extensions is { Count: > 0 }
+                ? schema.Extensions.OrderBy(e => e.Name, StringComparer.Ordinal).ToList()
+                : null,
+            Enums = schema.Enums is { Count: > 0 }
+                ? schema.Enums.OrderBy(e => e.QualifiedName, StringComparer.Ordinal).ToList()
+                : null,
+            Sequences = schema.Sequences is { Count: > 0 }
+                ? schema.Sequences.OrderBy(s => s.QualifiedName, StringComparer.Ordinal).ToList()
+                : null,
+            Tables = schema.Tables
+                .OrderBy(t => t.QualifiedName, StringComparer.Ordinal)
+                .Select(CanonicalizeTable)
+                .ToList()
+        };
+    }
+
+    private static TableSchema CanonicalizeTable(TableSchema t)
+    {
+        return new TableSchema
+        {
+            EntityName = t.EntityName,
+            TableName = t.TableName,
+            Schema = t.Schema,
+            Comment = t.Comment,
+            IsUnlogged = t.IsUnlogged,
+            Tablespace = t.Tablespace,
+            StorageParameters = SortDictionary(t.StorageParameters),
+            PrimaryKey = t.PrimaryKey,
+            Columns = [.. t.Columns],
+            Indexes = t.Indexes
+                .OrderBy(i => i.Name, StringComparer.Ordinal)
+                .Select(i => new IndexSchema
+                {
+                    Name = i.Name,
+                    ColumnNames = [.. i.ColumnNames],
+                    IsUnique = i.IsUnique,
+                    FilterSql = i.FilterSql,
+                    IncludedColumnNames = i.IncludedColumnNames is { Count: > 0 } ? [.. i.IncludedColumnNames] : null,
+                    IsDescending = i.IsDescending is { Count: > 0 } ? [.. i.IsDescending] : null,
+                    Method = i.Method,
+                    Tablespace = i.Tablespace,
+                    StorageParameters = SortDictionary(i.StorageParameters),
+                    OperatorsByColumn = SortDictionary(i.OperatorsByColumn)
+                })
+                .ToList(),
+            CheckConstraints = t.CheckConstraints.OrderBy(c => c.Name, StringComparer.Ordinal).ToList(),
+            ExclusionConstraints = t.ExclusionConstraints is { Count: > 0 }
+                ? t.ExclusionConstraints.OrderBy(e => e.Name, StringComparer.Ordinal).ToList()
+                : null,
+            ForeignKeys = t.ForeignKeys.OrderBy(f => f.Name, StringComparer.Ordinal).ToList()
+        };
+    }
+
+    private static Dictionary<string, string>? SortDictionary(IReadOnlyDictionary<string, string>? dict)
+    {
+        if (dict is null or { Count: 0 })
+        {
+            return null;
+        }
+
+        var sorted = new Dictionary<string, string>(dict.Count, StringComparer.Ordinal);
+        foreach (var kv in dict.OrderBy(k => k.Key, StringComparer.Ordinal))
+        {
+            sorted[kv.Key] = kv.Value;
+        }
+
+        return sorted;
     }
 
     private static List<SchemaOperation> ComputeOperations(
@@ -280,7 +371,8 @@ internal static class StandaloneSchemaDiffer
 
                 ops.Add(new CreateSequenceOp(newSeq));
             }
-            else if (oldSeq.IncrementBy != newSeq.IncrementBy ||
+            else if (!string.Equals(oldSeq.SqlType, newSeq.SqlType, StringComparison.OrdinalIgnoreCase) ||
+                     oldSeq.IncrementBy != newSeq.IncrementBy ||
                      oldSeq.MinValue != newSeq.MinValue ||
                      oldSeq.MaxValue != newSeq.MaxValue ||
                      oldSeq.IsCyclic != newSeq.IsCyclic)
@@ -293,6 +385,7 @@ internal static class StandaloneSchemaDiffer
         var unmatchedNew = new List<TableSchema>(newSchema.Tables);
         var matchedPairs = new List<(TableSchema Old, TableSchema New)>();
         var renamedTableMap = new Dictionary<string, string>(StringComparer.Ordinal);
+        var pendingRenames = new List<RenameTableOp>();
 
         for (var i = unmatchedOld.Count - 1; i >= 0; i--)
         {
@@ -318,7 +411,7 @@ internal static class StandaloneSchemaDiffer
 
             if (n is not null)
             {
-                ops.Add(new RenameTableOp(o.Schema, o.TableName, n.Schema, n.TableName));
+                pendingRenames.Add(new RenameTableOp(o.Schema, o.TableName, n.Schema, n.TableName));
                 renamedTableMap[o.QualifiedName] = n.QualifiedName;
                 matchedPairs.Add((o, n));
                 unmatchedOld.RemoveAt(i);
@@ -336,7 +429,7 @@ internal static class StandaloneSchemaDiffer
                     var n = unmatchedNew[j];
                     if (confirmRename($"Was table '{o.QualifiedName}' renamed to '{n.QualifiedName}'?"))
                     {
-                        ops.Add(new RenameTableOp(o.Schema, o.TableName, n.Schema, n.TableName));
+                        pendingRenames.Add(new RenameTableOp(o.Schema, o.TableName, n.Schema, n.TableName));
                         renamedTableMap[o.QualifiedName] = n.QualifiedName;
                         matchedPairs.Add((o, n));
                         unmatchedOld.RemoveAt(i);
@@ -347,12 +440,43 @@ internal static class StandaloneSchemaDiffer
             }
         }
 
+        // Phase 1: Drop/rename foreign keys across ALL matched tables before modifying PKs, columns, or dropping tables.
+        var addedFksByPair = new List<List<ForeignKeySchema>>(matchedPairs.Count);
+        foreach (var (oldTable, newTable) in matchedPairs)
+        {
+            addedFksByPair.Add(DiffForeignKeysDropAndRename(oldTable, newTable, ops, renamedTableMap));
+        }
+
+        // Emit colliding table drops before table renames (e.g. dropping 'users' and renaming 'users_v2' -> 'users').
+        var renameTargets = new HashSet<string>(
+            pendingRenames.Select(r => string.IsNullOrWhiteSpace(r.NewSchema) ? r.NewTableName : $"{r.NewSchema}.{r.NewTableName}"),
+            StringComparer.Ordinal);
+        var deferredTableDrops = new List<DropTableOp>();
         foreach (var dropped in unmatchedOld)
         {
-            ops.Add(new DropTableOp(dropped.Schema, dropped.TableName));
+            if (renameTargets.Contains(dropped.QualifiedName))
+            {
+                ops.Add(new DropTableOp(dropped.Schema, dropped.TableName));
+            }
+            else
+            {
+                deferredTableDrops.Add(new DropTableOp(dropped.Schema, dropped.TableName));
+            }
         }
 
         var ensuredSchemas = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var rt in pendingRenames)
+        {
+            if (!string.IsNullOrWhiteSpace(rt.NewSchema) &&
+                !string.Equals(rt.OldSchema, rt.NewSchema, StringComparison.Ordinal) &&
+                ensuredSchemas.Add(rt.NewSchema))
+            {
+                ops.Add(new EnsureSchemaOp(rt.NewSchema));
+            }
+
+            ops.Add(rt);
+        }
+
         var pendingForeignKeys = new List<AddForeignKeyOp>();
         foreach (var newTable in unmatchedNew)
         {
@@ -399,25 +523,69 @@ internal static class StandaloneSchemaDiffer
             }
         }
 
-        foreach (var (oldTable, newTable) in matchedPairs)
+        for (var i = 0; i < matchedPairs.Count; i++)
         {
-            DiffTable(oldTable, newTable, ops, pendingForeignKeys, confirmRename, renamedTableMap, sqlDialect);
+            var (oldTable, newTable) = matchedPairs[i];
+            DiffTable(oldTable, newTable, addedFksByPair[i], ops, pendingForeignKeys, confirmRename, sqlDialect);
         }
 
         ops.AddRange(pendingForeignKeys);
+        ops.AddRange(deferredTableDrops);
         ops.AddRange(droppedSeqs);
         ops.AddRange(droppedEnums);
 
         return ops;
     }
 
-    private static void DiffTable(
+    private static List<ForeignKeySchema> DiffForeignKeysDropAndRename(
         TableSchema oldTable,
         TableSchema newTable,
         List<SchemaOperation> ops,
+        IReadOnlyDictionary<string, string> renamedTableMap)
+    {
+        var oldFks = new List<ForeignKeySchema>(oldTable.ForeignKeys);
+        var newFks = new List<ForeignKeySchema>(newTable.ForeignKeys);
+
+        for (var i = oldFks.Count - 1; i >= 0; i--)
+        {
+            var o = oldFks[i];
+            var exact = newFks.FirstOrDefault(n =>
+                string.Equals(o.Name, n.Name, StringComparison.Ordinal) &&
+                ForeignKeyEquals(o, n, renamedTableMap));
+            if (exact is not null)
+            {
+                oldFks.RemoveAt(i);
+                newFks.Remove(exact);
+            }
+        }
+
+        for (var i = oldFks.Count - 1; i >= 0; i--)
+        {
+            var o = oldFks[i];
+            var renamed = newFks.FirstOrDefault(n => ForeignKeyEquals(o, n, renamedTableMap));
+            if (renamed is not null)
+            {
+                ops.Add(new RenameConstraintOp(oldTable.Schema, oldTable.TableName, o.Name, renamed.Name));
+                oldFks.RemoveAt(i);
+                newFks.Remove(renamed);
+            }
+        }
+
+        foreach (var droppedFk in oldFks)
+        {
+            ops.Add(new DropForeignKeyOp(oldTable.Schema, oldTable.TableName, droppedFk.Name));
+        }
+
+        return newFks;
+    }
+
+    private static void DiffTable(
+        TableSchema oldTable,
+        TableSchema newTable,
+        List<ForeignKeySchema> newFks,
+        List<SchemaOperation> ops,
         List<AddForeignKeyOp> pendingForeignKeys,
         Func<string, bool>? confirmRename,
-        IReadOnlyDictionary<string, string> renamedTableMap,
         SqlDialect sqlDialect)
     {
         var dropPk = false;
@@ -521,39 +689,6 @@ internal static class StandaloneSchemaDiffer
             ops.Add(new DropExclusionConstraintOp(newTable.Schema, newTable.TableName, droppedEx.Name));
         }
 
-        var oldFks = new List<ForeignKeySchema>(oldTable.ForeignKeys);
-        var newFks = new List<ForeignKeySchema>(newTable.ForeignKeys);
-
-        for (var i = oldFks.Count - 1; i >= 0; i--)
-        {
-            var o = oldFks[i];
-            var exact = newFks.FirstOrDefault(n =>
-                string.Equals(o.Name, n.Name, StringComparison.Ordinal) &&
-                ForeignKeyEquals(o, n, renamedTableMap));
-            if (exact is not null)
-            {
-                oldFks.RemoveAt(i);
-                newFks.Remove(exact);
-            }
-        }
-
-        for (var i = oldFks.Count - 1; i >= 0; i--)
-        {
-            var o = oldFks[i];
-            var renamed = newFks.FirstOrDefault(n => ForeignKeyEquals(o, n, renamedTableMap));
-            if (renamed is not null)
-            {
-                ops.Add(new RenameConstraintOp(newTable.Schema, newTable.TableName, o.Name, renamed.Name));
-                oldFks.RemoveAt(i);
-                newFks.Remove(renamed);
-            }
-        }
-
-        foreach (var droppedFk in oldFks)
-        {
-            ops.Add(new DropForeignKeyOp(newTable.Schema, newTable.TableName, droppedFk.Name));
-        }
-
         var addedIndexes = DiffIndexesDropAndRename(oldTable, newTable, ops);
         DiffColumns(oldTable, newTable, ops, confirmRename, sqlDialect);
 
@@ -636,12 +771,17 @@ internal static class StandaloneSchemaDiffer
         var unmatchedOld = oldTable.Columns.Where(c => !c.IsSystemColumn).ToList();
         var unmatchedNew = newTable.Columns.Where(c => !c.IsSystemColumn).ToList();
         List<(ColumnSchema Old, ColumnSchema New)> matchedPairs = [];
+        List<RenameColumnOp> pendingColumnRenames = [];
 
+        // Pass 1: exact match on ColumnName and PropertyName (when not explicitly renamed from another column).
         for (var i = unmatchedOld.Count - 1; i >= 0; i--)
         {
             var o = unmatchedOld[i];
             var n = unmatchedNew.FirstOrDefault(x =>
-                string.Equals(x.ColumnName, o.ColumnName, StringComparison.Ordinal));
+                string.Equals(x.ColumnName, o.ColumnName, StringComparison.Ordinal) &&
+                string.Equals(x.PropertyName, o.PropertyName, StringComparison.Ordinal) &&
+                (string.IsNullOrWhiteSpace(x.PreviousColumnName) ||
+                 string.Equals(x.PreviousColumnName, o.ColumnName, StringComparison.Ordinal)));
             if (n is not null)
             {
                 matchedPairs.Add((o, n));
@@ -650,17 +790,38 @@ internal static class StandaloneSchemaDiffer
             }
         }
 
+        // Pass 2: explicit PreviousColumnName or PropertyName rename match (before same-name fallback so
+        // dropping an old column and renaming another column into its name emits DROP before RENAME).
         for (var i = unmatchedOld.Count - 1; i >= 0; i--)
         {
             var o = unmatchedOld[i];
             var n = unmatchedNew.FirstOrDefault(x =>
                 (!string.IsNullOrWhiteSpace(x.PreviousColumnName) &&
                  string.Equals(x.PreviousColumnName, o.ColumnName, StringComparison.Ordinal)) ||
-                string.Equals(x.PropertyName, o.PropertyName, StringComparison.Ordinal));
+                (!string.IsNullOrWhiteSpace(o.PropertyName) &&
+                 string.Equals(x.PropertyName, o.PropertyName, StringComparison.Ordinal)));
 
             if (n is not null)
             {
-                ops.Add(new RenameColumnOp(newTable.Schema, newTable.TableName, o.ColumnName, n.ColumnName));
+                if (!string.Equals(o.ColumnName, n.ColumnName, StringComparison.Ordinal))
+                {
+                    pendingColumnRenames.Add(new RenameColumnOp(newTable.Schema, newTable.TableName, o.ColumnName, n.ColumnName));
+                }
+
+                matchedPairs.Add((o, n));
+                unmatchedOld.RemoveAt(i);
+                unmatchedNew.Remove(n);
+            }
+        }
+
+        // Pass 3: same ColumnName fallback (e.g. C# property renamed while DB column name stayed the same).
+        for (var i = unmatchedOld.Count - 1; i >= 0; i--)
+        {
+            var o = unmatchedOld[i];
+            var n = unmatchedNew.FirstOrDefault(x =>
+                string.Equals(x.ColumnName, o.ColumnName, StringComparison.Ordinal));
+            if (n is not null)
+            {
                 matchedPairs.Add((o, n));
                 unmatchedOld.RemoveAt(i);
                 unmatchedNew.Remove(n);
@@ -677,7 +838,7 @@ internal static class StandaloneSchemaDiffer
                     var n = unmatchedNew[j];
                     if (confirmRename($"Table '{newTable.QualifiedName}': Was column '{o.ColumnName}' ({o.SqlType}) renamed to '{n.ColumnName}' ({n.SqlType})?"))
                     {
-                        ops.Add(new RenameColumnOp(newTable.Schema, newTable.TableName, o.ColumnName, n.ColumnName));
+                        pendingColumnRenames.Add(new RenameColumnOp(newTable.Schema, newTable.TableName, o.ColumnName, n.ColumnName));
                         matchedPairs.Add((o, n));
                         unmatchedOld.RemoveAt(i);
                         unmatchedNew.RemoveAt(j);
@@ -687,12 +848,21 @@ internal static class StandaloneSchemaDiffer
             }
         }
 
-        foreach (var dropped in unmatchedOld)
+        // Drop computed columns before regular columns, and drop all removed columns before renames.
+        foreach (var dropped in unmatchedOld.Where(c => !string.IsNullOrWhiteSpace(c.ComputedColumnSql)))
         {
             ops.Add(new DropColumnOp(newTable.Schema, newTable.TableName, dropped.ColumnName));
         }
 
-        foreach (var added in unmatchedNew)
+        foreach (var dropped in unmatchedOld.Where(c => string.IsNullOrWhiteSpace(c.ComputedColumnSql)))
+        {
+            ops.Add(new DropColumnOp(newTable.Schema, newTable.TableName, dropped.ColumnName));
+        }
+
+        ops.AddRange(pendingColumnRenames);
+
+        // Add regular columns before computed columns so computed expressions can reference newly added columns.
+        foreach (var added in unmatchedNew.Where(c => string.IsNullOrWhiteSpace(c.ComputedColumnSql)))
         {
             ops.Add(new AddColumnOp(newTable.Schema, newTable.TableName, added));
             if (!string.IsNullOrWhiteSpace(added.Comment))
@@ -702,6 +872,7 @@ internal static class StandaloneSchemaDiffer
         }
 
         var supportsComputedStorageMode = MigrationDialectRegistry.Get(sqlDialect).SupportsComputedStorageMode;
+        var deferredComputedAlters = new List<(AlterColumnOp? Alter, SetColumnCommentOp? Comment)>();
         foreach (var (o, n) in matchedPairs)
         {
             var computedStorageChanged = supportsComputedStorageMode
@@ -714,15 +885,38 @@ internal static class StandaloneSchemaDiffer
                           || !string.Equals(o.ComputedColumnSql, n.ComputedColumnSql, StringComparison.Ordinal)
                           || computedStorageChanged;
 
-            if (changed)
-            {
-                ops.Add(new AlterColumnOp(newTable.Schema, newTable.TableName, o, n));
-            }
+            var alterOp = changed ? new AlterColumnOp(newTable.Schema, newTable.TableName, o, n) : null;
+            var commentOp = !string.Equals(o.Comment, n.Comment, StringComparison.Ordinal)
+                ? new SetColumnCommentOp(newTable.Schema, newTable.TableName, n.ColumnName, n.Comment)
+                : null;
 
-            if (!string.Equals(o.Comment, n.Comment, StringComparison.Ordinal))
+            if (!string.IsNullOrWhiteSpace(n.ComputedColumnSql))
             {
-                ops.Add(new SetColumnCommentOp(newTable.Schema, newTable.TableName, n.ColumnName, n.Comment));
+                if (alterOp is not null || commentOp is not null)
+                {
+                    deferredComputedAlters.Add((alterOp, commentOp));
+                }
             }
+            else
+            {
+                if (alterOp is not null) ops.Add(alterOp);
+                if (commentOp is not null) ops.Add(commentOp);
+            }
+        }
+
+        foreach (var added in unmatchedNew.Where(c => !string.IsNullOrWhiteSpace(c.ComputedColumnSql)))
+        {
+            ops.Add(new AddColumnOp(newTable.Schema, newTable.TableName, added));
+            if (!string.IsNullOrWhiteSpace(added.Comment))
+            {
+                ops.Add(new SetColumnCommentOp(newTable.Schema, newTable.TableName, added.ColumnName, added.Comment));
+            }
+        }
+
+        foreach (var (alterOp, commentOp) in deferredComputedAlters)
+        {
+            if (alterOp is not null) ops.Add(alterOp);
+            if (commentOp is not null) ops.Add(commentOp);
         }
     }
 

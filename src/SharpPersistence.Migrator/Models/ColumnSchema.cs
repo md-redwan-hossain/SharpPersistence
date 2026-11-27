@@ -11,11 +11,18 @@ internal sealed class ColumnSchema
     [JsonIgnore]
     public string? PreviousColumnName { get; set; }
 
+    [JsonIgnore]
     public string ClrTypeName { get; set; } = string.Empty;
     public string SqlType { get; set; } = string.Empty;
     public bool IsNullable { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? MaxLength { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? Precision { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? Scale { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -24,9 +31,10 @@ internal sealed class ColumnSchema
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? DefaultValueSql { get; set; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool IsIdentity { get; set; }
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    [JsonIgnore]
     public ValueGenerationMode ValueGenerated { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -38,10 +46,10 @@ internal sealed class ColumnSchema
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Comment { get; set; }
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    [JsonIgnore]
     public bool IsConcurrencyToken { get; set; }
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    [JsonIgnore]
     public bool IsRowVersion { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

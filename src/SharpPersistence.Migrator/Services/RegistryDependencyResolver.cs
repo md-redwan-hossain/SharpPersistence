@@ -18,7 +18,7 @@ internal static class RegistryDependencyResolver
             options.PluralizeTableNames,
             options.EntityConventions,
             options.TableNameConvention,
-            options.EntityStubs,
+            options.EntityReplacements,
             options.Enums,
             options.SqlExpressionOptions);
 
@@ -30,7 +30,7 @@ internal static class RegistryDependencyResolver
         bool pluralizeTableNames = false,
         IReadOnlyList<EntityConventionRule>? entityConventions = null,
         Func<Type, string, string>? tableNameConvention = null,
-        IReadOnlyDictionary<Type, Type>? entityStubs = null,
+        IReadOnlyDictionary<Type, Type>? entityReplacements = null,
         IReadOnlyList<PostgresEnumSchema>? pgEnums = null,
         SqlExpressionBuilderOptions? sqlExpressionOptions = null)
     {
@@ -67,7 +67,7 @@ internal static class RegistryDependencyResolver
                 pluralizeTableNames: pluralizeTableNames,
                 entityConventions: entityConventions,
                 tableNameConvention: tableNameConvention,
-                entityStubs: entityStubs);
+                entityReplacements: entityReplacements);
 
             scannedSchemas[regName] = schema;
 

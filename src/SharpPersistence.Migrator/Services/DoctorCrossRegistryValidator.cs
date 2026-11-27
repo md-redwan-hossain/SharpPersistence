@@ -138,14 +138,14 @@ internal sealed class DoctorCrossRegistryValidator(
             }
         }
 
-        foreach (var (stubType, targetType) in options.EntityStubs)
+        foreach (var (sourceType, targetType) in options.EntityReplacements)
         {
-            if (options.EntityStubs.ContainsKey(targetType))
+            if (options.EntityReplacements.ContainsKey(targetType))
             {
                 checks.Add(new DoctorCheckItem(
                     DoctorSeverity.Error,
-                    $"Invalid entity stub mapping: '{stubType.Name}' maps to '{targetType.Name}', which is itself registered as a stub.",
-                    Hint: $"Map '{stubType.Name}' directly to the owning entity instead of chaining stubs."));
+                    $"Invalid entity replacement: '{sourceType.Name}' is replaced with '{targetType.Name}', which is itself registered as a replaced entity.",
+                    Hint: $"Replace '{sourceType.Name}' directly with the owning entity instead of chaining replacements."));
                 continue;
             }
 
@@ -153,7 +153,7 @@ internal sealed class DoctorCrossRegistryValidator(
             {
                 checks.Add(new DoctorCheckItem(
                     DoctorSeverity.Error,
-                    $"Invalid entity stub mapping: '{stubType.Name}' maps to '{targetType.Name}', which is not registered in any IEntityRegistry.",
+                    $"Invalid entity replacement: '{sourceType.Name}' is replaced with '{targetType.Name}', which is not registered in any IEntityRegistry.",
                     Hint: $"Register '{targetType.Name}' in its owning IEntityRegistry."));
                 continue;
             }
@@ -162,8 +162,8 @@ internal sealed class DoctorCrossRegistryValidator(
             {
                 checks.Add(new DoctorCheckItem(
                     DoctorSeverity.Error,
-                    $"Invalid entity stub mapping: '{stubType.Name}' maps to '{targetType.Name}' in {targetEntry.RegistryName}, which is marked ExcludeFromMigrations().",
-                    Hint: $"Map '{stubType.Name}' to the non-excluded owning entity instead."));
+                    $"Invalid entity replacement: '{sourceType.Name}' is replaced with '{targetType.Name}' in {targetEntry.RegistryName}, which is marked ExcludeFromMigrations().",
+                    Hint: $"Replace '{sourceType.Name}' with the non-excluded owning entity instead."));
             }
         }
 

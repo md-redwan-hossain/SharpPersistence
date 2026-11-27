@@ -16,5 +16,5 @@ internal static class DiagnosticIds
     internal const string DbContextPropertyNameCollision = "SPM012";
     internal const string DbContextMissingSchemaWiring = "SPM013";
     internal const string RequiredColumnInsideOptionalOwnedNavigation = "SPM014";
-    internal const string InvalidEntityStubMapping = "SPM015";
+    internal const string InvalidEntityReplacement = "SPM015";
 }

@@ -149,7 +149,7 @@ public sealed class UiSnapshotBuilderTests
                 .UsePostgreSql("Host=localhost;Database=test")
                 .UseRootPath(tempRoot)
                 .UseNamingConvention(SqlIdentifierCase.LowerSnakeCase)
-                .ConfigureEntityStubs(stubs => stubs.Map<UiRefUser, UiUser>())
+                .ReplaceEntityTypes(r => r.Replace<UiRefUser, UiUser>())
                 .AddRegistry<UiDependentBillingRegistry>()
                 .AddRegistry<UiIdentityRegistry>()
                 .AddRegistry<UiBillingRegistry>());

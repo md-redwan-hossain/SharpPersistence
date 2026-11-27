@@ -11,7 +11,7 @@ internal static class SchemaFinalizer
         IReadOnlySet<Type>? includedEntityTypes,
         IReadOnlyList<SequenceSchema>? sequences = null,
         IReadOnlyList<PostgresEnumSchema>? pgEnums = null,
-        IReadOnlyDictionary<Type, Type>? entityStubs = null)
+        IReadOnlyDictionary<Type, Type>? entityReplacements = null)
     {
         var enumLookup = (pgEnums ?? []).ToDictionary(e => e.ClrTypeName, StringComparer.Ordinal);
         var schema = new DatabaseModel
@@ -51,7 +51,7 @@ internal static class SchemaFinalizer
             BuildIndexes(table, tb);
             BuildCheckConstraints(table, tb);
             BuildExclusionConstraints(table, tb);
-            BuildForeignKeys(table, tb, builders, entityStubs);
+            BuildForeignKeys(table, tb, builders, entityReplacements);
 
             table.Indexes.Sort((a, b) => string.CompareOrdinal(a.Name, b.Name));
             table.ForeignKeys.Sort((a, b) => string.CompareOrdinal(a.Name, b.Name));
@@ -337,11 +337,11 @@ internal static class SchemaFinalizer
         }
     }
 
-    internal static Type ResolveEntityStub(
+    internal static Type ResolveEntityReplacement(
         Type principalType,
-        IReadOnlyDictionary<Type, Type>? entityStubs)
+        IReadOnlyDictionary<Type, Type>? entityReplacements)
     {
-        if (entityStubs is { Count: > 0 } && entityStubs.TryGetValue(principalType, out var target))
+        if (entityReplacements is { Count: > 0 } && entityReplacements.TryGetValue(principalType, out var target))
         {
             return target;
         }
@@ -353,18 +353,18 @@ internal static class SchemaFinalizer
         TableSchema table,
         TableDefinition tb,
         Dictionary<Type, TableDefinition> builders,
-        IReadOnlyDictionary<Type, Type>? entityStubs)
+        IReadOnlyDictionary<Type, Type>? entityReplacements)
     {
         foreach (var fk in tb.ForeignKeys)
         {
-            var resolvedPrincipalType = ResolveEntityStub(fk.PrincipalType, entityStubs);
+            var resolvedPrincipalType = ResolveEntityReplacement(fk.PrincipalType, entityReplacements);
             if (!builders.TryGetValue(resolvedPrincipalType, out var principalTb))
             {
-                var viaStub = resolvedPrincipalType != fk.PrincipalType
-                    ? $" (resolved from stub '{fk.PrincipalType.Name}')"
+                var viaReplacement = resolvedPrincipalType != fk.PrincipalType
+                    ? $" (resolved from replaced entity '{fk.PrincipalType.Name}')"
                     : string.Empty;
                 throw new InvalidOperationException(
-                    $"Principal entity '{resolvedPrincipalType.Name}'{viaStub} is not registered in any IEntityRegistry.");
+                    $"Principal entity '{resolvedPrincipalType.Name}'{viaReplacement} is not registered in any IEntityRegistry.");
             }
 
             var depCols = fk.DependentProps

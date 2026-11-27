@@ -85,7 +85,7 @@ public sealed class OwnsOneTests
             options.PluralizeTableNames,
             options.EntityConventions,
             options.TableNameConvention,
-            options.EntityStubs,
+            options.EntityReplacements,
             [.. options.Registries]);
 
         var order = Assert.Single(model.Tables);

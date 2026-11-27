@@ -5,7 +5,11 @@ namespace SharpPersistence.Migrator.Models;
 internal sealed class PostgresEnumSchema
 {
     public string Name { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Schema { get; set; }
+
+    [JsonIgnore]
     public string ClrTypeName { get; set; } = string.Empty;
     public List<string> Labels { get; set; } = [];
 

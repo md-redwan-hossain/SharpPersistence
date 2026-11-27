@@ -21,7 +21,9 @@ internal sealed record GeneratedMigrationItem(
     string? DeferredScriptPath,
     string SqlScript,
     string DeferredSqlScript,
-    bool IsEmpty);
+    bool IsEmpty,
+    string? SnapshotPath = null,
+    string? RenamedSnapshotFrom = null);
 
 internal sealed record SchemaDriftItem(
     string RegistryName,

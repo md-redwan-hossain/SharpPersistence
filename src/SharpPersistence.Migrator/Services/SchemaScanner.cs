@@ -40,7 +40,7 @@ internal static class SchemaScanner
         bool pluralizeTableNames,
         IReadOnlyList<EntityConventionRule>? entityConventions,
         Func<Type, string, string>? tableNameConvention,
-        IReadOnlyDictionary<Type, Type>? entityStubs,
+        IReadOnlyDictionary<Type, Type>? entityReplacements,
         params IEntityRegistry[] registries)
     {
         var (buildersByType, sequences) = BuildTableBuilders(
@@ -52,7 +52,7 @@ internal static class SchemaScanner
             pluralizeTableNames,
             entityConventions,
             tableNameConvention);
-        return SchemaFinalizer.FinalizeSchema(buildersByType, includedEntityTypes: null, sequences, pgEnums, entityStubs);
+        return SchemaFinalizer.FinalizeSchema(buildersByType, includedEntityTypes: null, sequences, pgEnums, entityReplacements);
     }
 
     public static DatabaseModel ScanRegistry(
@@ -70,7 +70,7 @@ internal static class SchemaScanner
             options.PluralizeTableNames,
             options.EntityConventions,
             options.TableNameConvention,
-            options.EntityStubs);
+            options.EntityReplacements);
 
     public static DatabaseModel ScanRegistry(
         IEntityRegistry registry,
@@ -83,7 +83,7 @@ internal static class SchemaScanner
         bool pluralizeTableNames = false,
         IReadOnlyList<EntityConventionRule>? entityConventions = null,
         Func<Type, string, string>? tableNameConvention = null,
-        IReadOnlyDictionary<Type, Type>? entityStubs = null)
+        IReadOnlyDictionary<Type, Type>? entityReplacements = null)
     {
         var contextRegistries = allRegistries is { Count: > 0 }
             ? allRegistries
@@ -102,7 +102,7 @@ internal static class SchemaScanner
         var ownedTypes = evaluated.Mappings.Keys.ToHashSet();
         var ownedSequences = BuildSequenceSchemas(evaluated, dialect);
 
-        return SchemaFinalizer.FinalizeSchema(buildersByType, ownedTypes, ownedSequences, pgEnums, entityStubs);
+        return SchemaFinalizer.FinalizeSchema(buildersByType, ownedTypes, ownedSequences, pgEnums, entityReplacements);
     }
 
     private static (Dictionary<Type, TableDefinition> Builders, List<SequenceSchema> Sequences) BuildTableBuilders(

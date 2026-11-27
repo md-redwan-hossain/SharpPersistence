@@ -114,7 +114,10 @@ Summary: 9 passed, 0 warnings, 0 errors  (exit code 0)
 
 ### `generate`
 
-Compares entity configurations against your latest migration scripts and generates safe-to-re-run SQL.
+Compares entity configurations against your latest per-registry JSON snapshots in `DbMigrator/Snapshots/` and generates safe-to-re-run SQL scripts under `DbMigrator/Scripts/`. Reports every generated script, snapshot create/update/rename, and `db-migration-runlist.json` update (in both normal and `--dry-run` modes).
+
+- **SQL-first `camelCase` snapshots**: Each registry gets its own `DbMigrator/Snapshots/<Registry>.json` (plus `_global.json` for PostgreSQL extensions/enums) with `snapshotVersion`, `dialect`, SQL DDL state, and `entityName`/`propertyName` anchors for automatic rename detection (omitting C#/EF runtime-only metadata and `null`/`false` noise).
+- **Registry rename & cross-registry move safety**: If you rename a registry class, `generate` detects the orphaned snapshot and interactively asks to rename it (or fails fast in `--ci` mode). Moving an entity from one registry to another in the same run aborts before writing any files so data is never dropped and recreated.
 
 ```powershell
 db-migrator generate --name Initial --startup-project WebApi/WebApi.csproj

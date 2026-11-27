@@ -197,19 +197,19 @@ public sealed class MigratorCodeFixTests
     }
 
     [Fact]
-    public async Task Spm015_RemovesInvalidStubMapping()
+    public async Task Spm015_RemovesInvalidEntityTypeReplacement()
     {
         const string source = """
             class C
             {
-                void M(dynamic stubs)
+                void M(dynamic replacements)
                 {
-                    stubs.Map<User, User>();
+                    replacements.Replace<User, User>();
                 }
             }
             """;
 
-        var result = await ApplyCodeFixAsync(new MigratorUsageCodeFixProvider(), source, "SPM015", "Map<User, User>()");
-        result.ShouldNotContain("Map<User, User>");
+        var result = await ApplyCodeFixAsync(new MigratorUsageCodeFixProvider(), source, "SPM015", "Replace<User, User>()");
+        result.ShouldNotContain("Replace<User, User>");
     }
 }

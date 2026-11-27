@@ -165,11 +165,26 @@ internal sealed class DiffCommand : AsyncCommand<DiffSettings>
                 return 0;
             }
 
+            var scriptCount = 0;
             foreach (var g in generated)
             {
                 var badge = settings.DryRun ? "[yellow][[DRY-RUN]][/] " : string.Empty;
+                if (g.RenamedSnapshotFrom is not null && g.SnapshotPath is not null)
+                {
+                    var renameVerb = settings.DryRun ? "Would rename snapshot" : "Renamed snapshot";
+                    AnsiConsole.MarkupLine(
+                        $"{badge}[cyan][[{Markup.Escape(g.RegistryName)}]][/] {renameVerb}: [yellow]{Markup.Escape(g.RenamedSnapshotFrom)}[/] -> [green]{Markup.Escape(g.SnapshotPath)}[/]");
+                }
+                else if (g.SnapshotPath is not null)
+                {
+                    var snapVerb = settings.DryRun ? "Would update snapshot" : "Updated snapshot";
+                    AnsiConsole.MarkupLine(
+                        $"{badge}[cyan][[{Markup.Escape(g.RegistryName)}]][/] {snapVerb}: [green]{Markup.Escape(g.SnapshotPath)}[/]");
+                }
+
                 if (g.ScriptPath is not null)
                 {
+                    scriptCount++;
                     AnsiConsole.MarkupLine($"{badge}[cyan][[{Markup.Escape(g.RegistryName)}]][/] {(settings.DryRun ? "Preview" : "Generated")}: [green]{Markup.Escape(g.ScriptPath)}[/]");
                     if (settings.DryRun && !string.IsNullOrWhiteSpace(g.SqlScript))
                     {
@@ -179,12 +194,22 @@ internal sealed class DiffCommand : AsyncCommand<DiffSettings>
 
                 if (g.DeferredScriptPath is not null)
                 {
+                    scriptCount++;
                     AnsiConsole.MarkupLine($"{badge}[cyan][[{Markup.Escape(g.RegistryName)}]][/] Deferred circular FK: [green]{Markup.Escape(g.DeferredScriptPath)}[/]");
                     if (settings.DryRun && !string.IsNullOrWhiteSpace(g.DeferredSqlScript))
                     {
                         AnsiConsole.WriteLine(g.DeferredSqlScript);
                     }
                 }
+            }
+
+            if (scriptCount > 0)
+            {
+                var runlistPath = manager.CreateRunlistManager().RunlistPath;
+                var runlistBadge = settings.DryRun ? "[yellow][[DRY-RUN]][/] " : string.Empty;
+                var runlistVerb = settings.DryRun ? "Would append" : "Appended";
+                AnsiConsole.MarkupLine(
+                    $"{runlistBadge}{runlistVerb} {scriptCount} script(s) to [cyan]{Markup.Escape(runlistPath)}[/]");
             }
 
             return 0;
@@ -371,6 +396,11 @@ internal sealed class TranslateEfMigrationCommand : AsyncCommand<TranslateEfSett
                     AnsiConsole.WriteLine(item.SqlScript);
                 }
             }
+
+            var runlistPath = manager.CreateRunlistManager().RunlistPath;
+            var runlistVerb = settings.DryRun ? "Would append" : "Appended";
+            AnsiConsole.MarkupLine(
+                $"{mode}{runlistVerb} {translated.Count} script(s) to [cyan]{Markup.Escape(runlistPath)}[/]");
 
             return 0;
         }
@@ -663,6 +693,15 @@ internal sealed class RunlistSyncCommand : AsyncCommand<RunlistSyncSettings>
             var result = await runlist.SyncAsync(settings.Prune, settings.DryRun);
 
             var prefix = settings.DryRun ? "[yellow]DRY RUN:[/] " : string.Empty;
+            if (result.StampedFiles is { Count: > 0 })
+            {
+                var renameVerb = settings.DryRun ? "Would rename" : "Renamed";
+                foreach (var stamped in result.StampedFiles)
+                {
+                    AnsiConsole.MarkupLine($"{prefix}{renameVerb}: [green]{Markup.Escape(stamped)}[/]");
+                }
+            }
+
             AnsiConsole.MarkupLine(
                 $"{prefix}Synced [cyan]{Markup.Escape(result.RunlistPath)}[/] " +
                 $"(stamped: {result.StampedCount}, added: {result.AddedCount}, pruned: {result.PrunedCount}).");

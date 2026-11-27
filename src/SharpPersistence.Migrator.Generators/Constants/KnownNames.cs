@@ -24,6 +24,7 @@ internal static class KnownNames
         internal const string OnModelCreatingPartial = "OnModelCreatingPartial";
         internal const string ApplySchemaToEfCore = "ApplySchemaToEfCore";
         internal const string Map = "Map";
+        internal const string Replace = "Replace";
         internal const string IsRequired = "IsRequired";
         internal const string OwnsOne = "OwnsOne";
     }

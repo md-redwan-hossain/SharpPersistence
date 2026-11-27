@@ -10,7 +10,8 @@ internal sealed record RunlistSyncResult(
     int PrunedCount,
     string RunlistPath,
     bool WasWritten,
-    IReadOnlyList<Guid>? StaleOverrideIds = null);
+    IReadOnlyList<Guid>? StaleOverrideIds = null,
+    IReadOnlyList<string>? StampedFiles = null);
 
 internal sealed class MigrationRunlistManager
 {
@@ -149,6 +150,7 @@ internal sealed class MigrationRunlistManager
     {
         var diskFiles = EnumerateSqlFiles();
         var stampedCount = 0;
+        var stampedFiles = new List<string>();
         var scriptsById = new Dictionary<Guid, RunlistScriptEntry>();
         var duplicateIds = new List<string>();
 
@@ -179,6 +181,7 @@ internal sealed class MigrationRunlistManager
                 effectivePath = dryRun ? fullPath : newFullPath;
                 var relDir = Path.GetDirectoryName(scriptName)?.Replace('\\', '/');
                 effectiveScriptName = string.IsNullOrEmpty(relDir) ? newFileName : $"{relDir}/{newFileName}";
+                stampedFiles.Add($"{registryName}/{scriptName} -> {registryName}/{effectiveScriptName}");
             }
 
             if (!scriptsById.TryAdd(id, new RunlistScriptEntry(id, registryName, effectiveScriptName, effectivePath)))
@@ -247,7 +250,8 @@ internal sealed class MigrationRunlistManager
             prunedCount,
             RunlistPath,
             !dryRun && (finalIds.Count > 0 || File.Exists(RunlistPath)),
-            staleOverrideIds);
+            staleOverrideIds,
+            stampedFiles);
     }
 
     private List<Guid> FindStaleOverrideIds(IReadOnlyDictionary<Guid, RunlistScriptEntry> scriptsById)

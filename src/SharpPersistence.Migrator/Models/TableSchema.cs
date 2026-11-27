@@ -7,6 +7,8 @@ internal sealed class TableSchema
 {
     public string EntityName { get; set; } = string.Empty;
     public string TableName { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Schema { get; set; }
 
     [JsonIgnore]
@@ -42,6 +44,7 @@ internal sealed class TableSchema
     [JsonIgnore]
     public Dictionary<string, object?> Annotations { get; set; } = new(StringComparer.Ordinal);
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public PrimaryKeySchema? PrimaryKey { get; set; }
     public List<ColumnSchema> Columns { get; set; } = [];
     public List<IndexSchema> Indexes { get; set; } = [];

@@ -9,7 +9,7 @@ using SharpPersistence.Migrator.Services;
 
 namespace SharpPersistence.Migrator.Tests;
 
-public sealed class EntityStubTests
+public sealed class EntityTypeReplacementTests
 {
     private interface ICreateTracking
     {
@@ -81,7 +81,7 @@ public sealed class EntityStubTests
     }
 
     [Fact]
-    public void ConfigureEntityStubs_ResolvesCrossAndOwningModuleFks_AndSortsRegistries()
+    public void ReplaceEntityTypes_ResolvesCrossAndOwningModuleFks_AndSortsRegistries()
     {
         var optionsBuilder = new DbMigratorOptionsBuilder();
         optionsBuilder
@@ -92,7 +92,7 @@ public sealed class EntityStubTests
                 e.HasForeignKey(x => x.CreatedByUserId)
                     .References<RefUser>(u => u.Id)
                     .OnDelete(DbReferentialAction.Restrict))
-            .ConfigureEntityStubs(stubs => stubs.Map<RefUser, User>())
+            .ReplaceEntityTypes(r => r.Replace<RefUser, User>())
             .AddRegistry<BillingRegistry>()
             .AddRegistry<AccessControlRegistry>();
 
@@ -106,7 +106,7 @@ public sealed class EntityStubTests
             options.PluralizeTableNames,
             options.EntityConventions,
             options.TableNameConvention,
-            options.EntityStubs);
+            options.EntityReplacements);
 
         Assert.Equal(
             [nameof(AccessControlRegistry), nameof(BillingRegistry)],
@@ -121,7 +121,7 @@ public sealed class EntityStubTests
             options.PluralizeTableNames,
             options.EntityConventions,
             options.TableNameConvention,
-            options.EntityStubs,
+            options.EntityReplacements,
             [.. options.Registries]);
 
         var invoice = schema.Tables.Single(t => t.TableName == "invoices");
@@ -139,7 +139,7 @@ public sealed class EntityStubTests
     }
 
     [Fact]
-    public void ExcludedStubFallback_OrdersOwningRegistryBeforeDependent_WithoutConfigureEntityStubs()
+    public void ExcludedExternalEntityFallback_OrdersOwningRegistryBeforeDependent_WithoutReplaceEntityTypes()
     {
         var optionsBuilder = new DbMigratorOptionsBuilder();
         optionsBuilder
@@ -164,29 +164,29 @@ public sealed class EntityStubTests
             options.PluralizeTableNames,
             options.EntityConventions,
             options.TableNameConvention,
-            options.EntityStubs);
+            options.EntityReplacements);
 
         var names = sorted.Select(r => r.GetType().Name).ToList();
         Assert.True(names.IndexOf(nameof(AccessControlRegistry)) < names.IndexOf(nameof(BillingRegistry)));
     }
 
     [Fact]
-    public void EntityStubBuilder_ThrowsWhenMappingTypeToItself()
+    public void EntityTypeReplacementBuilder_ThrowsWhenReplacingTypeWithItself()
     {
         var optionsBuilder = new DbMigratorOptionsBuilder();
         Assert.Throws<ArgumentException>(() =>
-            optionsBuilder.ConfigureEntityStubs(stubs => stubs.Map<User, User>()));
+            optionsBuilder.ReplaceEntityTypes(r => r.Replace<User, User>()));
     }
 
     [Fact]
-    public void DoctorCrossRegistryValidator_FlagsChainedUnregisteredAndExcludedStubTargets()
+    public void DoctorCrossRegistryValidator_FlagsChainedUnregisteredAndExcludedReplacementTargets()
     {
         var optionsBuilder = new DbMigratorOptionsBuilder();
         optionsBuilder
             .UsePostgreSql("Host=localhost;Database=test")
-            .ConfigureEntityStubs(stubs => stubs
-                .Map<RefUserAlias, RefUser>()
-                .Map<RefUser, UnregisteredOwner>())
+            .ReplaceEntityTypes(r => r
+                .Replace<RefUserAlias, RefUser>()
+                .Replace<RefUser, UnregisteredOwner>())
             .AddRegistry<AccessControlRegistry>()
             .AddRegistry<CommonStubRegistry>();
 
@@ -216,12 +216,12 @@ public sealed class EntityStubTests
         var checks = new List<DoctorCheckItem>();
         validator.Validate(allTables, checks, hasRegistryErrors: true);
 
-        Assert.Contains(checks, c => c.Severity == DoctorSeverity.Error && c.Message.Contains("itself registered as a stub"));
+        Assert.Contains(checks, c => c.Severity == DoctorSeverity.Error && c.Message.Contains("itself registered as a replaced entity"));
         Assert.Contains(checks, c => c.Severity == DoctorSeverity.Error && c.Message.Contains("UnregisteredOwner"));
     }
 
     [Fact]
-    public async Task MigrationScriptStore_DiscoverScripts_RespectsEntityStubsAndConventionsOrder()
+    public async Task MigrationScriptStore_DiscoverScripts_RespectsEntityReplacementsAndConventionsOrder()
     {
         var tempRoot = Path.Combine(Path.GetTempPath(), $"sp_stub_scripts_{Guid.NewGuid():N}");
         try
@@ -244,7 +244,7 @@ public sealed class EntityStubTests
                     e.HasForeignKey(x => x.CreatedByUserId)
                         .References<RefUser>(u => u.Id)
                         .OnDelete(DbReferentialAction.Restrict))
-                .ConfigureEntityStubs(stubs => stubs.Map<RefUser, User>())
+                .ReplaceEntityTypes(r => r.Replace<RefUser, User>())
                 .AddRegistry<BillingRegistry>()
                 .AddRegistry<AccessControlRegistry>();
 

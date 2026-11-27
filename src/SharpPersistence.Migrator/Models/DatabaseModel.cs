@@ -1,13 +1,24 @@
 using System.Text.Json.Serialization;
+using SharpPersistence.Enums;
 
 namespace SharpPersistence.Migrator.Models;
 
 public sealed class DatabaseModel
 {
+    internal const int CurrentSnapshotVersion = 1;
+
     [JsonConstructor]
     internal DatabaseModel()
     {
     }
+
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    internal int SnapshotVersion { get; set; }
+
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    internal SqlDialect? Dialect { get; set; }
 
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

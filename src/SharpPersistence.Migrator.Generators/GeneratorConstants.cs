@@ -38,7 +38,7 @@ internal static class GeneratorConstants
     public const string EfCoreDbSetMetadataName = "Microsoft.EntityFrameworkCore.DbSet`1";
     public const string EfCoreModelBuilderMetadataName = "Microsoft.EntityFrameworkCore.ModelBuilder";
     public const string SystemQueryableMetadataName = "System.Linq.IQueryable`1";
-    public const string EntityStubBuilderMetadataName = "SharpPersistence.Migrator.Configuration.EntityStubBuilder";
+    public const string EntityTypeReplacementBuilderMetadataName = "SharpPersistence.Migrator.Configuration.EntityTypeReplacementBuilder";
     public const string EntityBuilderMetadataName = "SharpPersistence.Migrator.Builders.EntityBuilder`1";
     public const string OwnedEntityBuilderMetadataName = "SharpPersistence.Migrator.Builders.OwnedEntityBuilder`2";
     public const string ColumnBuilderBaseMetadataName = "SharpPersistence.Migrator.Builders.ColumnBuilderBase`1";
@@ -157,9 +157,9 @@ internal static class GeneratorConstants
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
-    public static readonly DiagnosticDescriptor InvalidEntityStubMapping = new(
-        id: DiagnosticIds.InvalidEntityStubMapping,
-        title: "Invalid ConfigureEntityStubs mapping",
+    public static readonly DiagnosticDescriptor InvalidEntityReplacement = new(
+        id: DiagnosticIds.InvalidEntityReplacement,
+        title: "Invalid ReplaceEntityTypes mapping",
         messageFormat: "{0}",
         category: DiagnosticCategory,
         defaultSeverity: DiagnosticSeverity.Error,

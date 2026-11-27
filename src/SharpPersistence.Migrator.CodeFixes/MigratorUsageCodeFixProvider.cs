@@ -16,7 +16,7 @@ public sealed class MigratorUsageCodeFixProvider : CodeFixProvider
     public override ImmutableArray<string> FixableDiagnosticIds =>
     [
         DiagnosticIds.RequiredColumnInsideOptionalOwnedNavigation,
-        DiagnosticIds.InvalidEntityStubMapping
+        DiagnosticIds.InvalidEntityReplacement
     ];
 
     public override FixAllProvider GetFixAllProvider() => WellKnownFixAllProviders.BatchFixer;
@@ -39,7 +39,7 @@ public sealed class MigratorUsageCodeFixProvider : CodeFixProvider
 
             var (title, key, removeStmt) = diagnostic.Id == DiagnosticIds.RequiredColumnInsideOptionalOwnedNavigation
                 ? ("Remove .IsRequired() call", $"{DiagnosticIds.RequiredColumnInsideOptionalOwnedNavigation}_RemoveIsRequired", false)
-                : ("Remove invalid stub mapping", $"{DiagnosticIds.InvalidEntityStubMapping}_RemoveInvalidStubMapping", true);
+                : ("Remove invalid entity type replacement", $"{DiagnosticIds.InvalidEntityReplacement}_RemoveInvalidEntityReplacement", true);
 
             context.RegisterCodeFix(
                 CodeAction.Create(

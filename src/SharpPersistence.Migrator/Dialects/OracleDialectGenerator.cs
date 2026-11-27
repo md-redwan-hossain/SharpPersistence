@@ -100,7 +100,11 @@ internal sealed class OracleDialectGenerator : ISqlDialectGenerator
                             $"Oracle does not support moving table '{rt.OldTableName}' across schemas ('{rt.OldSchema}' -> '{rt.NewSchema}') via ALTER TABLE RENAME.");
                     }
 
-                    sb.AppendLine($"ALTER TABLE {Qualify(rt.OldSchema, rt.OldTableName)} RENAME TO {Quote(rt.NewTableName)};");
+                    AppendCatalogGuardedRename(
+                        sb,
+                        BuildTableExistsQuery(rt.OldSchema, rt.OldTableName),
+                        BuildTableExistsQuery(rt.NewSchema, rt.NewTableName),
+                        $"ALTER TABLE {Qualify(rt.OldSchema, rt.OldTableName)} RENAME TO {Quote(rt.NewTableName)}");
                     sb.AppendLine();
                     break;
 
@@ -121,7 +125,11 @@ internal sealed class OracleDialectGenerator : ISqlDialectGenerator
                     break;
 
                 case RenameIndexOp ri:
-                    sb.AppendLine($"ALTER INDEX {Qualify(ri.Schema, ri.OldName)} RENAME TO {Quote(ri.NewName)};");
+                    AppendCatalogGuardedRename(
+                        sb,
+                        BuildIndexExistsQuery(ri.Schema, ri.OldName),
+                        BuildIndexExistsQuery(ri.Schema, ri.NewName),
+                        $"ALTER INDEX {Qualify(ri.Schema, ri.OldName)} RENAME TO {Quote(ri.NewName)}");
                     sb.AppendLine();
                     break;
 
@@ -180,7 +188,11 @@ internal sealed class OracleDialectGenerator : ISqlDialectGenerator
                     break;
 
                 case RenameConstraintOp rc:
-                    sb.AppendLine($"ALTER TABLE {Qualify(rc.Schema, rc.TableName)} RENAME CONSTRAINT {Quote(rc.OldName)} TO {Quote(rc.NewName)};");
+                    AppendCatalogGuardedRename(
+                        sb,
+                        BuildConstraintExistsQuery(rc.Schema, rc.TableName, rc.OldName),
+                        BuildConstraintExistsQuery(rc.Schema, rc.TableName, rc.NewName),
+                        $"ALTER TABLE {Qualify(rc.Schema, rc.TableName)} RENAME CONSTRAINT {Quote(rc.OldName)} TO {Quote(rc.NewName)}");
                     sb.AppendLine();
                     break;
 
@@ -206,7 +218,11 @@ internal sealed class OracleDialectGenerator : ISqlDialectGenerator
                     break;
 
                 case RenameColumnOp rnc:
-                    sb.AppendLine($"ALTER TABLE {Qualify(rnc.Schema, rnc.TableName)} RENAME COLUMN {Quote(rnc.OldName)} TO {Quote(rnc.NewName)};");
+                    AppendCatalogGuardedRename(
+                        sb,
+                        BuildColumnExistsQuery(rnc.Schema, rnc.TableName, rnc.OldName),
+                        BuildColumnExistsQuery(rnc.Schema, rnc.TableName, rnc.NewName),
+                        $"ALTER TABLE {Qualify(rnc.Schema, rnc.TableName)} RENAME COLUMN {Quote(rnc.OldName)} TO {Quote(rnc.NewName)}");
                     sb.AppendLine();
                     break;
 
@@ -325,18 +341,11 @@ internal sealed class OracleDialectGenerator : ISqlDialectGenerator
     private void AppendAddColumn(StringBuilder sb, AddColumnOp ac)
     {
         var colDef = FormatColumnDefinition(ac.Column);
-        if (SupportsIfExists)
-        {
-            sb.AppendLine($"ALTER TABLE {Qualify(ac.Schema, ac.TableName)} ADD IF NOT EXISTS ({colDef});");
-        }
-        else
-        {
-            AppendCatalogGuardedDdl(
-                sb,
-                BuildColumnExistsQuery(ac.Schema, ac.TableName, ac.Column.ColumnName),
-                executeWhenExists: false,
-                $"ALTER TABLE {Qualify(ac.Schema, ac.TableName)} ADD ({colDef})");
-        }
+        AppendCatalogGuardedDdl(
+            sb,
+            BuildColumnExistsQuery(ac.Schema, ac.TableName, ac.Column.ColumnName),
+            executeWhenExists: false,
+            $"ALTER TABLE {Qualify(ac.Schema, ac.TableName)} ADD ({colDef})");
     }
 
     private void AppendAlterColumn(StringBuilder sb, AlterColumnOp alc)
@@ -349,7 +358,6 @@ internal sealed class OracleDialectGenerator : ISqlDialectGenerator
             if (SupportsIfExists)
             {
                 sb.AppendLine($"ALTER TABLE {table} DROP COLUMN IF EXISTS {col};");
-                sb.AppendLine($"ALTER TABLE {table} ADD IF NOT EXISTS ({FormatColumnDefinition(alc.NewCol)});");
             }
             else
             {
@@ -358,22 +366,34 @@ internal sealed class OracleDialectGenerator : ISqlDialectGenerator
                     BuildColumnExistsQuery(alc.Schema, alc.TableName, alc.NewCol.ColumnName),
                     executeWhenExists: true,
                     $"ALTER TABLE {table} DROP COLUMN {col}");
-                AppendCatalogGuardedDdl(
-                    sb,
-                    BuildColumnExistsQuery(alc.Schema, alc.TableName, alc.NewCol.ColumnName),
-                    executeWhenExists: false,
-                    $"ALTER TABLE {table} ADD ({FormatColumnDefinition(alc.NewCol)})");
             }
+
+            AppendCatalogGuardedDdl(
+                sb,
+                BuildColumnExistsQuery(alc.Schema, alc.TableName, alc.NewCol.ColumnName),
+                executeWhenExists: false,
+                $"ALTER TABLE {table} ADD ({FormatColumnDefinition(alc.NewCol)})");
 
             return;
         }
 
-        if (alc.OldCol.IsIdentity != alc.NewCol.IsIdentity)
+        var dropIdentity = alc.OldCol.IsIdentity && !alc.NewCol.IsIdentity;
+        var addIdentity = !alc.OldCol.IsIdentity && alc.NewCol.IsIdentity;
+        var hadOldDefault = !string.IsNullOrWhiteSpace(alc.OldCol.DefaultValueSql);
+
+        if (dropIdentity)
         {
-            var identityClause = alc.NewCol.IsIdentity
-                ? "GENERATED BY DEFAULT ON NULL AS IDENTITY"
-                : "DROP IDENTITY";
-            sb.AppendLine($"ALTER TABLE {table} MODIFY ({col} {identityClause});");
+            sb.AppendLine($"ALTER TABLE {table} MODIFY ({col} DROP IDENTITY);");
+        }
+
+        if (addIdentity && hadOldDefault)
+        {
+            sb.AppendLine($"ALTER TABLE {table} MODIFY ({col} DEFAULT NULL);");
+        }
+
+        if (addIdentity)
+        {
+            sb.AppendLine($"ALTER TABLE {table} MODIFY ({col} GENERATED BY DEFAULT ON NULL AS IDENTITY);");
         }
 
         var parts = new List<string> { col };
@@ -383,21 +403,27 @@ internal sealed class OracleDialectGenerator : ISqlDialectGenerator
             parts.Add(alc.NewCol.SqlType);
         }
 
-        if (!string.Equals(alc.OldCol.DefaultValueSql, alc.NewCol.DefaultValueSql, StringComparison.Ordinal))
+        if (!addIdentity && !string.Equals(alc.OldCol.DefaultValueSql, alc.NewCol.DefaultValueSql, StringComparison.Ordinal))
         {
             parts.Add(string.IsNullOrWhiteSpace(alc.NewCol.DefaultValueSql)
                 ? "DEFAULT NULL"
                 : $"DEFAULT {NormalizeOracleDefault(alc.NewCol.DefaultValueSql, alc.NewCol.SqlType)}");
         }
 
-        if (alc.OldCol.IsNullable != alc.NewCol.IsNullable)
-        {
-            parts.Add(alc.NewCol.IsNullable ? "NULL" : "NOT NULL");
-        }
-
         if (parts.Count > 1)
         {
             sb.AppendLine($"ALTER TABLE {table} MODIFY ({string.Join(" ", parts)});");
+        }
+
+        if (alc.OldCol.IsNullable != alc.NewCol.IsNullable)
+        {
+            var expectedCurrentNullable = alc.NewCol.IsNullable ? "N" : "Y";
+            var nullClause = alc.NewCol.IsNullable ? "NULL" : "NOT NULL";
+            AppendCatalogGuardedDdl(
+                sb,
+                BuildColumnNullabilityQuery(alc.Schema, alc.TableName, alc.NewCol.ColumnName, expectedCurrentNullable),
+                executeWhenExists: true,
+                $"ALTER TABLE {table} MODIFY ({col} {nullClause})");
         }
     }
 
@@ -475,6 +501,32 @@ internal sealed class OracleDialectGenerator : ISqlDialectGenerator
             ? $"SELECT COUNT(*) INTO v_cnt FROM USER_SEQUENCES WHERE SEQUENCE_NAME = '{EscapeLiteral(sequenceName)}';"
             : $"SELECT COUNT(*) INTO v_cnt FROM ALL_SEQUENCES WHERE SEQUENCE_OWNER = '{EscapeLiteral(schema)}' AND SEQUENCE_NAME = '{EscapeLiteral(sequenceName)}';";
 
+    private static string BuildColumnNullabilityQuery(string? schema, string tableName, string columnName, string expectedNullable) =>
+        string.IsNullOrWhiteSpace(schema)
+            ? $"SELECT COUNT(*) INTO v_cnt FROM USER_TAB_COLUMNS WHERE TABLE_NAME = '{EscapeLiteral(tableName)}' AND COLUMN_NAME = '{EscapeLiteral(columnName)}' AND NULLABLE = '{expectedNullable}';"
+            : $"SELECT COUNT(*) INTO v_cnt FROM ALL_TAB_COLUMNS WHERE OWNER = '{EscapeLiteral(schema)}' AND TABLE_NAME = '{EscapeLiteral(tableName)}' AND COLUMN_NAME = '{EscapeLiteral(columnName)}' AND NULLABLE = '{expectedNullable}';";
+
+    private static void AppendCatalogGuardedRename(
+        StringBuilder sb,
+        string oldExistsQuery,
+        string newExistsQuery,
+        string statement)
+    {
+        var oldQuery = oldExistsQuery.Replace("INTO v_cnt", "INTO v_old", StringComparison.Ordinal);
+        var newQuery = newExistsQuery.Replace("INTO v_cnt", "INTO v_new", StringComparison.Ordinal);
+        sb.AppendLine("DECLARE");
+        sb.AppendLine("    v_old NUMBER := 0;");
+        sb.AppendLine("    v_new NUMBER := 0;");
+        sb.AppendLine("BEGIN");
+        sb.AppendLine($"    {oldQuery}");
+        sb.AppendLine($"    {newQuery}");
+        sb.AppendLine("    IF v_old > 0 AND v_new = 0 THEN");
+        sb.AppendLine($"        EXECUTE IMMEDIATE '{EscapeLiteral(statement)}';");
+        sb.AppendLine("    END IF;");
+        sb.AppendLine("END;");
+        sb.AppendLine("/");
+    }
+
     private static void AppendCatalogGuardedDdl(
         StringBuilder sb,
         string catalogCountQuery,
@@ -535,6 +587,8 @@ internal sealed class OracleDialectGenerator : ISqlDialectGenerator
         {
             DbReferentialAction.Cascade => " ON DELETE CASCADE",
             DbReferentialAction.SetNull => " ON DELETE SET NULL",
+            DbReferentialAction.SetDefault => throw new NotSupportedException(
+                $"Oracle does not support ON DELETE SET DEFAULT on foreign key '{fk.Name}'."),
             _ => string.Empty
         };
 

@@ -16,7 +16,7 @@ public class DbMigratorOptionsBuilder
         public List<IEntityRegistry> Registries { get; } = [];
         public List<PropertyConventionRule> PropertyConventions { get; } = [];
         public List<EntityConventionRule> EntityConventions { get; } = [];
-        public Dictionary<Type, Type> EntityStubs { get; } = [];
+        public Dictionary<Type, Type> EntityReplacements { get; } = [];
         public List<PostgresExtensionSchema> Extensions { get; } = [];
         public List<(Type EnumType, string? Name, string? Schema)> EnumRegistrations { get; } = [];
         public bool DialectConfigured { get; set; }
@@ -188,10 +188,10 @@ public class DbMigratorOptionsBuilder
         return this;
     }
 
-    public DbMigratorOptionsBuilder ConfigureEntityStubs(Action<EntityStubBuilder> configure)
+    public DbMigratorOptionsBuilder ReplaceEntityTypes(Action<EntityTypeReplacementBuilder> configure)
     {
         ArgumentNullException.ThrowIfNull(configure);
-        configure(new EntityStubBuilder(State.EntityStubs));
+        configure(new EntityTypeReplacementBuilder(State.EntityReplacements));
         return this;
     }
 
@@ -232,7 +232,7 @@ public class DbMigratorOptionsBuilder
             .ToList();
         State.Options.PropertyConventions = [.. State.PropertyConventions];
         State.Options.EntityConventions = [.. State.EntityConventions];
-        State.Options.EntityStubs = new Dictionary<Type, Type>(State.EntityStubs);
+        State.Options.EntityReplacements = new Dictionary<Type, Type>(State.EntityReplacements);
         State.Options.Extensions = State.Extensions
             .GroupBy(e => e.Name, StringComparer.Ordinal)
             .Select(g => g.Last())

@@ -44,7 +44,7 @@ builder.Services.AddDbMigrator(opt =>
             e.HasForeignKey(x => x.CreatedByUserId)
                 .References<RefUser>(u => u.Id)
                 .OnDelete(DbReferentialAction.Restrict))
-        .ConfigureEntityStubs(stubs => stubs.Map<RefUser, User>())
+        .ReplaceEntityTypes(r => r.Replace<RefUser, User>())
         .ConfigureSqlExpressionBuilder(expr => expr
             .UseDelimitedIdentifiers(true)
             .UseNestedColumnSeparator("_"))
@@ -117,11 +117,11 @@ public sealed partial class SalesRegistry : IEntityRegistry
 - Use `OwnsOne(x => x.Nav, a => ...)` for inline table-split owned value objects (supports `Property`, `Ignore`, `HasIndex`, and nested `OwnsOne`; nullable navigations automatically make all owned columns nullable and reject `.IsRequired()`).
 - Use `HasDatabaseName(...)` on `IndexBuilder` and `HasName(...)` on `KeyBuilder`.
 
-## Global Conventions & Entity Stubs
+## Global Conventions & Entity Replacements
 
 - Use `ConfigureEntities<T>` (works with interfaces and base classes) instead of reflection loops for shared FKs, keys, identity columns, and lookup indexes. It runs before `IEntityConfiguration<T>`, so per-entity configs can override a conventional FK or unnamed index without duplicates.
 - Use `UseTableNameConvention((entityType, defaultName) => ...)` for custom table prefixes (e.g., `lk_` for lookup entities).
-- Point external FKs to local `Ref*` stubs (`[Entity(ReadOnly = true)]` + `References<RefUser>(u => u.Id)`) and wire `ConfigureEntityStubs(stubs => stubs.Map<RefUser, User>())` once in the startup project so registries sort accurately and FKs target the owning table without leaking domain entities across assemblies.
+- Point external FKs to local `Ref*` types (`[Entity(ReadOnly = true)]` + `References<RefUser>(u => u.Id)`) and wire `ReplaceEntityTypes(r => r.Replace<RefUser, User>())` once in the startup project so registries sort accurately and FKs target the owning table without leaking domain entities across assemblies.
 
 ## Compile-Time Discovery Attributes & Diagnostics
 
@@ -131,7 +131,7 @@ public sealed partial class SalesRegistry : IEntityRegistry
   - `SPM001`-`SPM007`: registry/configuration declaration, duplicate config, missing `Configure`, duplicate entity across registries, non-public entity/marker, orphan config warning.
   - `SPM008`-`SPM013`: `[BindEntityRegistry<TRegistry>]` / `[EntityRegistryItem<TEntity>]` validation (`sealed partial DbContext`, valid registry type, duplicate bindings/items, unknown item, property collision, `DatabaseModel`/`ApplySchemaToEfCore` wiring). Most `SPM` diagnostics include bundled IDE Roslyn CodeFixes.
   - `SPM014`: `.IsRequired()` inside an optional `OwnsOne(...)`.
-  - `SPM015`: self-mapped or `ReadOnly = true` target in `ConfigureEntityStubs(...)`.
+  - `SPM015`: self-replaced or `ReadOnly = true` target in `ReplaceEntityTypes(...)`.
 
 ## EF Core Bridge & `DbContext` Registry Binding (`SharpPersistence.Migrator.EfCore`)
 
@@ -155,7 +155,7 @@ public sealed partial class SalesDbContext : DbContext
 
 ## Script Naming Convention, Runlist & History Table
 
-- **Convention folders (`DbMigrator/`)**: Generated SQL scripts and runlists always live in `DbMigrator/Scripts/`, and JSON schema snapshots live in `DbMigrator/Snapshots/`.
+- **Convention folders (`DbMigrator/`)**: Generated SQL scripts and runlists always live in `DbMigrator/Scripts/`, and `camelCase` SQL-first per-registry JSON snapshots (`snapshotVersion`, `dialect`, SQL DDL + `entityName`/`propertyName` rename anchors, sorted deterministically) live in `DbMigrator/Snapshots/`. `generate` interactively prompts to rename orphaned snapshots on registry renames (failing fast in `--ci`), aborts on cross-registry table moves before writing files, and reports all script/snapshot/runlist side effects in both real and `--dry-run` modes.
 - **Script filenames**: Every generated `.sql` file (registry, `_global`, and `_deferred`) uses `{guid_without_hyphens}_{yyyyMMddHHmmss}_{lower_snake_name}.sql` (e.g., `019ac0e8b3a27f1d9c4e5b2a1f8d3c01_20261126062500_add_trading_type.sql`).
   - Prefix is a 32-char lowercase hex UUIDv7 (`Guid.CreateVersion7().ToString("N")`) with no hyphens, so files sort chronologically and script IDs are read directly from filenames without opening `.sql` files.
   - Migration names are normalized to `lower_snake_case` (spaces, hyphens, and PascalCase become `_`).

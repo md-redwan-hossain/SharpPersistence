@@ -56,7 +56,7 @@ builder.Services.AddDbMigrator(opt =>
 | `UseRootPath(path)` | Working dir | Base directory for `DbMigrator/Scripts` and `DbMigrator/Snapshots` |
 | `ConfigureProperties<T>(action)` | — | Global CLR-type conventions (e.g. all `string` max length `255`, or `Enum`) |
 | `ConfigureEntities<T>(action)` | — | Global entity/interface conventions (e.g. shared audit FKs, keys, schemas) |
-| `ConfigureEntityStubs(cfg)` | — | Maps cross-module `Ref*` stub types to their owning entity (`stubs.Map<RefUser, User>()`) |
+| `ReplaceEntityTypes(cfg)` | — | Replaces cross-module `Ref*` types with their owning entity (`r.Replace<RefUser, User>()`) |
 | `ConfigureSqlExpressionBuilder(cfg)` | `DelimitIdentifiers = true`, `NestedColumnSeparator = "_"` | Global defaults for typed `HasCheckConstraint`, `HasFilter`, and `HasComputedColumnSql` |
 | `AddRegistry<T>()` / `AddRegistry(reg)` | — | Manually register an `IEntityRegistry` (prefer `AddGeneratedEntityRegistries()`) |
 
@@ -70,9 +70,9 @@ opt.ConfigureProperties<string>(c => c.HasMaxLength(200))
    .ConfigureProperties<Enum>(c => c.HasMaxLength(50));
 ```
 
-## Global Entity Conventions & Cross-Module Stubs
+## Global Entity Conventions & Entity Replacements
 
-Apply shared foreign keys, primary keys, lookup indexes, or table-naming rules across interfaces and base classes without reflection—and map `Ref*` stubs in your startup project so modules stay isolated:
+Apply shared foreign keys, primary keys, lookup indexes, or table-naming rules across interfaces and base classes without reflection—and replace `Ref*` types in your startup project so modules stay isolated:
 
 ```csharp
 opt.UseTableNameConvention((entityType, defaultName) =>
@@ -83,12 +83,14 @@ opt.ConfigureEntities<ICreateTracking>(e =>
         .References<RefUser>(u => u.Id)
         .OnDelete(DbReferentialAction.Restrict));
 
-opt.ConfigureEntityStubs(stubs => stubs
-    .Map<RefUser, User>()
-    .Map<RefCompany, Company>());
+opt.ReplaceEntityTypes(r =>
+{
+    r.Replace<RefUser, User>()
+     .Replace<RefCompany, Company>();
+});
 ```
 
-See [Global Conventions & Cross-Module Stubs](/migrator/conventions-and-stubs) for full examples covering audit/bookkeeping contracts, lookup table policies, per-entity overrides, and modular-monolith wiring.
+See [Global Conventions & Entity Replacements](/migrator/conventions-and-stubs) for full examples covering audit/bookkeeping contracts, lookup table policies, per-entity overrides, and modular-monolith wiring.
 
 ## Custom Connection Factory
 

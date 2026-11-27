@@ -1,7 +1,9 @@
 using SharpPersistence.Enums;
 using SharpPersistence.Migrator.Abstractions;
+using SharpPersistence.Migrator.Dialects;
 using SharpPersistence.Migrator.Diffing;
 using SharpPersistence.Migrator.Enums;
+using SharpPersistence.Migrator.Models;
 using SharpPersistence.Migrator.Services;
 
 namespace SharpPersistence.Migrator.Tests;
@@ -282,5 +284,157 @@ public sealed class StandaloneSchemaDifferTests
         Assert.Equal(2, table.Indexes.Count);
         Assert.Contains(table.Indexes, ix => !ix.IsUnique && ix.Name == "ix_dual_index_entities_email");
         Assert.Contains(table.Indexes, ix => ix.IsUnique && ix.Name == "uq_dual_active_email");
+    }
+
+    [Fact]
+    public void SnapshotJson_IsCamelCaseSqlFirstAndRejectsDialectMismatch()
+    {
+        var registry = new DualIndexRegistry();
+        var schema = SchemaScanner.ScanRegistry(registry, SqlDialect.PostgreSql, SqlIdentifierCase.LowerSnakeCase, [registry]);
+        var diff = StandaloneSchemaDiffer.GenerateDiff(schema, null, SqlDialect.PostgreSql, interactiveRenamePrompt: false);
+
+        Assert.Contains("\"snapshotVersion\": 1", diff.UpdatedSnapshotJson);
+        Assert.Contains("\"dialect\": \"PostgreSql\"", diff.UpdatedSnapshotJson);
+        Assert.Contains("\"tableName\": \"dual_index_entities\"", diff.UpdatedSnapshotJson);
+        Assert.DoesNotContain("clrTypeName", diff.UpdatedSnapshotJson, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("valueGenerated", diff.UpdatedSnapshotJson, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("isConcurrencyToken", diff.UpdatedSnapshotJson, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"maxLength\": null", diff.UpdatedSnapshotJson);
+        Assert.DoesNotContain("\"isIdentity\": false", diff.UpdatedSnapshotJson);
+
+        // Idempotent re-diff produces zero changes
+        var second = StandaloneSchemaDiffer.GenerateDiff(schema, diff.UpdatedSnapshotJson, SqlDialect.PostgreSql, interactiveRenamePrompt: false);
+        Assert.False(second.HasChanges);
+
+        // Dialect mismatch throws
+        Assert.Throws<InvalidOperationException>(() =>
+            StandaloneSchemaDiffer.GenerateDiff(schema, diff.UpdatedSnapshotJson, SqlDialect.Oracle, interactiveRenamePrompt: false));
+    }
+
+    [Fact]
+    public void DdlOrdering_FixesFkBeforeDropTable_DropBeforeRenameColumn_AndBaseBeforeComputed()
+    {
+        var oldModel = new DatabaseModel
+        {
+            Tables =
+            [
+                new TableSchema
+                {
+                    EntityName = "Coupon",
+                    TableName = "coupons",
+                    Columns = [new ColumnSchema { PropertyName = "Id", ColumnName = "id", SqlType = "bigint" }]
+                },
+                new TableSchema
+                {
+                    EntityName = "Order",
+                    TableName = "orders",
+                    Columns =
+                    [
+                        new ColumnSchema { PropertyName = "Id", ColumnName = "id", SqlType = "bigint" },
+                        new ColumnSchema { PropertyName = "OldCode", ColumnName = "code", SqlType = "text" },
+                        new ColumnSchema { PropertyName = "NewCode", ColumnName = "new_code", SqlType = "text" }
+                    ],
+                    ForeignKeys =
+                    [
+                        new ForeignKeySchema
+                        {
+                            Name = "fk_orders_coupons",
+                            DependentColumns = ["id"],
+                            PrincipalTable = "coupons",
+                            PrincipalColumns = ["id"]
+                        }
+                    ]
+                }
+            ]
+        };
+
+        var newModel = new DatabaseModel
+        {
+            Tables =
+            [
+                new TableSchema
+                {
+                    EntityName = "Order",
+                    TableName = "orders",
+                    Schema = "sales",
+                    Columns =
+                    [
+                        new ColumnSchema { PropertyName = "Id", ColumnName = "id", SqlType = "bigint" },
+                        new ColumnSchema { PropertyName = "NewCode", ColumnName = "code", SqlType = "text" },
+                        new ColumnSchema { PropertyName = "Total", ColumnName = "total", SqlType = "numeric", ComputedColumnSql = "\"amount\" + \"tax\"", IsComputedStored = true },
+                        new ColumnSchema { PropertyName = "Tax", ColumnName = "tax", SqlType = "numeric" }
+                    ]
+                }
+            ]
+        };
+
+        var v1 = StandaloneSchemaDiffer.GenerateDiff(oldModel, null, SqlDialect.PostgreSql, interactiveRenamePrompt: false);
+        var v2 = StandaloneSchemaDiffer.GenerateDiff(newModel, v1.UpdatedSnapshotJson, SqlDialect.PostgreSql, interactiveRenamePrompt: false);
+
+        var dropFkIdx = v2.SqlScript.IndexOf("DROP CONSTRAINT IF EXISTS \"fk_orders_coupons\"", StringComparison.Ordinal);
+        var dropTableIdx = v2.SqlScript.IndexOf("DROP TABLE IF EXISTS \"coupons\"", StringComparison.Ordinal);
+        var ensureSchemaIdx = v2.SqlScript.IndexOf("CREATE SCHEMA IF NOT EXISTS \"sales\"", StringComparison.Ordinal);
+        var setSchemaIdx = v2.SqlScript.IndexOf("SET SCHEMA \"sales\"", StringComparison.Ordinal);
+        var dropColIdx = v2.SqlScript.IndexOf("DROP COLUMN IF EXISTS \"code\"", StringComparison.Ordinal);
+        var renameColIdx = v2.SqlScript.IndexOf("RENAME COLUMN \"new_code\" TO \"code\"", StringComparison.Ordinal);
+        var addTaxIdx = v2.SqlScript.IndexOf("ADD COLUMN IF NOT EXISTS \"tax\"", StringComparison.Ordinal);
+        var addTotalIdx = v2.SqlScript.IndexOf("ADD COLUMN IF NOT EXISTS \"total\"", StringComparison.Ordinal);
+
+        Assert.True(dropFkIdx >= 0 && dropTableIdx > dropFkIdx);
+        Assert.True(ensureSchemaIdx >= 0 && setSchemaIdx > ensureSchemaIdx);
+        Assert.True(dropColIdx >= 0 && renameColIdx > dropColIdx);
+        Assert.True(addTaxIdx >= 0 && addTotalIdx > addTaxIdx);
+    }
+
+    [Fact]
+    public void PostgresAlterColumn_DropsDefaultBeforeType_AndSetsNotNullBeforeIdentity()
+    {
+        var generator = new PostgresDialectGenerator();
+        var sql = generator.GenerateSql([
+            new AlterColumnOp(null, "orders",
+                new ColumnSchema { ColumnName = "status", SqlType = "varchar(20)", DefaultValueSql = "'pending'" },
+                new ColumnSchema { ColumnName = "status", SqlType = "integer", DefaultValueSql = "0" }),
+            new AlterColumnOp(null, "orders",
+                new ColumnSchema { ColumnName = "id", SqlType = "bigint", IsNullable = true, IsIdentity = false },
+                new ColumnSchema { ColumnName = "id", SqlType = "bigint", IsNullable = false, IsIdentity = true })
+        ]);
+
+        var dropDefaultIdx = sql.IndexOf("DROP DEFAULT;", StringComparison.Ordinal);
+        var alterTypeIdx = sql.IndexOf("TYPE integer;", StringComparison.Ordinal);
+        var setDefaultIdx = sql.IndexOf("SET DEFAULT (0);", StringComparison.Ordinal);
+        Assert.True(dropDefaultIdx >= 0 && alterTypeIdx > dropDefaultIdx && setDefaultIdx > alterTypeIdx);
+
+        var setNotNullIdx = sql.IndexOf("SET NOT NULL;", StringComparison.Ordinal);
+        var addIdentityIdx = sql.IndexOf("ADD GENERATED BY DEFAULT AS IDENTITY;", StringComparison.Ordinal);
+        Assert.True(setNotNullIdx >= 0 && addIdentityIdx > setNotNullIdx);
+    }
+
+    [Fact]
+    public void OracleDialect_RenamesAreIdempotent_AddColumnUsesCatalogGuard_AndSetDefaultThrows()
+    {
+        var generator = new OracleDialectGenerator(OracleDbCompatibility.Oracle23);
+        var sql = generator.GenerateSql([
+            new RenameColumnOp(null, "USERS", "OLD_COL", "NEW_COL"),
+            new AddColumnOp(null, "USERS", new ColumnSchema { ColumnName = "EXTRA", SqlType = "VARCHAR2(50)", IsNullable = true }),
+            new AlterColumnOp(null, "USERS",
+                new ColumnSchema { ColumnName = "CODE", SqlType = "VARCHAR2(50)", IsNullable = true },
+                new ColumnSchema { ColumnName = "CODE", SqlType = "VARCHAR2(50)", IsNullable = false })
+        ]);
+
+        Assert.Contains("IF v_old > 0 AND v_new = 0 THEN", sql);
+        Assert.DoesNotContain("ADD IF NOT EXISTS (", sql);
+        Assert.Contains("EXECUTE IMMEDIATE 'ALTER TABLE \"USERS\" ADD (\"EXTRA\" VARCHAR2(50) NULL)'", sql);
+        Assert.Contains("NULLABLE = 'Y'", sql);
+
+        Assert.Throws<NotSupportedException>(() => generator.GenerateSql([
+            new AddForeignKeyOp(null, "ORDERS", new ForeignKeySchema
+            {
+                Name = "FK_ORDERS_USERS",
+                DependentColumns = ["USER_ID"],
+                PrincipalTable = "USERS",
+                PrincipalColumns = ["ID"],
+                OnDelete = DbReferentialAction.SetDefault
+            })
+        ]));
     }
 }

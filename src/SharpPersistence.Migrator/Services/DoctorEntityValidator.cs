@@ -313,17 +313,17 @@ internal sealed class DoctorEntityValidator(
     {
         foreach (var fk in tb.ForeignKeys)
         {
-            var resolvedPrincipalType = SchemaFinalizer.ResolveEntityStub(fk.PrincipalType, options.EntityStubs);
+            var resolvedPrincipalType = SchemaFinalizer.ResolveEntityReplacement(fk.PrincipalType, options.EntityReplacements);
             var fkDisplayName = fk.ConstraintName ?? $"{tb.TableName} -> {resolvedPrincipalType.Name}";
             if (!allTables.TryGetValue(resolvedPrincipalType, out var principalEntry))
             {
-                var viaStub = resolvedPrincipalType != fk.PrincipalType
-                    ? $" (resolved from stub '{fk.PrincipalType.Name}')"
+                var viaReplacement = resolvedPrincipalType != fk.PrincipalType
+                    ? $" (resolved from replaced entity '{fk.PrincipalType.Name}')"
                     : string.Empty;
                 items.Add(new DoctorCheckItem(
                     DoctorSeverity.Error,
-                    $"Foreign key '{fkDisplayName}' references principal entity '{resolvedPrincipalType.Name}'{viaStub}, which is not registered in any IEntityRegistry.",
-                    Hint: $"Map '{resolvedPrincipalType.Name}' in an IEntityRegistry or configure a stub mapping in ConfigureEntityStubs.",
+                    $"Foreign key '{fkDisplayName}' references principal entity '{resolvedPrincipalType.Name}'{viaReplacement}, which is not registered in any IEntityRegistry.",
+                    Hint: $"Map '{resolvedPrincipalType.Name}' in an IEntityRegistry or configure a replacement in ReplaceEntityTypes.",
                     EntityName: entityName));
                 continue;
             }

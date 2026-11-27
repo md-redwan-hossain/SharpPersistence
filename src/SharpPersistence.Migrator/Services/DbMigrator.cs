@@ -77,15 +77,45 @@ internal sealed class DbMigrator : IDbMigrator
             }
         }
 
+        var orphanedSnapshots = await LoadOrphanedSnapshotsAsync(stateDir, sortedRegistries, ct).ConfigureAwait(false);
+        var planned = new List<(string RegistryName, string SnapshotPath, string? RenamedFromPath, SchemaDiffResult Diff)>(targets.Count);
+
         foreach (var registry in targets)
         {
             var registryName = registry.GetType().Name;
             var snapshotPath = Path.Combine(stateDir, $"{registryName}.json");
-            var previousJson = File.Exists(snapshotPath)
-                ? await File.ReadAllTextAsync(snapshotPath, ct).ConfigureAwait(false)
-                : null;
+            string? previousJson = null;
+            string? renamedFromPath = null;
 
             var currentSchema = SchemaScanner.ScanRegistry(registry, _options, sortedRegistries);
+
+            if (File.Exists(snapshotPath))
+            {
+                previousJson = await File.ReadAllTextAsync(snapshotPath, ct).ConfigureAwait(false);
+            }
+            else if (orphanedSnapshots.Count > 0)
+            {
+                var match = FindMatchingOrphanSnapshot(orphanedSnapshots, currentSchema);
+                if (match is { } orphan)
+                {
+                    var matchedList = string.Join(", ", orphan.MatchedTables);
+                    if (interactiveRenamePrompt && confirmRename is not null)
+                    {
+                        if (confirmRename($"Was registry '{orphan.RegistryName}' renamed to '{registryName}'? (Matched table(s): {matchedList})"))
+                        {
+                            previousJson = orphan.Json;
+                            renamedFromPath = orphan.FilePath;
+                            orphanedSnapshots.Remove(orphan.RegistryName);
+                        }
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException(
+                            $"Registry '{registryName}' has no snapshot, but orphaned snapshot '{orphan.RegistryName}.json' already tracks table(s): {matchedList}. " +
+                            $"If you renamed the registry, rename '{orphan.FilePath}' to '{snapshotPath}' and re-run.");
+                    }
+                }
+            }
 
             var result = StandaloneSchemaDiffer.GenerateDiff(
                 currentSchema,
@@ -95,8 +125,26 @@ internal sealed class DbMigrator : IDbMigrator
                 _options.OracleCompatibility,
                 confirmRename);
 
+            planned.Add((registryName, snapshotPath, renamedFromPath, result));
+        }
+
+        DetectCrossRegistryTableMoves(planned);
+
+        foreach (var (registryName, snapshotPath, renamedFromPath, result) in planned)
+        {
             if (!result.HasChanges)
             {
+                if (renamedFromPath is not null)
+                {
+                    if (!dryRun)
+                    {
+                        File.Move(renamedFromPath, snapshotPath, overwrite: true);
+                    }
+
+                    generated.Add(new GeneratedMigrationItem(
+                        registryName, null, null, string.Empty, string.Empty, false, snapshotPath, renamedFromPath));
+                }
+
                 if (!allowEmpty)
                 {
                     continue;
@@ -153,6 +201,10 @@ internal sealed class DbMigrator : IDbMigrator
             if (!dryRun)
             {
                 await File.WriteAllTextAsync(snapshotPath, result.UpdatedSnapshotJson, ct).ConfigureAwait(false);
+                if (renamedFromPath is not null && File.Exists(renamedFromPath))
+                {
+                    File.Delete(renamedFromPath);
+                }
             }
 
             generated.Add(new GeneratedMigrationItem(
@@ -161,7 +213,9 @@ internal sealed class DbMigrator : IDbMigrator
                 deferredPath,
                 mainSql,
                 deferredSql,
-                false));
+                false,
+                snapshotPath,
+                renamedFromPath));
         }
 
         if (!dryRun && (generatedScriptIds.Count > 0 || deferredScriptIds.Count > 0))
@@ -579,6 +633,106 @@ internal sealed class DbMigrator : IDbMigrator
             null,
             globalSql,
             string.Empty,
-            false), globalId);
+            false,
+            globalSnapshotPath), globalId);
+    }
+
+    private static async Task<Dictionary<string, (string FilePath, string Json, DatabaseModel Model)>> LoadOrphanedSnapshotsAsync(
+        string stateDir,
+        IReadOnlyList<IEntityRegistry> activeRegistries,
+        CancellationToken ct)
+    {
+        var result = new Dictionary<string, (string, string, DatabaseModel)>(StringComparer.OrdinalIgnoreCase);
+        if (!Directory.Exists(stateDir))
+        {
+            return result;
+        }
+
+        var activeNames = activeRegistries
+            .Select(r => r.GetType().Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var file in Directory.EnumerateFiles(stateDir, "*.json", SearchOption.TopDirectoryOnly))
+        {
+            var name = Path.GetFileNameWithoutExtension(file);
+            if (string.Equals(name, "_global", StringComparison.OrdinalIgnoreCase) || activeNames.Contains(name))
+            {
+                continue;
+            }
+
+            var json = await File.ReadAllTextAsync(file, ct).ConfigureAwait(false);
+            var model = StandaloneSchemaDiffer.DeserializeSnapshot(json);
+            if (model is not null && model.Tables.Count > 0)
+            {
+                result[name] = (file, json, model);
+            }
+        }
+
+        return result;
+    }
+
+    private static (string RegistryName, string FilePath, string Json, List<string> MatchedTables)? FindMatchingOrphanSnapshot(
+        Dictionary<string, (string FilePath, string Json, DatabaseModel Model)> orphans,
+        DatabaseModel currentSchema)
+    {
+        var currentQualified = currentSchema.Tables.Select(t => t.QualifiedName).ToHashSet(StringComparer.Ordinal);
+        var currentEntities = currentSchema.Tables.Select(t => t.EntityName).ToHashSet(StringComparer.Ordinal);
+
+        foreach (var (orphanName, (filePath, json, model)) in orphans)
+        {
+            var matched = model.Tables
+                .Where(t => currentQualified.Contains(t.QualifiedName) || currentEntities.Contains(t.EntityName))
+                .Select(t => t.QualifiedName)
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(x => x, StringComparer.Ordinal)
+                .ToList();
+
+            if (matched.Count > 0)
+            {
+                return (orphanName, filePath, json, matched);
+            }
+        }
+
+        return null;
+    }
+
+    private static void DetectCrossRegistryTableMoves(
+        List<(string RegistryName, string SnapshotPath, string? RenamedFromPath, SchemaDiffResult Diff)> planned)
+    {
+        var droppedByTable = new Dictionary<string, string>(StringComparer.Ordinal);
+        var createdByTable = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var (registryName, _, _, diff) in planned)
+        {
+            if (diff.Operations is null)
+            {
+                continue;
+            }
+
+            foreach (var op in diff.Operations)
+            {
+                if (op is DropTableOp dt)
+                {
+                    var key = string.IsNullOrWhiteSpace(dt.Schema) ? dt.TableName : $"{dt.Schema}.{dt.TableName}";
+                    droppedByTable[key] = registryName;
+                }
+                else if (op is CreateTableOp ct)
+                {
+                    createdByTable[ct.Table.QualifiedName] = registryName;
+                }
+            }
+        }
+
+        foreach (var (table, fromReg) in droppedByTable)
+        {
+            if (createdByTable.TryGetValue(table, out var toReg) &&
+                !string.Equals(fromReg, toReg, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"Table '{table}' was dropped in '{fromReg}' and created in '{toReg}' in the same migration. " +
+                    "Moving an entity between registries would drop and recreate the table (losing data). " +
+                    "Move the table entry between the two snapshot JSON files first, then re-run.");
+            }
+        }
     }
 }

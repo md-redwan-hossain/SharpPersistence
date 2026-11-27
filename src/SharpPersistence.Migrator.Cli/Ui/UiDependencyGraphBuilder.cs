@@ -115,7 +115,7 @@ internal static class UiDependencyGraphBuilder
                 ForeignKeys: kv.Value))
             .ToList();
 
-        var stubs = options.EntityStubs
+        var stubs = options.EntityReplacements
             .OrderBy(static kv => kv.Key.Name, StringComparer.Ordinal)
             .Select(kv =>
             {

@@ -1,4 +1,4 @@
-# Global Conventions & Cross-Module Stubs
+# Global Conventions & Entity Replacements
 
 In larger applications and modular monoliths, repeating foreign keys, primary keys, lookup indexes, and string lengths across dozens of `IEntityConfiguration<T>` classes leads to boilerplate—or complex reflection loops in `OnModelCreating`.
 
@@ -33,7 +33,7 @@ using SharpPersistence.Migrator.Enums;
 
 public static class CommonMigratorConventions
 {
-    public static void Configure(MigrationManagerOptionsBuilder options)
+    public static void Configure(DbMigratorOptionsBuilder options)
     {
         // Audit & approval tracking
         options.ConfigureEntities<ICreateTracking>(e =>
@@ -161,14 +161,14 @@ public sealed class CurrencyConfiguration : IEntityConfiguration<Currency>
 }
 ```
 
-## Cross-Module Stubs (`ConfigureEntityStubs`)
+## Cross-Module Entity Type Replacements (`ReplaceEntityTypes`)
 
-In a modular monolith, modules should not reference each other's domain entities directly. Instead, each module references lightweight `Ref*` stub types (such as `RefUser` or `RefCompany`) in `Common.Domain`, and your composition root (`AppRoot`) maps each stub to its owning entity once via `ConfigureEntityStubs`.
+In a modular monolith, modules should not reference each other's domain entities directly. Instead, each module references lightweight `Ref*` types (such as `RefUser` or `RefCompany`) in `Common.Domain`, and your composition root (`AppRoot`) replaces each reference type with its owning entity once via `ReplaceEntityTypes`.
 
 ::: code-group
 
-```csharp [Common.Domain (Stubs)]
-// Lightweight stub in Common.Domain — zero dependency on AccessControl or Billing
+```csharp [Common.Domain (Reference Types)]
+// Lightweight reference entity in Common.Domain — zero dependency on AccessControl or Billing
 public sealed class RefUser
 {
     public long Id { get; set; }
@@ -181,7 +181,7 @@ public sealed class InvoiceConfiguration : IEntityConfiguration<Invoice>
 {
     public void Configure(EntityBuilder<Invoice> builder)
     {
-        // Explicit cross-module FK using the local RefUser stub
+        // Explicit cross-module FK using the local RefUser type
         builder.HasForeignKey(x => x.ApprovedByUserId)
             .References<RefUser>(u => u.Id)
             .OnDelete(DbReferentialAction.SetNull);
@@ -202,12 +202,14 @@ builder.Services.AddDbMigrator(opt =>
     // Shared interface & naming conventions
     CommonMigratorConventions.Configure(opt);
 
-    // Map each Ref* stub to its real owning entity once
-    opt.ConfigureEntityStubs(stubs => stubs
-        .Map<RefUser, User>()
-        .Map<RefCompany, Company>()
-        .Map<RefAccountHead, AccountHead>()
-        .Map<RefFiscalYear, FiscalYear>());
+    // Replace each Ref* entity with its real owning entity once
+    opt.ReplaceEntityTypes(r =>
+    {
+        r.Replace<RefUser, User>()
+         .Replace<RefCompany, Company>()
+         .Replace<RefAccountHead, AccountHead>()
+         .Replace<RefFiscalYear, FiscalYear>();
+    });
 
     opt.AddGeneratedEntityRegistries();
 });
@@ -215,10 +217,10 @@ builder.Services.AddDbMigrator(opt =>
 
 :::
 
-With `ConfigureEntityStubs` in place:
+With `ReplaceEntityTypes` in place:
 
-* **No stub registration needed** — `RefUser` does not need to be added to any `IEntityRegistry`.
+* **No extra registration needed** — `RefUser` does not need to be added to any `IEntityRegistry`.
 * **Accurate topological ordering** — `AccessControlRegistry` (which owns `User`) is automatically ordered before `BillingRegistry`.
 * **Clean SQL constraint names** — `billing.invoices` gets `fk_invoices_users_created_by_user_id` referencing `access_control.users(id)` (never `ref_users`).
 * **Self-contained owning modules** — Entities inside `AccessControlRegistry` (such as `Role` or `User`) that also implement `ICreateTracking` resolve directly to `access_control.users(id)`.
-* **Validated by `db-migrator doctor`** — Checks that every stub target is registered, not marked `ExcludeFromMigrations()`, and not chained to another stub.
+* **Validated by `db-migrator doctor`** — Checks that every replacement target is registered, not marked `ExcludeFromMigrations()`, and not chained to another replaced entity.

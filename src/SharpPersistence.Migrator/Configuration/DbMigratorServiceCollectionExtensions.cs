@@ -34,7 +34,7 @@ public static class DbMigratorServiceCollectionExtensions
                 options.PluralizeTableNames,
                 options.EntityConventions,
                 options.TableNameConvention,
-                options.EntityStubs,
+                options.EntityReplacements,
                 [.. options.Registries]);
             schema.Extensions = options.Extensions.Count > 0 ? [.. options.Extensions] : null;
             schema.Enums = options.Enums.Count > 0 ? [.. options.Enums] : null;

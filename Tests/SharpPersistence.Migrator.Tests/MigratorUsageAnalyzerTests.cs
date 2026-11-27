@@ -110,13 +110,13 @@ public sealed class MigratorUsageAnalyzerTests
     }
 
     [Fact]
-    public async Task Spm015_FlagsSelfMappedAndReadOnlyTargetInConfigureEntityStubs()
+    public async Task Spm015_FlagsSelfReplacedAndReadOnlyTargetInReplaceEntityTypes()
     {
         const string source = """
             using SharpPersistence.Abstractions.Attributes;
             using SharpPersistence.Migrator.Configuration;
 
-            namespace StubDemo;
+            namespace ReplacementDemo;
 
             [Entity]
             public sealed class User { public Guid Id { get; set; } }
@@ -125,16 +125,16 @@ public sealed class MigratorUsageAnalyzerTests
             public sealed class RefUser { public Guid Id { get; set; } }
 
             [Entity(ReadOnly = true)]
-            public sealed class AnotherStub { public Guid Id { get; set; } }
+            public sealed class AnotherRef { public Guid Id { get; set; } }
 
             public static class Wiring
             {
                 public static void Setup(DbMigratorOptionsBuilder opt)
                 {
-                    opt.ConfigureEntityStubs(stubs => stubs
-                        .Map<RefUser, User>()           // valid
-                        .Map<User, User>()              // SPM015: self-map
-                        .Map<RefUser, AnotherStub>());  // SPM015: target is ReadOnly stub
+                    opt.ReplaceEntityTypes(r => r
+                        .Replace<RefUser, User>()         // valid
+                        .Replace<User, User>()            // SPM015: self-replace
+                        .Replace<RefUser, AnotherRef>()); // SPM015: target is ReadOnly
                 }
             }
             """;
@@ -143,7 +143,7 @@ public sealed class MigratorUsageAnalyzerTests
         var spm015 = diags.Where(d => d.Id == "SPM015").ToList();
 
         Assert.Equal(2, spm015.Count);
-        Assert.Contains(spm015, d => d.GetMessage().Contains("to itself"));
+        Assert.Contains(spm015, d => d.GetMessage().Contains("with itself"));
         Assert.Contains(spm015, d => d.GetMessage().Contains("ReadOnly = true"));
     }
 }

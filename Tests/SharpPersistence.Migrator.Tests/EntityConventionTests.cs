@@ -148,7 +148,7 @@ public sealed class EntityConventionTests
             options.PluralizeTableNames,
             options.EntityConventions,
             options.TableNameConvention,
-            options.EntityStubs,
+            options.EntityReplacements,
             [.. options.Registries]);
 
         var invoice = schema.Tables.Single(t => t.TableName == "invoices");
