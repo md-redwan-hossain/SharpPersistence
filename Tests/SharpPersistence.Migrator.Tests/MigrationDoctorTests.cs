@@ -171,10 +171,16 @@ public sealed class MigrationDoctorTests
         throw new InvalidOperationException("Offline doctor should not open a DB connection.");
 
     [Fact]
-    public void DefaultHistoryTableName_IsDbMigratorLogs()
+    public void DbMigratorConsts_ExposesExpectedDefaults()
     {
-        var options = new DbMigratorOptions();
-        options.HistoryTableName.ShouldBe("__db_migrator_logs");
+        DbMigratorConsts.HistoryTableName.ShouldBe("__db_migrator_logs");
+        DbMigratorConsts.BaseDirectory.ShouldBe("DbMigrator");
+        DbMigratorConsts.ScriptsDirectoryName.ShouldBe("Scripts");
+        DbMigratorConsts.SnapshotsDirectoryName.ShouldBe("Snapshots");
+        DbMigratorConsts.RunlistFileName.ShouldBe("db-migration-runlist.json");
+        DbMigratorConsts.RunlistOverridesFileName.ShouldBe("db-migration-runlist.overrides.json");
+        DbMigratorConsts.ScriptsDirectory.ShouldBe(Path.Combine("DbMigrator", "Scripts"));
+        DbMigratorConsts.SnapshotsDirectory.ShouldBe(Path.Combine("DbMigrator", "Snapshots"));
     }
 
     [Fact]

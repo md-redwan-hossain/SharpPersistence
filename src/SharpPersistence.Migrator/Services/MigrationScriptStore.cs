@@ -14,9 +14,9 @@ internal sealed class MigrationScriptStore
         _options = options;
     }
 
-    public string ResolveMigrationsDirectory() => ResolvePath(_options.MigrationsDirectory);
+    public string ResolveMigrationsDirectory() => ResolvePath(DbMigratorConsts.ScriptsDirectory);
 
-    public string ResolveSnapshotDirectory() => ResolvePath(_options.SnapshotDirectory);
+    public string ResolveSnapshotDirectory() => ResolvePath(DbMigratorConsts.SnapshotsDirectory);
 
     public List<(Guid ScriptId, string RegistryName, string ScriptName, string FullPath)> DiscoverScripts()
     {

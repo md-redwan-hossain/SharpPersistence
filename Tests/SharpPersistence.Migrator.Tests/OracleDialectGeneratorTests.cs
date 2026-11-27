@@ -163,7 +163,7 @@ public sealed class OracleDialectGeneratorTests
             .Build();
 
         Assert.Equal(SqlDialect.Oracle, options.Dialect);
-        Assert.Equal(OracleDbCompatibility.Oracle23, options.OracleCompatibility);
+        Assert.Equal(OracleDbCompatibility.Oracle23, options.Oracle.Compatibility);
         Assert.Equal(SqlIdentifierCase.UpperSnakeCase, options.IdentifierCase);
     }
 }

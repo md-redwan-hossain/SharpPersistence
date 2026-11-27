@@ -34,7 +34,7 @@ builder.Services.AddDbMigrator(opt =>
     // Or Oracle (defaults: UpperSnakeCase, Oracle19)
     // opt.UseOracle(connectionString).UseSqlCompatibility(OracleDbCompatibility.Oracle23);
 
-    opt.UseHistoryTable("__db_migrator_logs", "public")
+    opt.UseHistorySchema("public")
         .UseNamingConvention(SqlIdentifierCase.LowerSnakeCase)
         .PluralizeTableNames()
         .MapTableNames((entityType, defaultName) =>
@@ -155,13 +155,14 @@ public sealed partial class SalesDbContext : DbContext
 
 ## Script Naming Convention, Runlist & History Table
 
+- **Public constants (`DbMigratorConsts`)**: All fixed convention names and paths are exposed on `SharpPersistence.Migrator.DbMigratorConsts` (`HistoryTableName`, `BaseDirectory`, `ScriptsDirectoryName`, `SnapshotsDirectoryName`, `ScriptsDirectory`, `SnapshotsDirectory`, `RunlistFileName`, `RunlistOverridesFileName`).
 - **Convention folders (`DbMigrator/`)**: Generated SQL scripts and runlists always live in `DbMigrator/Scripts/`, and `camelCase` SQL-first per-registry JSON snapshots (`snapshotVersion`, `dialect`, SQL DDL + `entityName`/`propertyName` rename anchors, sorted deterministically) live in `DbMigrator/Snapshots/`. `generate` interactively prompts to rename orphaned snapshots on registry renames (failing fast in `--ci`), aborts on cross-registry table moves before writing files, and reports all script/snapshot/runlist side effects in both real and `--dry-run` modes.
 - **Script filenames**: Every generated `.sql` file (registry, `_global`, and `_deferred`) uses `{guid_without_hyphens}_{yyyyMMddHHmmss}_{lower_snake_name}.sql` (e.g., `019ac0e8b3a27f1d9c4e5b2a1f8d3c01_20261126062500_add_trading_type.sql`).
   - Prefix is a 32-char lowercase hex UUIDv7 (`Guid.CreateVersion7().ToString("N")`) with no hyphens, so files sort chronologically and script IDs are read directly from filenames without opening `.sql` files.
   - Migration names are normalized to `lower_snake_case` (spaces, hyphens, and PascalCase become `_`).
   - Translated EF Core scripts in `_translated/` use `{guid_without_hyphens}_{normalized_ef_migration_id}.sql`.
 - **Runlist (`db-migration-runlist.json` & `db-migration-runlist.overrides.json`)**: Stores script IDs as 32-char lowercase hex GUID strings without hyphens.
-- **History table columns** (default `__db_migrator_logs`, configurable via `UseHistoryTable(tableName, schema)`):
+- **History table columns** (`__db_migrator_logs`, schema configurable via `UseHistorySchema(schema)`):
   - `script_id` *(PK)*: `uuid NOT NULL` (PostgreSQL) / `VARCHAR2(36) NOT NULL` (Oracle, 32-char hex without hyphens) - identifies scripts independently of registry/folder/filename renames.
   - `script_name`: `varchar(512) NOT NULL` (PostgreSQL) / `NVARCHAR2(512) NOT NULL` (Oracle) - informational relative path under the migrations directory.
   - `checksum_sha256`: `varchar(64) NOT NULL` (PostgreSQL & Oracle) - lowercase hex SHA-256 of the normalized SQL body for tamper detection.

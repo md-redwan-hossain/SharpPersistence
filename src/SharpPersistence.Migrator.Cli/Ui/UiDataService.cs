@@ -93,7 +93,7 @@ internal sealed class UiDataService
             registrySummaries.Add(new UiRegistrySummaryDto(registryName, tableSummaries));
         }
 
-        var enums = options.Enums
+        var enums = options.PostgreSql.Enums
             .OrderBy(static e => e.Name, StringComparer.Ordinal)
             .Select(static e => new UiPostgresEnumDto(e.Name, e.Schema, [.. e.Labels]))
             .ToList();

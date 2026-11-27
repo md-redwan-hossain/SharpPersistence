@@ -80,7 +80,7 @@ public sealed class OwnsOneTests
             options.Dialect,
             options.IdentifierCase,
             options.PropertyConventions,
-            options.Enums,
+            options.PostgreSql.Enums,
             options.SqlExpressionOptions,
             options.PluralizeTableNames,
             options.EntityConventions,

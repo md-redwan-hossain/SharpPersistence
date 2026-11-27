@@ -160,7 +160,7 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
         DbMigratorOptions options,
         CancellationToken ct)
     {
-        var table = Qualify(options.HistorySchema, options.HistoryTableName);
+        var table = Qualify(options.HistorySchema, DbMigratorConsts.HistoryTableName);
         var schemaCreate = !string.IsNullOrWhiteSpace(options.HistorySchema)
             ? $"CREATE SCHEMA IF NOT EXISTS {Quote(options.HistorySchema)};{Environment.NewLine}"
             : string.Empty;
@@ -173,7 +173,7 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
                 "script_name" varchar(512) NOT NULL,
                 "checksum_sha256" varchar(64) NOT NULL,
                 "applied_at" timestamp with time zone NOT NULL DEFAULT now(),
-                CONSTRAINT "pk_{options.HistoryTableName}" PRIMARY KEY ("script_id")
+                CONSTRAINT "pk_{DbMigratorConsts.HistoryTableName}" PRIMARY KEY ("script_id")
             );
             """;
         await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
@@ -184,7 +184,7 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
         DbMigratorOptions options,
         CancellationToken ct)
     {
-        var table = Qualify(options.HistorySchema, options.HistoryTableName);
+        var table = Qualify(options.HistorySchema, DbMigratorConsts.HistoryTableName);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = $"SELECT to_regclass('{EscapeLiteral(table)}') IS NOT NULL;";
         var result = await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false);
@@ -200,11 +200,14 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
         CancellationToken ct,
         DbTransaction? transaction = null)
     {
-        var table = Qualify(options.HistorySchema, options.HistoryTableName);
+        var table = Qualify(options.HistorySchema, DbMigratorConsts.HistoryTableName);
         await using var cmd = conn.CreateCommand();
         cmd.Transaction = transaction;
-        cmd.CommandText =
-            $"INSERT INTO {table} (\"script_id\", \"script_name\", \"checksum_sha256\") VALUES (@id, @script, @sum) ON CONFLICT (\"script_id\") DO NOTHING;";
+        cmd.CommandText = $"""
+            INSERT INTO {table} ("script_id", "script_name", "checksum_sha256")
+            VALUES (@id, @script, @sum)
+            ON CONFLICT ("script_id") DO NOTHING;
+            """;
 
         var p1 = cmd.CreateParameter();
         p1.ParameterName = "@id";
@@ -228,7 +231,7 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
     {
         await using (var existsCmd = conn.CreateCommand())
         {
-            existsCmd.CommandText = "SELECT to_regclass('\"__EFMigrationsHistory\"') IS NOT NULL;";
+            existsCmd.CommandText = """SELECT to_regclass('"__EFMigrationsHistory"') IS NOT NULL;""";
             if (await existsCmd.ExecuteScalarAsync(ct).ConfigureAwait(false) is not true)
             {
                 return [];
@@ -237,7 +240,7 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
 
         var ids = new List<string>();
         await using var readCmd = conn.CreateCommand();
-        readCmd.CommandText = "SELECT \"MigrationId\" FROM \"__EFMigrationsHistory\" ORDER BY \"MigrationId\"";
+        readCmd.CommandText = """SELECT "MigrationId" FROM "__EFMigrationsHistory" ORDER BY "MigrationId" """;
         await using var reader = await readCmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
         while (await reader.ReadAsync(ct).ConfigureAwait(false))
         {
@@ -290,7 +293,7 @@ internal sealed class PostgresMigrationDialect : IMigrationDialect
 
     private static long ComputeLockId(DbMigratorOptions options)
     {
-        var key = $"SharpPersistence.Migrator:{options.HistorySchema ?? "default"}.{options.HistoryTableName}";
+        var key = $"SharpPersistence.Migrator:{options.HistorySchema ?? "default"}.{DbMigratorConsts.HistoryTableName}";
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(key));
         return BitConverter.ToInt64(hash, 0);
     }

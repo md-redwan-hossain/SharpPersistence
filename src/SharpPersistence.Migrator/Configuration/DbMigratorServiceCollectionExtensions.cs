@@ -29,15 +29,15 @@ public static class DbMigratorServiceCollectionExtensions
                 options.Dialect,
                 options.IdentifierCase,
                 options.PropertyConventions,
-                options.Enums,
+                options.PostgreSql.Enums,
                 options.SqlExpressionOptions,
                 options.PluralizeTableNames,
                 options.EntityConventions,
                 options.TableNameConvention,
                 options.EntityReplacements,
                 [.. options.Registries]);
-            schema.Extensions = options.Extensions.Count > 0 ? [.. options.Extensions] : null;
-            schema.Enums = options.Enums.Count > 0 ? [.. options.Enums] : null;
+            schema.Extensions = options.PostgreSql.Extensions.Count > 0 ? [.. options.PostgreSql.Extensions] : null;
+            schema.Enums = options.PostgreSql.Enums.Count > 0 ? [.. options.PostgreSql.Enums] : null;
             return schema;
         });
 

@@ -37,6 +37,21 @@ internal static partial class UiDdlCatalogChecker
                 continue;
             }
 
+            var execMatches = SqlDdlPatterns.ExecuteImmediate().Matches(clean);
+            if (execMatches.Count > 0)
+            {
+                foreach (Match em in execMatches)
+                {
+                    var inner = StripLeadingComments(em.Groups[1].Value.Replace("''", "'", StringComparison.Ordinal).Trim());
+                    if (inner.Length > 0 && TryParseDdl(inner, trimmed, result.Count, out var innerDto))
+                    {
+                        result.Add(innerDto);
+                    }
+                }
+
+                continue;
+            }
+
             if (TryParseDdl(clean, trimmed, result.Count, out var dto))
             {
                 result.Add(dto);
@@ -259,18 +274,18 @@ internal static partial class UiDdlCatalogChecker
         Guid scriptId,
         CancellationToken ct)
     {
-        var table = SqlFormatHelper.Qualify(options.HistorySchema, options.HistoryTableName);
+        var table = SqlFormatHelper.Qualify(options.HistorySchema, DbMigratorConsts.HistoryTableName);
         await using var cmd = conn.CreateCommand();
         if (options.Dialect == SqlDialect.Oracle)
         {
             OracleCommandHelper.EnableBindByName(cmd);
-            cmd.CommandText = $"SELECT COUNT(*) FROM {table} WHERE \"script_id\" = :id";
+            cmd.CommandText = $"""SELECT COUNT(*) FROM {table} WHERE "script_id" = :id""";
             AddParam(cmd, "id", scriptId.ToString("N"));
             var count = Convert.ToInt32(await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false), CultureInfo.InvariantCulture);
             return count > 0;
         }
 
-        cmd.CommandText = $"SELECT EXISTS (SELECT 1 FROM {table} WHERE \"script_id\" = @id)";
+        cmd.CommandText = $"""SELECT EXISTS (SELECT 1 FROM {table} WHERE "script_id" = @id)""";
         AddParam(cmd, "@id", scriptId);
         return await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false) is true;
     }
@@ -509,7 +524,6 @@ internal static partial class UiDdlCatalogChecker
             .Select(s => string.IsNullOrWhiteSpace(s.Schema) ? "public" : s.Schema)
             .Distinct(StringComparer.Ordinal)
             .ToList();
-        var schemaIn = string.Join(", ", schemas.Select(s => $"'{SqlFormatHelper.EscapeLiteral(s)}'"));
 
         var existingSchemas = new HashSet<string>(StringComparer.Ordinal);
         var existingRelations = new HashSet<(string Schema, string Name, string Kind)>();
@@ -518,14 +532,29 @@ internal static partial class UiDdlCatalogChecker
         var existingExtensions = new HashSet<string>(StringComparer.Ordinal);
         var existingTypes = new HashSet<(string Schema, string Name)>();
 
-        static string ToSqlIn(IEnumerable<string> values) =>
-            string.Join(", ", values.Distinct(StringComparer.Ordinal).Select(v => $"'{SqlFormatHelper.EscapeLiteral(v)}'"));
+        static string AddInParams(DbCommand cmd, string prefix, IEnumerable<string> values)
+        {
+            var names = new List<string>();
+            var idx = 0;
+            foreach (var v in values.Distinct(StringComparer.Ordinal))
+            {
+                var p = cmd.CreateParameter();
+                p.ParameterName = $"@{prefix}{idx}";
+                p.Value = v;
+                cmd.Parameters.Add(p);
+                names.Add(p.ParameterName);
+                idx++;
+            }
+
+            return string.Join(", ", names);
+        }
 
         var schemaNames = statements.Where(s => s.ObjectType == "Schema").Select(s => s.ObjectName).ToList();
         if (schemaNames.Count > 0)
         {
             await using var cmd = conn.CreateCommand();
-            cmd.CommandText = $"SELECT nspname FROM pg_catalog.pg_namespace WHERE nspname IN ({ToSqlIn(schemaNames)})";
+            var inClause = AddInParams(cmd, "sn", schemaNames);
+            cmd.CommandText = $"SELECT nspname FROM pg_catalog.pg_namespace WHERE nspname IN ({inClause})";
             await using var r = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
             while (await r.ReadAsync(ct).ConfigureAwait(false)) existingSchemas.Add(r.GetString(0));
         }
@@ -534,7 +563,9 @@ internal static partial class UiDdlCatalogChecker
         if (relNames.Count > 0)
         {
             await using var cmd = conn.CreateCommand();
-            cmd.CommandText = $"SELECT n.nspname, c.relname, c.relkind::text FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname IN ({schemaIn}) AND c.relname IN ({ToSqlIn(relNames)}) AND c.relkind IN ('r','p','i','I','S')";
+            var scIn = AddInParams(cmd, "sc", schemas);
+            var relIn = AddInParams(cmd, "rl", relNames);
+            cmd.CommandText = $"SELECT n.nspname, c.relname, c.relkind::text FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname IN ({scIn}) AND c.relname IN ({relIn}) AND c.relkind IN ('r','p','i','I','S')";
             await using var r = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
             while (await r.ReadAsync(ct).ConfigureAwait(false)) existingRelations.Add((r.GetString(0), r.GetString(1), r.GetString(2)));
         }
@@ -542,10 +573,11 @@ internal static partial class UiDdlCatalogChecker
         var colStmts = statements.Where(s => s.ObjectType == "Column").ToList();
         if (colStmts.Count > 0)
         {
-            var colTables = ToSqlIn(colStmts.Select(s => s.TableName ?? string.Empty));
-            var colNames = ToSqlIn(colStmts.Select(s => s.ObjectName));
             await using var cmd = conn.CreateCommand();
-            cmd.CommandText = $"SELECT n.nspname, c.relname, a.attname FROM pg_catalog.pg_attribute a JOIN pg_catalog.pg_class c ON c.oid = a.attrelid JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname IN ({schemaIn}) AND c.relname IN ({colTables}) AND a.attname IN ({colNames}) AND a.attnum > 0 AND NOT a.attisdropped";
+            var scIn = AddInParams(cmd, "sc", schemas);
+            var colTables = AddInParams(cmd, "tb", colStmts.Select(s => s.TableName ?? string.Empty));
+            var colNames = AddInParams(cmd, "cl", colStmts.Select(s => s.ObjectName));
+            cmd.CommandText = $"SELECT n.nspname, c.relname, a.attname FROM pg_catalog.pg_attribute a JOIN pg_catalog.pg_class c ON c.oid = a.attrelid JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname IN ({scIn}) AND c.relname IN ({colTables}) AND a.attname IN ({colNames}) AND a.attnum > 0 AND NOT a.attisdropped";
             await using var r = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
             while (await r.ReadAsync(ct).ConfigureAwait(false)) existingColumns.Add((r.GetString(0), r.GetString(1), r.GetString(2)));
         }
@@ -554,7 +586,9 @@ internal static partial class UiDdlCatalogChecker
         if (conNames.Count > 0)
         {
             await using var cmd = conn.CreateCommand();
-            cmd.CommandText = $"SELECT n.nspname, c.relname, con.conname FROM pg_catalog.pg_constraint con JOIN pg_catalog.pg_class c ON c.oid = con.conrelid JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname IN ({schemaIn}) AND con.conname IN ({ToSqlIn(conNames)})";
+            var scIn = AddInParams(cmd, "sc", schemas);
+            var conIn = AddInParams(cmd, "cn", conNames);
+            cmd.CommandText = $"SELECT n.nspname, c.relname, con.conname FROM pg_catalog.pg_constraint con JOIN pg_catalog.pg_class c ON c.oid = con.conrelid JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname IN ({scIn}) AND con.conname IN ({conIn})";
             await using var r = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
             while (await r.ReadAsync(ct).ConfigureAwait(false)) existingConstraints.Add((r.GetString(0), r.GetString(1), r.GetString(2)));
         }
@@ -563,7 +597,8 @@ internal static partial class UiDdlCatalogChecker
         if (extNames.Count > 0)
         {
             await using var cmd = conn.CreateCommand();
-            cmd.CommandText = $"SELECT extname FROM pg_catalog.pg_extension WHERE extname IN ({ToSqlIn(extNames)})";
+            var extIn = AddInParams(cmd, "ex", extNames);
+            cmd.CommandText = $"SELECT extname FROM pg_catalog.pg_extension WHERE extname IN ({extIn})";
             await using var r = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
             while (await r.ReadAsync(ct).ConfigureAwait(false)) existingExtensions.Add(r.GetString(0));
         }
@@ -572,7 +607,9 @@ internal static partial class UiDdlCatalogChecker
         if (typeNames.Count > 0)
         {
             await using var cmd = conn.CreateCommand();
-            cmd.CommandText = $"SELECT n.nspname, t.typname FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace WHERE n.nspname IN ({schemaIn}) AND t.typname IN ({ToSqlIn(typeNames)})";
+            var scIn = AddInParams(cmd, "sc", schemas);
+            var tyIn = AddInParams(cmd, "ty", typeNames);
+            cmd.CommandText = $"SELECT n.nspname, t.typname FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace WHERE n.nspname IN ({scIn}) AND t.typname IN ({tyIn})";
             await using var r = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
             while (await r.ReadAsync(ct).ConfigureAwait(false)) existingTypes.Add((r.GetString(0), r.GetString(1)));
         }

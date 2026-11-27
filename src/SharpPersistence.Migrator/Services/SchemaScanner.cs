@@ -65,7 +65,7 @@ internal static class SchemaScanner
             options.IdentifierCase,
             allRegistries ?? options.Registries,
             options.PropertyConventions,
-            options.Enums,
+            options.PostgreSql.Enums,
             options.SqlExpressionOptions,
             options.PluralizeTableNames,
             options.EntityConventions,

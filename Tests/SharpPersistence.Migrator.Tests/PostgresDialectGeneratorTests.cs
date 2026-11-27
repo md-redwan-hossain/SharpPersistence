@@ -281,8 +281,8 @@ public sealed class PostgresDialectGeneratorTests
             .HasPostgresEnum<BookingStatus>();
 
         var options = optionsBuilder.Build();
-        Assert.Single(options.Extensions, e => e.Name == "btree_gist");
-        Assert.Single(options.Enums, e => e.Name == "booking_status");
+        Assert.Single(options.PostgreSql.Extensions, e => e.Name == "btree_gist");
+        Assert.Single(options.PostgreSql.Enums, e => e.Name == "booking_status");
 
         var reg = new FluentConventionsRegistry();
         var schema = SchemaScanner.ScanRegistry(reg, SqlDialect.PostgreSql, SqlIdentifierCase.LowerSnakeCase, [reg]);
@@ -374,7 +374,7 @@ public sealed class PostgresDialectGeneratorTests
 
         Assert.Equal(SqlDialect.PostgreSql, options.Dialect);
         Assert.Equal(SqlIdentifierCase.LowerSnakeCase, options.IdentifierCase);
-        Assert.Single(options.Extensions, e => e.Name == "btree_gist");
-        Assert.Single(options.Enums, e => e.Name == "booking_status");
+        Assert.Single(options.PostgreSql.Extensions, e => e.Name == "btree_gist");
+        Assert.Single(options.PostgreSql.Enums, e => e.Name == "booking_status");
     }
 }

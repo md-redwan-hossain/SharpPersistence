@@ -15,9 +15,6 @@ internal sealed record RunlistSyncResult(
 
 internal sealed class MigrationRunlistManager
 {
-    public const string RunlistFileName = "db-migration-runlist.json";
-    public const string OverridesFileName = "db-migration-runlist.overrides.json";
-
     private static readonly JsonSerializerOptions WriteJsonOptions = new()
     {
         WriteIndented = true
@@ -38,8 +35,8 @@ internal sealed class MigrationRunlistManager
         _scriptStore = scriptStore;
     }
 
-    public string RunlistPath => Path.Combine(_scriptStore.ResolveMigrationsDirectory(), RunlistFileName);
-    public string OverridesPath => Path.Combine(_scriptStore.ResolveMigrationsDirectory(), OverridesFileName);
+    public string RunlistPath => Path.Combine(_scriptStore.ResolveMigrationsDirectory(), DbMigratorConsts.RunlistFileName);
+    public string OverridesPath => Path.Combine(_scriptStore.ResolveMigrationsDirectory(), DbMigratorConsts.RunlistOverridesFileName);
 
     public IReadOnlyList<RunlistScriptEntry> ResolveEffectiveOrder()
     {
@@ -65,7 +62,7 @@ internal sealed class MigrationRunlistManager
         if (!File.Exists(RunlistPath))
         {
             throw new InvalidOperationException(
-                $"Migration runlist '{RunlistFileName}' was not found in '{_scriptStore.ResolveMigrationsDirectory()}'. " +
+                $"Migration runlist '{DbMigratorConsts.RunlistFileName}' was not found in '{_scriptStore.ResolveMigrationsDirectory()}'. " +
                 "Run 'db-migrator runlist sync' to generate it.");
         }
 
@@ -74,7 +71,7 @@ internal sealed class MigrationRunlistManager
         if (missingOnDisk.Count > 0)
         {
             throw new InvalidOperationException(
-                $"'{RunlistFileName}' references missing script ID(s): {string.Join(", ", missingOnDisk)}. " +
+                $"'{DbMigratorConsts.RunlistFileName}' references missing script ID(s): {string.Join(", ", missingOnDisk)}. " +
                 "Restore the missing file(s) or run 'db-migrator runlist sync --prune'.");
         }
 
@@ -106,7 +103,7 @@ internal sealed class MigrationRunlistManager
         {
             throw new InvalidOperationException(
                 $"Existing migration scripts were found in '{_scriptStore.ResolveMigrationsDirectory()}', " +
-                $"but '{RunlistFileName}' is missing. Run 'db-migrator runlist sync' before generating new migrations.");
+                $"but '{DbMigratorConsts.RunlistFileName}' is missing. Run 'db-migrator runlist sync' before generating new migrations.");
         }
     }
 
@@ -328,8 +325,8 @@ internal sealed class MigrationRunlistManager
         {
             checks.Add(new DoctorCheckItem(
                 DoctorSeverity.Error,
-                $"Missing '{RunlistFileName}' while {scriptsById.Count + missingHeaders.Count} migration script(s) exist on disk.",
-                Hint: "Run 'db-migrator runlist sync' to generate db-migration-runlist.json."));
+                $"Missing '{DbMigratorConsts.RunlistFileName}' while {scriptsById.Count + missingHeaders.Count} migration script(s) exist on disk.",
+                Hint: $"Run 'db-migrator runlist sync' to generate {DbMigratorConsts.RunlistFileName}."));
             return checks;
         }
 
@@ -342,7 +339,7 @@ internal sealed class MigrationRunlistManager
         {
             checks.Add(new DoctorCheckItem(
                 DoctorSeverity.Error,
-                $"Invalid '{RunlistFileName}': {ex.Message}",
+                $"Invalid '{DbMigratorConsts.RunlistFileName}': {ex.Message}",
                 Hint: "Fix the JSON array or regenerate it with 'db-migrator runlist sync'."));
             return checks;
         }
@@ -352,7 +349,7 @@ internal sealed class MigrationRunlistManager
         {
             checks.Add(new DoctorCheckItem(
                 DoctorSeverity.Error,
-                $"'{RunlistFileName}' references {missingFiles.Count} missing script ID(s): {string.Join(", ", missingFiles)}",
+                $"'{DbMigratorConsts.RunlistFileName}' references {missingFiles.Count} missing script ID(s): {string.Join(", ", missingFiles)}",
                 Hint: "Restore the deleted script(s) or run 'db-migrator runlist sync --prune'."));
         }
 
@@ -362,7 +359,7 @@ internal sealed class MigrationRunlistManager
         {
             checks.Add(new DoctorCheckItem(
                 DoctorSeverity.Error,
-                $"{untracked.Count} migration script(s) on disk are not in '{RunlistFileName}': {string.Join(", ", untracked.Select(u => $"{u.RegistryName}/{u.ScriptName}"))}",
+                $"{untracked.Count} migration script(s) on disk are not in '{DbMigratorConsts.RunlistFileName}': {string.Join(", ", untracked.Select(u => $"{u.RegistryName}/{u.ScriptName}"))}",
                 Hint: "Run 'db-migrator runlist sync' to add them."));
         }
 
@@ -376,7 +373,7 @@ internal sealed class MigrationRunlistManager
             checks.Add(new DoctorCheckItem(
                 DoctorSeverity.Error,
                 ex.Message,
-                Hint: $"Fix '{OverridesFileName}'."));
+                Hint: $"Fix '{DbMigratorConsts.RunlistOverridesFileName}'."));
             return checks;
         }
 
@@ -433,7 +430,7 @@ internal sealed class MigrationRunlistManager
                 checks.Add(new DoctorCheckItem(
                     DoctorSeverity.Error,
                     ex.Message,
-                    Hint: $"Check '{OverridesFileName}' for conflicting sequences."));
+                    Hint: $"Check '{DbMigratorConsts.RunlistOverridesFileName}' for conflicting sequences."));
             }
         }
 
@@ -498,7 +495,7 @@ internal sealed class MigrationRunlistManager
     {
         var json = File.ReadAllText(path);
         var raw = JsonSerializer.Deserialize<List<string>>(json)
-            ?? throw new InvalidOperationException($"'{RunlistFileName}' must be a JSON array of script GUIDs.");
+            ?? throw new InvalidOperationException($"'{DbMigratorConsts.RunlistFileName}' must be a JSON array of script GUIDs.");
 
         var ids = new List<Guid>(raw.Count);
         var seen = new HashSet<Guid>();
@@ -507,13 +504,13 @@ internal sealed class MigrationRunlistManager
             if (!Guid.TryParse(raw[i], out var id) || id == Guid.Empty)
             {
                 throw new InvalidOperationException(
-                    $"Invalid migration-script-id '{raw[i]}' at index {i} in '{RunlistFileName}'.");
+                    $"Invalid migration-script-id '{raw[i]}' at index {i} in '{DbMigratorConsts.RunlistFileName}'.");
             }
 
             if (!seen.Add(id))
             {
                 throw new InvalidOperationException(
-                    $"Duplicate migration-script-id '{id}' in '{RunlistFileName}'.");
+                    $"Duplicate migration-script-id '{id}' in '{DbMigratorConsts.RunlistFileName}'.");
             }
 
             ids.Add(id);
@@ -531,7 +528,7 @@ internal sealed class MigrationRunlistManager
 
         var json = File.ReadAllText(OverridesPath);
         var rawSequences = JsonSerializer.Deserialize<List<List<string>>>(json, ReadOverridesJsonOptions)
-            ?? throw new InvalidOperationException($"'{OverridesFileName}' must be a JSON array of ID sequences.");
+            ?? throw new InvalidOperationException($"'{DbMigratorConsts.RunlistOverridesFileName}' must be a JSON array of ID sequences.");
 
         var parsed = new List<List<Guid>>(rawSequences.Count);
         for (var seqIdx = 0; seqIdx < rawSequences.Count; seqIdx++)
@@ -540,7 +537,7 @@ internal sealed class MigrationRunlistManager
             if (seq is null || seq.Count < 2)
             {
                 throw new InvalidOperationException(
-                    $"Override sequence at index {seqIdx} in '{OverridesFileName}' must contain at least 2 script IDs.");
+                    $"Override sequence at index {seqIdx} in '{DbMigratorConsts.RunlistOverridesFileName}' must contain at least 2 script IDs.");
             }
 
             var guidSeq = new List<Guid>(seq.Count);
@@ -551,19 +548,19 @@ internal sealed class MigrationRunlistManager
                 if (!Guid.TryParse(rawId, out var id) || id == Guid.Empty)
                 {
                     throw new InvalidOperationException(
-                        $"Invalid migration-script-id '{rawId}' in override sequence [{seqIdx}][{itemIdx}] of '{OverridesFileName}'.");
+                        $"Invalid migration-script-id '{rawId}' in override sequence [{seqIdx}][{itemIdx}] of '{DbMigratorConsts.RunlistOverridesFileName}'.");
                 }
 
                 if (!scriptsById.ContainsKey(id))
                 {
                     throw new InvalidOperationException(
-                        $"Override sequence [{seqIdx}][{itemIdx}] in '{OverridesFileName}' references non-existent script ID '{id}'.");
+                        $"Override sequence [{seqIdx}][{itemIdx}] in '{DbMigratorConsts.RunlistOverridesFileName}' references non-existent script ID '{id}'.");
                 }
 
                 if (!seenInSeq.Add(id))
                 {
                     throw new InvalidOperationException(
-                        $"Override sequence [{seqIdx}] in '{OverridesFileName}' contains duplicate script ID '{id}'.");
+                        $"Override sequence [{seqIdx}] in '{DbMigratorConsts.RunlistOverridesFileName}' contains duplicate script ID '{id}'.");
                 }
 
                 guidSeq.Add(id);
@@ -660,7 +657,7 @@ internal sealed class MigrationRunlistManager
         if (result.Count < n)
         {
             throw new InvalidOperationException(
-                $"Conflicting or cyclic override sequences detected in '{OverridesFileName}'.");
+                $"Conflicting or cyclic override sequences detected in '{DbMigratorConsts.RunlistOverridesFileName}'.");
         }
 
         return result;

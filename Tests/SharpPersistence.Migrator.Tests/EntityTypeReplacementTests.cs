@@ -116,7 +116,7 @@ public sealed class EntityTypeReplacementTests
             options.Dialect,
             options.IdentifierCase,
             options.PropertyConventions,
-            options.Enums,
+            options.PostgreSql.Enums,
             options.SqlExpressionOptions,
             options.PluralizeTableNames,
             options.EntityConventions,
@@ -226,8 +226,8 @@ public sealed class EntityTypeReplacementTests
         var tempRoot = Path.Combine(Path.GetTempPath(), $"sp_stub_scripts_{Guid.NewGuid():N}");
         try
         {
-            var accessDir = Path.Combine(tempRoot, DbMigratorOptions.DefaultMigrationsDirectory, nameof(AccessControlRegistry));
-            var billingDir = Path.Combine(tempRoot, DbMigratorOptions.DefaultMigrationsDirectory, nameof(BillingRegistry));
+            var accessDir = Path.Combine(tempRoot, DbMigratorConsts.ScriptsDirectory, nameof(AccessControlRegistry));
+            var billingDir = Path.Combine(tempRoot, DbMigratorConsts.ScriptsDirectory, nameof(BillingRegistry));
             Directory.CreateDirectory(accessDir);
             Directory.CreateDirectory(billingDir);
 

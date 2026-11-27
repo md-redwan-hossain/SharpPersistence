@@ -31,8 +31,9 @@ internal sealed class MigrationConnectionOpener
 
         if (_options.ConnectionFactory is not null)
         {
-            conn = _options.ConnectionFactory(_serviceProvider);
-            ownsConnection = false;
+            conn = _options.ConnectionFactory(_serviceProvider)
+                   ?? throw new InvalidOperationException("ConnectionFactory returned null.");
+            ownsConnection = true;
         }
         else if (!string.IsNullOrWhiteSpace(_options.ConnectionString))
         {
@@ -55,7 +56,19 @@ internal sealed class MigrationConnectionOpener
 
         if (conn.State != ConnectionState.Open)
         {
-            await conn.OpenAsync(ct).ConfigureAwait(false);
+            try
+            {
+                await conn.OpenAsync(ct).ConfigureAwait(false);
+            }
+            catch
+            {
+                if (ownsConnection)
+                {
+                    await conn.DisposeAsync().ConfigureAwait(false);
+                }
+
+                throw;
+            }
         }
 
         return (conn, ownsConnection);

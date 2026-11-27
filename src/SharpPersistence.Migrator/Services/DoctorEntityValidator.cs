@@ -213,7 +213,7 @@ internal sealed class DoctorEntityValidator(
                 continue;
             }
 
-            var hasBtreeGist = options.Extensions.Any(e =>
+            var hasBtreeGist = options.PostgreSql.Extensions.Any(e =>
                 string.Equals(e.Name, "btree_gist", StringComparison.OrdinalIgnoreCase));
 
             foreach (var el in exDef.Elements)

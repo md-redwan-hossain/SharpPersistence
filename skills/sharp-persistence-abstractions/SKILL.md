@@ -97,11 +97,28 @@ DateTime? latestOrderAt = await orderRepo.Query()
 | `ExistsAsync(filter, match, ct)` | `Query().Where(filter).ExistsAsync(match, ct)` |
 | `EveryAsync(filter, match, ct)` | `Query().Where(filter).EveryAsync(match, ct)` |
 
+## Unit of Work & Transactions (`IUnitOfWork`, `IUnitOfWorkTransaction`)
+
+- `IUnitOfWork` does **not** inherit `IDisposable` or `IAsyncDisposable` (the DI container owns the `DbContext` lifetime).
+- `BeginTransaction()` / `BeginTransactionAsync(ct)` return `IUnitOfWorkTransaction` (EF-Core-free wrapper around `IDbContextTransaction` with `Commit`/`CommitAsync`, `Rollback`/`RollbackAsync`, `IDisposable`/`IAsyncDisposable`, and `DbTransaction UnderlyingTransaction` for Dapper/ADO.NET).
+- `UseTransactionAsync` accepts either `IUnitOfWorkTransaction` or `DbTransaction`.
+
+```csharp
+await using var tx = await unitOfWork.BeginTransactionAsync(ct);
+await otherUnitOfWork.UseTransactionAsync(tx, ct);
+await orderRepo.CreateAsync(order, ct);
+await unitOfWork.SaveAsync(ct);
+await tx.CommitAsync(ct);
+
+// Safe to query or start another transaction immediately after CommitAsync
+var saved = await orderRepo.Query().Where(x => x.Id == order.Id).GetFirstOrDefaultAsync(ct);
+```
+
 ## Compile-Time Entity Discovery Attributes
 
 `SharpPersistence.Abstractions` provides zero-dependency domain attributes (and transitively includes the Roslyn entity manifest generator):
 
-- `[Entity]` - built-in attribute for ungrouped / single-registry projects. Set `[Entity(ReadOnly = true)]` to automatically exclude read-only stub/view entities from migrations.
+- `[Entity]` - built-in attribute for ungrouped / single-registry projects. Set `[Entity(ReadOnly = true)]` to automatically exclude read-only reference/view entities from migrations.
 - `[Entity<TGroup>]` where `TGroup : struct, IEntityGroup` - typed per-module/group discovery (e.g., `public readonly record struct BillingGroup : IEntityGroup;`), paired 1-to-1 with `[EntityRegistry<TGroup>]` and also supporting `ReadOnly = true`.
 - `[assembly: DisableEntityDiscovery]` (or MSBuild `<DisableEntityDiscovery>true</DisableEntityDiscovery>`) - opts an assembly out of source generation.
 
@@ -117,7 +134,7 @@ public sealed class Invoice
     public Guid Id { get; set; }
 }
 
-// Read-only reference stub (automatically excluded from migrations)
+// Read-only reference entity (automatically excluded from migrations)
 [Entity<BillingGroup>(ReadOnly = true)]
 public sealed class RefUser
 {

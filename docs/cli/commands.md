@@ -142,7 +142,7 @@ Before executing statement #1 (or creating `__db_migrator_logs`), `migrate` auto
 
 #### Migration History Table Columns
 
-Applied migrations are recorded in the history table (default `__db_migrator_logs`, configurable via `UseHistoryTable(tableName, schema)`), keyed by `script_id` so renaming a registry, folder, or script filename never causes re-execution:
+Applied migrations are recorded in `__db_migrator_logs` (schema configurable via `UseHistorySchema(schema)`), keyed by `script_id` so renaming a registry, folder, or script filename never causes re-execution:
 
 | Column | PostgreSQL | Oracle | Description |
 | :--- | :--- | :--- | :--- |

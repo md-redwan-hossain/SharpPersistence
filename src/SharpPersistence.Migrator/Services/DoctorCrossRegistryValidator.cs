@@ -97,7 +97,7 @@ internal sealed class DoctorCrossRegistryValidator(
             }
         }
 
-        var enumLookup = options.Enums.ToDictionary(e => e.ClrTypeName, StringComparer.Ordinal);
+        var enumLookup = options.PostgreSql.Enums.ToDictionary(e => e.ClrTypeName, StringComparer.Ordinal);
         foreach (var (regName, excludedTb, _, qualifiedName) in excludedTables)
         {
             if (!seenTables.TryGetValue(qualifiedName, out var owner))

@@ -19,7 +19,7 @@ internal static class RegistryDependencyResolver
             options.EntityConventions,
             options.TableNameConvention,
             options.EntityReplacements,
-            options.Enums,
+            options.PostgreSql.Enums,
             options.SqlExpressionOptions);
 
     public static IReadOnlyList<IEntityRegistry> SortTopologically(

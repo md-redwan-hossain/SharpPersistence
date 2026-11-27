@@ -92,9 +92,7 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
                 continue;
             }
 
-            if (!inPlSqlBlock && current.Length == 0 &&
-                (trimmed.StartsWith("BEGIN", StringComparison.OrdinalIgnoreCase) ||
-                 trimmed.StartsWith("DECLARE", StringComparison.OrdinalIgnoreCase)))
+            if (!inPlSqlBlock && current.Length == 0 && IsPlSqlBlockStart(trimmed))
             {
                 inPlSqlBlock = true;
             }
@@ -118,8 +116,9 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
             }
             else
             {
-                current.AppendLine(rawLine);
-                if (trimmed.EndsWith(';'))
+                var lineNoComment = StripTrailingLineComment(rawLine).TrimEnd();
+                current.AppendLine(lineNoComment);
+                if (lineNoComment.EndsWith(';'))
                 {
                     var stmt = current.ToString().Trim().TrimEnd(';').Trim();
                     current.Clear();
@@ -136,6 +135,53 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
         {
             yield return inPlSqlBlock ? tail : tail.TrimEnd(';').Trim();
         }
+    }
+
+    private static bool IsPlSqlBlockStart(string trimmed)
+    {
+        if (trimmed.StartsWith("BEGIN", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("DECLARE", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (!trimmed.StartsWith("CREATE", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var rest = trimmed["CREATE".Length..].TrimStart();
+        if (rest.StartsWith("OR", StringComparison.OrdinalIgnoreCase))
+        {
+            rest = rest["OR".Length..].TrimStart();
+            if (rest.StartsWith("REPLACE", StringComparison.OrdinalIgnoreCase))
+            {
+                rest = rest["REPLACE".Length..].TrimStart();
+            }
+        }
+
+        return rest.StartsWith("PROCEDURE", StringComparison.OrdinalIgnoreCase) ||
+               rest.StartsWith("FUNCTION", StringComparison.OrdinalIgnoreCase) ||
+               rest.StartsWith("TRIGGER", StringComparison.OrdinalIgnoreCase) ||
+               rest.StartsWith("PACKAGE", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string StripTrailingLineComment(string line)
+    {
+        var inSingleQuote = false;
+        for (var i = 0; i < line.Length - 1; i++)
+        {
+            if (line[i] == '\'')
+            {
+                inSingleQuote = !inSingleQuote;
+            }
+            else if (!inSingleQuote && line[i] == '-' && line[i + 1] == '-')
+            {
+                return line[..i];
+            }
+        }
+
+        return line;
     }
 
     public async Task<IAsyncDisposable?> AcquireLockAsync(
@@ -207,14 +253,16 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
         DbMigratorOptions options,
         CancellationToken ct)
     {
-        var table = Qualify(options.HistorySchema, options.HistoryTableName);
-        var createSql =
-            $"CREATE TABLE {table} (" +
-            "\"script_id\" VARCHAR2(36) NOT NULL, " +
-            "\"script_name\" NVARCHAR2(512) NOT NULL, " +
-            "\"checksum_sha256\" VARCHAR2(64) NOT NULL, " +
-            "\"applied_at\" TIMESTAMP(7) WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL, " +
-            $"CONSTRAINT \"pk_{options.HistoryTableName}\" PRIMARY KEY (\"script_id\"))";
+        var table = Qualify(options.HistorySchema, DbMigratorConsts.HistoryTableName);
+        var createSql = $"""
+            CREATE TABLE {table} (
+                "script_id" VARCHAR2(36) NOT NULL,
+                "script_name" NVARCHAR2(512) NOT NULL,
+                "checksum_sha256" VARCHAR2(64) NOT NULL,
+                "applied_at" TIMESTAMP(7) WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL,
+                CONSTRAINT "pk_{DbMigratorConsts.HistoryTableName}" PRIMARY KEY ("script_id")
+            )
+            """;
 
         await using var oracleCmd = conn.CreateCommand();
         oracleCmd.CommandText =
@@ -229,8 +277,8 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
     {
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = string.IsNullOrWhiteSpace(options.HistorySchema)
-            ? $"SELECT COUNT(*) FROM USER_TABLES WHERE TABLE_NAME = '{EscapeLiteral(options.HistoryTableName)}'"
-            : $"SELECT COUNT(*) FROM ALL_TABLES WHERE OWNER = '{EscapeLiteral(options.HistorySchema)}' AND TABLE_NAME = '{EscapeLiteral(options.HistoryTableName)}'";
+            ? $"SELECT COUNT(*) FROM USER_TABLES WHERE TABLE_NAME = '{EscapeLiteral(DbMigratorConsts.HistoryTableName)}'"
+            : $"SELECT COUNT(*) FROM ALL_TABLES WHERE OWNER = '{EscapeLiteral(options.HistorySchema)}' AND TABLE_NAME = '{EscapeLiteral(DbMigratorConsts.HistoryTableName)}'";
 
         var count = Convert.ToInt32(await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false), CultureInfo.InvariantCulture);
         return count > 0;
@@ -245,16 +293,17 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
         CancellationToken ct,
         DbTransaction? transaction = null)
     {
-        var table = Qualify(options.HistorySchema, options.HistoryTableName);
+        var table = Qualify(options.HistorySchema, DbMigratorConsts.HistoryTableName);
         await using var cmd = conn.CreateCommand();
         cmd.Transaction = transaction;
         OracleCommandHelper.EnableBindByName(cmd);
-        cmd.CommandText =
-            $"MERGE INTO {table} t " +
-            "USING (SELECT :id AS \"script_id\", :script AS \"script_name\", :sum AS \"checksum_sha256\" FROM DUAL) s " +
-            "ON (t.\"script_id\" = s.\"script_id\") " +
-            "WHEN NOT MATCHED THEN INSERT (\"script_id\", \"script_name\", \"checksum_sha256\") " +
-            "VALUES (s.\"script_id\", s.\"script_name\", s.\"checksum_sha256\")";
+        cmd.CommandText = $"""
+            MERGE INTO {table} t
+            USING (SELECT :id AS "script_id", :script AS "script_name", :sum AS "checksum_sha256" FROM DUAL) s
+            ON (t."script_id" = s."script_id")
+            WHEN NOT MATCHED THEN INSERT ("script_id", "script_name", "checksum_sha256")
+            VALUES (s."script_id", s."script_name", s."checksum_sha256")
+            """;
 
         var p1 = cmd.CreateParameter();
         p1.ParameterName = "id";
@@ -288,7 +337,7 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
 
         var ids = new List<string>();
         await using var readCmd = conn.CreateCommand();
-        readCmd.CommandText = "SELECT \"MigrationId\" FROM \"__EFMigrationsHistory\" ORDER BY \"MigrationId\"";
+        readCmd.CommandText = """SELECT "MigrationId" FROM "__EFMigrationsHistory" ORDER BY "MigrationId" """;
         await using var reader = await readCmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
         while (await reader.ReadAsync(ct).ConfigureAwait(false))
         {
@@ -386,7 +435,7 @@ internal sealed class OracleMigrationDialect(OracleDbCompatibility compatibility
 
     private static int ComputeLockId(DbMigratorOptions options)
     {
-        var key = $"SharpPersistence.Migrator:{options.HistorySchema ?? "default"}.{options.HistoryTableName}";
+        var key = $"SharpPersistence.Migrator:{options.HistorySchema ?? "default"}.{DbMigratorConsts.HistoryTableName}";
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(key));
         return BitConverter.ToInt32(hash, 0) & 0x3FFFFFFF;
     }

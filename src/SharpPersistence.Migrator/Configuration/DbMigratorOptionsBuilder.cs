@@ -157,10 +157,10 @@ public class DbMigratorOptionsBuilder
         return this;
     }
 
-    public DbMigratorOptionsBuilder UseHistoryTable(string tableName, string? schema = null)
+    public DbMigratorOptionsBuilder UseHistorySchema(string schema)
     {
-        State.Options.HistoryTableName = tableName;
-        State.Options.HistorySchema = schema;
+        ArgumentException.ThrowIfNullOrWhiteSpace(schema);
+        State.Options.HistorySchema = schema.Trim();
         State.HistorySchemaExplicitlySet = true;
         return this;
     }
@@ -233,12 +233,12 @@ public class DbMigratorOptionsBuilder
         State.Options.PropertyConventions = [.. State.PropertyConventions];
         State.Options.EntityConventions = [.. State.EntityConventions];
         State.Options.EntityReplacements = new Dictionary<Type, Type>(State.EntityReplacements);
-        State.Options.Extensions = State.Extensions
+        State.Options.PostgreSql.Extensions = State.Extensions
             .GroupBy(e => e.Name, StringComparer.Ordinal)
             .Select(g => g.Last())
             .OrderBy(e => e.Name, StringComparer.Ordinal)
             .ToList();
-        State.Options.Enums = State.EnumRegistrations
+        State.Options.PostgreSql.Enums = State.EnumRegistrations
             .GroupBy(e => e.EnumType)
             .Select(g => g.Last())
             .Select(e => new PostgresEnumSchema
@@ -253,40 +253,5 @@ public class DbMigratorOptionsBuilder
             .OrderBy(e => e.QualifiedName, StringComparer.Ordinal)
             .ToList();
         return State.Options;
-    }
-}
-
-public sealed class PostgreSqlOptionsBuilder : DbMigratorOptionsBuilder
-{
-    internal PostgreSqlOptionsBuilder(BuilderState state) : base(state)
-    {
-    }
-
-    public PostgreSqlOptionsBuilder HasPostgresExtension(string name, string? schema = null)
-    {
-        State.Extensions.RemoveAll(e => string.Equals(e.Name, name, StringComparison.Ordinal));
-        State.Extensions.Add(new PostgresExtensionSchema(name, schema));
-        return this;
-    }
-
-    public PostgreSqlOptionsBuilder HasPostgresEnum<TEnum>(string? name = null, string? schema = null)
-        where TEnum : struct, Enum
-    {
-        State.EnumRegistrations.RemoveAll(e => e.EnumType == typeof(TEnum));
-        State.EnumRegistrations.Add((typeof(TEnum), name, schema));
-        return this;
-    }
-}
-
-public sealed class OracleOptionsBuilder : DbMigratorOptionsBuilder
-{
-    internal OracleOptionsBuilder(BuilderState state) : base(state)
-    {
-    }
-
-    public OracleOptionsBuilder UseSqlCompatibility(OracleDbCompatibility compatibility)
-    {
-        State.Options.OracleCompatibility = compatibility;
-        return this;
     }
 }

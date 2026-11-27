@@ -21,21 +21,21 @@ internal static class UiDryRunBuilder
         var totalDrops = 0;
 
         if (dialect.SupportsGlobalExtensionsAndEnums &&
-            (options.Extensions.Count > 0 || options.Enums.Count > 0))
+            (options.PostgreSql.Extensions.Count > 0 || options.PostgreSql.Enums.Count > 0))
         {
             var globalSnapshotPath = Path.Combine(stateDir, "_global.json");
             var prevGlobalJson = File.Exists(globalSnapshotPath) ? File.ReadAllText(globalSnapshotPath) : null;
             var globalModel = new DatabaseModel
             {
-                Extensions = options.Extensions.Count > 0 ? [.. options.Extensions] : null,
-                Enums = options.Enums.Count > 0 ? [.. options.Enums] : null
+                Extensions = options.PostgreSql.Extensions.Count > 0 ? [.. options.PostgreSql.Extensions] : null,
+                Enums = options.PostgreSql.Enums.Count > 0 ? [.. options.PostgreSql.Enums] : null
             };
             var globalDiff = StandaloneSchemaDiffer.GenerateDiff(
                 globalModel,
                 prevGlobalJson,
                 options.Dialect,
                 interactiveRenamePrompt: false,
-                options.OracleCompatibility);
+                options.Oracle.Compatibility);
 
             var globalItem = MapRegistry("_global", globalDiff);
             if (globalItem.HasChanges)
@@ -57,7 +57,7 @@ internal static class UiDryRunBuilder
                 prevJson,
                 options.Dialect,
                 interactiveRenamePrompt: false,
-                options.OracleCompatibility);
+                options.Oracle.Compatibility);
 
             var regItem = MapRegistry(registryName, diff);
             items.Add(regItem);

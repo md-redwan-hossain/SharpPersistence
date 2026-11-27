@@ -23,7 +23,7 @@ internal static class EfCoreMigrationManagerExtensions
         var translated = EfCoreMigrationTranslator.TranslateFromDirectory(
             efCoreMigrationsDirectory,
             concrete.Options.Dialect,
-            concrete.Options.OracleCompatibility);
+            concrete.Options.Oracle.Compatibility);
 
         if (translated.Count == 0)
         {

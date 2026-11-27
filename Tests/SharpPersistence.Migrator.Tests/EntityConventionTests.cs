@@ -143,7 +143,7 @@ public sealed class EntityConventionTests
             options.Dialect,
             options.IdentifierCase,
             options.PropertyConventions,
-            options.Enums,
+            options.PostgreSql.Enums,
             options.SqlExpressionOptions,
             options.PluralizeTableNames,
             options.EntityConventions,
@@ -183,7 +183,7 @@ public sealed class EntityConventionTests
         optionsBuilder.UseNamingConvention(SqlIdentifierCase.PascalCase);
 
         var options = optionsBuilder.Build();
-        var pgEnum = Assert.Single(options.Enums);
+        var pgEnum = Assert.Single(options.PostgreSql.Enums);
 
         Assert.Equal("PaymentMethod", pgEnum.Name);
         Assert.Equal(["CashOnDelivery", "BankTransfer"], pgEnum.Labels);

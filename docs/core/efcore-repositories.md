@@ -104,7 +104,7 @@ int hardDeleted = await orderRepo.RemoveManyDirectIgnoringFiltersAsync(
     [AppDbContext.SoftDeleteFilter],
     ct);
 
-// Unit of Work transaction
+// Unit of Work transaction (returns IUnitOfWorkTransaction; use tx.UnderlyingTransaction for Dapper/ADO.NET)
 await using var tx = await unitOfWork.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
 await unitOfWork.SaveAsync(ct);
 await tx.CommitAsync(ct);

@@ -49,7 +49,7 @@ internal static class PostgresPermissionChecker
                         checks.Add(new DoctorCheckItem(
                             DoctorSeverity.Error,
                             $"Role '{currentUser}' lacks CREATE privilege on database '{currentDb}' (required to create schema '{schema}').",
-                            Hint: $"GRANT CREATE ON DATABASE \"{currentDb}\" TO \"{currentUser}\";"));
+                            Hint: $"""GRANT CREATE ON DATABASE "{currentDb}" TO "{currentUser}";"""));
                     }
                 }
                 else
@@ -57,7 +57,7 @@ internal static class PostgresPermissionChecker
                     checks.Add(new DoctorCheckItem(
                         DoctorSeverity.Error,
                         $"Target schema '{schema}' does not exist in database '{currentDb}'.",
-                        Hint: $"CREATE SCHEMA \"{schema}\" AUTHORIZATION \"{currentUser}\";"));
+                        Hint: $"""CREATE SCHEMA "{schema}" AUTHORIZATION "{currentUser}";"""));
                 }
 
                 continue;
@@ -68,7 +68,7 @@ internal static class PostgresPermissionChecker
                 checks.Add(new DoctorCheckItem(
                     DoctorSeverity.Error,
                     $"Role '{currentUser}' lacks USAGE privilege on schema '{schema}'.",
-                    Hint: $"GRANT USAGE ON SCHEMA \"{schema}\" TO \"{currentUser}\";"));
+                    Hint: $"""GRANT USAGE ON SCHEMA "{schema}" TO "{currentUser}";"""));
             }
 
             if (createSchemasNeeded.Contains(schema) && !priv.HasCreate)
@@ -76,7 +76,7 @@ internal static class PostgresPermissionChecker
                 checks.Add(new DoctorCheckItem(
                     DoctorSeverity.Error,
                     $"Role '{currentUser}' lacks CREATE privilege on schema '{schema}'.",
-                    Hint: $"GRANT CREATE ON SCHEMA \"{schema}\" TO \"{currentUser}\";"));
+                    Hint: $"""GRANT CREATE ON SCHEMA "{schema}" TO "{currentUser}";"""));
             }
         }
 
@@ -111,7 +111,7 @@ internal static class PostgresPermissionChecker
                     checks.Add(new DoctorCheckItem(
                         DoctorSeverity.Error,
                         $"Role '{currentUser}' does not own existing table '{schema}.{table}' (required for ALTER/DROP TABLE or CREATE INDEX).",
-                        Hint: $"ALTER TABLE \"{schema}\".\"{table}\" OWNER TO \"{currentUser}\";"));
+                        Hint: $"""ALTER TABLE "{schema}"."{table}" OWNER TO "{currentUser}";"""));
                 }
             }
 
@@ -126,7 +126,7 @@ internal static class PostgresPermissionChecker
                     checks.Add(new DoctorCheckItem(
                         DoctorSeverity.Error,
                         $"Role '{currentUser}' lacks REFERENCES privilege on '{schema}.{table}'{fkLabel}.",
-                        Hint: $"GRANT REFERENCES ON TABLE \"{schema}\".\"{table}\" TO \"{currentUser}\";"));
+                        Hint: $"""GRANT REFERENCES ON TABLE "{schema}"."{table}" TO "{currentUser}";"""));
                 }
             }
         }
@@ -261,7 +261,7 @@ internal static class PostgresPermissionChecker
             checks.Add(new DoctorCheckItem(
                 DoctorSeverity.Error,
                 $"Role '{currentUser}' cannot install PostgreSQL extension '{ext}' (not installed and requires superuser or trusted extension + database CREATE).",
-                Hint: $"Ask a superuser to run: CREATE EXTENSION IF NOT EXISTS \"{ext}\";"));
+                Hint: $"""Ask a superuser to run: CREATE EXTENSION IF NOT EXISTS "{ext}";"""));
         }
     }
 
@@ -300,7 +300,7 @@ internal static class PostgresPermissionChecker
                 checks.Add(new DoctorCheckItem(
                     DoctorSeverity.Error,
                     $"Role '{currentUser}' lacks CREATE privilege on tablespace '{ts}'.",
-                    Hint: $"GRANT CREATE ON TABLESPACE \"{ts}\" TO \"{currentUser}\";"));
+                    Hint: $"""GRANT CREATE ON TABLESPACE "{ts}" TO "{currentUser}";"""));
             }
         }
     }

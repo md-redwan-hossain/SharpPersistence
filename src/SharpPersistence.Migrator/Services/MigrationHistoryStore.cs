@@ -28,8 +28,11 @@ internal sealed class MigrationHistoryStore
     {
         var records = new List<AppliedMigrationRecord>();
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText =
-            $"SELECT \"script_id\", \"script_name\", \"checksum_sha256\", \"applied_at\" FROM {Qualify(_options.HistorySchema, _options.HistoryTableName)} ORDER BY \"applied_at\", \"script_id\"";
+        cmd.CommandText = $"""
+            SELECT "script_id", "script_name", "checksum_sha256", "applied_at"
+            FROM {Qualify(_options.HistorySchema, DbMigratorConsts.HistoryTableName)}
+            ORDER BY "applied_at", "script_id"
+            """;
 
         await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
         while (await reader.ReadAsync(ct).ConfigureAwait(false))

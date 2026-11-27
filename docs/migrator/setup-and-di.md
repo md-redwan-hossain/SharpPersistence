@@ -19,7 +19,7 @@ builder.Services.AddDbMigrator(opt =>
         .HasPostgresExtension("pg_trgm")
         .HasPostgresEnum<OrderStatus>("order_status");
 
-    opt.UseHistoryTable("__db_migrator_logs", schema: "public")
+    opt.UseHistorySchema("public")
         .AddGeneratedEntityRegistries();
 });
 ```
@@ -51,7 +51,7 @@ builder.Services.AddDbMigrator(opt =>
 | `UseOracle(connStr / factory)` | — | Sets dialect to `Oracle` and identifier case to `UpperSnakeCase` |
 | `UseNamingConvention(case)` | Dialect default | `LowerSnakeCase`, `UpperSnakeCase`, `PascalCase`, `CamelCase`, `LowerCase`, or `UpperCase` |
 | `PluralizeTableNames(bool)` | `false` | Pluralizes convention-derived table names (`Order` → `orders`, `OrderCategory` → `order_categories`) |
-| `UseHistoryTable(name, schema?)` | `__db_migrator_logs` | Customizes the applied-migrations tracking table |
+| `UseHistorySchema(schema)` | `public` (PG) / current user (Oracle) | Customizes the schema for the fixed `__db_migrator_logs` tracking table |
 | `MapTableNames(fn)` | — | Maps convention-derived table names (`(entityType, defaultName) => ...`) |
 | `UseRootPath(path)` | Working dir | Base directory for `DbMigrator/Scripts` and `DbMigrator/Snapshots` |
 | `ConfigureProperties<T>(action)` | — | Global CLR-type conventions (e.g. all `string` max length `255`, or `Enum`) |
@@ -90,7 +90,7 @@ opt.ReplaceEntityTypes(r =>
 });
 ```
 
-See [Global Conventions & Entity Replacements](/migrator/conventions-and-stubs) for full examples covering audit/bookkeeping contracts, lookup table policies, per-entity overrides, and modular-monolith wiring.
+See [Global Conventions & Entity Replacements](/migrator/conventions-and-entity-replacements) for full examples covering audit/bookkeeping contracts, lookup table policies, per-entity overrides, and modular-monolith wiring.
 
 ## Custom Connection Factory
 
@@ -122,6 +122,21 @@ public sealed class DesignTimeDbMigratorFactory : IDesignTimeDbMigratorFactory
     }
 }
 ```
+
+## Convention Constants (`DbMigratorConsts`)
+
+All fixed convention names and default paths are exposed publicly on `SharpPersistence.Migrator.DbMigratorConsts` so your tests, scripts, and tooling never need hardcoded strings:
+
+| Member | Value |
+| --- | --- |
+| `DbMigratorConsts.HistoryTableName` | `"__db_migrator_logs"` |
+| `DbMigratorConsts.BaseDirectory` | `"DbMigrator"` |
+| `DbMigratorConsts.ScriptsDirectoryName` | `"Scripts"` |
+| `DbMigratorConsts.SnapshotsDirectoryName` | `"Snapshots"` |
+| `DbMigratorConsts.ScriptsDirectory` | `Path.Combine("DbMigrator", "Scripts")` |
+| `DbMigratorConsts.SnapshotsDirectory` | `Path.Combine("DbMigrator", "Snapshots")` |
+| `DbMigratorConsts.RunlistFileName` | `"db-migration-runlist.json"` |
+| `DbMigratorConsts.RunlistOverridesFileName` | `"db-migration-runlist.overrides.json"` |
 
 ## Runtime `IDbMigrator`
 

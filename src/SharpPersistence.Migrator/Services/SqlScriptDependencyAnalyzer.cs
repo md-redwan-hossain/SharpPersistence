@@ -305,14 +305,14 @@ internal static partial class SqlScriptDependencyAnalyzer
         var providesObjects = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var requiresObjects = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (Match m in CreateTableRegex().Matches(strippedSql))
+        foreach (Match m in SqlDdlPatterns.CreateTable().Matches(strippedSql))
         {
-            providesTables.Add(NormalizeIdent(m.Groups[1].Value));
+            providesTables.Add(NormalizeQualified(SqlDdlPatterns.ParseQualified(m, 1, null)));
         }
 
-        foreach (Match m in AlterTableRegex().Matches(strippedSql))
+        foreach (Match m in SqlDdlPatterns.AlterTable().Matches(strippedSql))
         {
-            requiresTables.Add(NormalizeIdent(m.Groups[1].Value));
+            requiresTables.Add(NormalizeQualified(SqlDdlPatterns.ParseQualified(m, 1, null)));
         }
 
         foreach (Match m in ReferencesRegex().Matches(strippedSql))
@@ -320,19 +320,19 @@ internal static partial class SqlScriptDependencyAnalyzer
             requiresTables.Add(NormalizeIdent(m.Groups[1].Value));
         }
 
-        foreach (Match m in CreateIndexOnRegex().Matches(strippedSql))
+        foreach (Match m in SqlDdlPatterns.CreateIndex().Matches(strippedSql))
         {
-            requiresTables.Add(NormalizeIdent(m.Groups[1].Value));
+            requiresTables.Add(NormalizeQualified(SqlDdlPatterns.ParseQualified(m, 5, null)));
         }
 
-        foreach (Match m in DropTableRegex().Matches(strippedSql))
+        foreach (Match m in SqlDdlPatterns.DropTable().Matches(strippedSql))
         {
-            dropsTables.Add(NormalizeIdent(m.Groups[1].Value));
+            dropsTables.Add(NormalizeQualified(SqlDdlPatterns.ParseQualified(m, 1, null)));
         }
 
-        foreach (Match m in CreateSequenceRegex().Matches(strippedSql))
+        foreach (Match m in SqlDdlPatterns.CreateSequence().Matches(strippedSql))
         {
-            providesObjects.Add("seq:" + NormalizeIdent(m.Groups[1].Value));
+            providesObjects.Add("seq:" + NormalizeQualified(SqlDdlPatterns.ParseQualified(m, 1, null)));
         }
 
         foreach (Match m in NextValRegex().Matches(strippedSql))
@@ -340,9 +340,12 @@ internal static partial class SqlScriptDependencyAnalyzer
             requiresObjects.Add("seq:" + NormalizeIdent(m.Groups[1].Value));
         }
 
-        foreach (Match m in CreateTypeRegex().Matches(strippedSql))
+        foreach (Match m in SqlDdlPatterns.TypeDdl().Matches(strippedSql))
         {
-            providesObjects.Add("type:" + NormalizeIdent(m.Groups[1].Value));
+            if (string.Equals(m.Groups[1].Value, "CREATE", StringComparison.OrdinalIgnoreCase))
+            {
+                providesObjects.Add("type:" + NormalizeQualified(SqlDdlPatterns.ParseQualified(m, 2, null)));
+            }
         }
 
         return new ScriptDdlProfile(
@@ -530,27 +533,14 @@ internal static partial class SqlScriptDependencyAnalyzer
         return cleaned;
     }
 
-    [GeneratedRegex(@"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?((?:""[^""]+""|\w+)(?:\s*\.\s*(?:""[^""]+""|\w+))?)", RegexOptions.IgnoreCase)]
-    private static partial Regex CreateTableRegex();
+    private static string NormalizeQualified((string? Schema, string Name) pair) =>
+        string.IsNullOrWhiteSpace(pair.Schema) || string.Equals(pair.Schema, "public", StringComparison.OrdinalIgnoreCase)
+            ? pair.Name
+            : $"{pair.Schema}.{pair.Name}";
 
-    [GeneratedRegex(@"ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:ONLY\s+)?((?:""[^""]+""|\w+)(?:\s*\.\s*(?:""[^""]+""|\w+))?)", RegexOptions.IgnoreCase)]
-    private static partial Regex AlterTableRegex();
-
-    [GeneratedRegex(@"REFERENCES\s+((?:""[^""]+""|\w+)(?:\s*\.\s*(?:""[^""]+""|\w+))?)", RegexOptions.IgnoreCase)]
+    [GeneratedRegex("""REFERENCES\s+((?:"[^"]+"|\w+)(?:\s*\.\s*(?:"[^"]+"|\w+))?)""", RegexOptions.IgnoreCase)]
     private static partial Regex ReferencesRegex();
 
-    [GeneratedRegex(@"CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:CONCURRENTLY\s+)?(?:IF\s+NOT\s+EXISTS\s+)?(?:""[^""]+""|\w+)\s+ON\s+((?:""[^""]+""|\w+)(?:\s*\.\s*(?:""[^""]+""|\w+))?)", RegexOptions.IgnoreCase)]
-    private static partial Regex CreateIndexOnRegex();
-
-    [GeneratedRegex(@"DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?((?:""[^""]+""|\w+)(?:\s*\.\s*(?:""[^""]+""|\w+))?)", RegexOptions.IgnoreCase)]
-    private static partial Regex DropTableRegex();
-
-    [GeneratedRegex(@"CREATE\s+(?:OR\s+REPLACE\s+)?SEQUENCE\s+(?:IF\s+NOT\s+EXISTS\s+)?((?:""[^""]+""|\w+)(?:\s*\.\s*(?:""[^""]+""|\w+))?)", RegexOptions.IgnoreCase)]
-    private static partial Regex CreateSequenceRegex();
-
-    [GeneratedRegex(@"nextval\s*\(\s*'([^']+)'", RegexOptions.IgnoreCase)]
+    [GeneratedRegex("""nextval\s*\(\s*'([^']+)'""", RegexOptions.IgnoreCase)]
     private static partial Regex NextValRegex();
-
-    [GeneratedRegex(@"CREATE\s+TYPE\s+((?:""[^""]+""|\w+)(?:\s*\.\s*(?:""[^""]+""|\w+))?)", RegexOptions.IgnoreCase)]
-    private static partial Regex CreateTypeRegex();
 }

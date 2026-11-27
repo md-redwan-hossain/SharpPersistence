@@ -50,7 +50,7 @@ internal static class OraclePermissionChecker
                 checks.Add(new DoctorCheckItem(
                     DoctorSeverity.Error,
                     $"Schema '{schema}' does not exist in Oracle (current user: '{currentUser}').",
-                    Hint: $"Ask a DBA to create user/schema '{schema}' (CREATE USER \"{schema}\" ...)."));
+                    Hint: $"""Ask a DBA to create user/schema '{schema}' (CREATE USER "{schema}" ...)."""));
             }
         }
 
@@ -95,7 +95,7 @@ internal static class OraclePermissionChecker
                 checks.Add(new DoctorCheckItem(
                     DoctorSeverity.Error,
                     $"Oracle user '{currentUser}' lacks {privilege} privilege ({reason}).",
-                    Hint: $"GRANT {privilege} TO \"{currentUser}\";"));
+                    Hint: $"""GRANT {privilege} TO "{currentUser}";"""));
             }
         }
 
@@ -185,7 +185,7 @@ internal static class OraclePermissionChecker
                 checks.Add(new DoctorCheckItem(
                     DoctorSeverity.Error,
                     $"Oracle user '{currentUser}' has no available quota on tablespace '{ts}' (will trigger ORA-01950).",
-                    Hint: $"ALTER USER \"{currentUser}\" QUOTA UNLIMITED ON \"{ts}\";"));
+                    Hint: $"""ALTER USER "{currentUser}" QUOTA UNLIMITED ON "{ts}";"""));
             }
         }
     }
@@ -248,7 +248,7 @@ internal static class OraclePermissionChecker
                 checks.Add(new DoctorCheckItem(
                     DoctorSeverity.Error,
                     $"Oracle user '{currentUser}' lacks direct REFERENCES privilege on '{schema}.{table}'{fkLabel}.",
-                    Hint: $"GRANT REFERENCES ON \"{schema}\".\"{table}\" TO \"{currentUser}\";"));
+                    Hint: $"""GRANT REFERENCES ON "{schema}"."{table}" TO "{currentUser}";"""));
             }
         }
     }

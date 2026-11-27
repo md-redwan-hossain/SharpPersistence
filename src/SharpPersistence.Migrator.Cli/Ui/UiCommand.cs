@@ -116,6 +116,18 @@ internal sealed class UiCommand : AsyncCommand<UiSettings>
 
             app.MapPost("/api/ddl/check-live", async (HttpRequest httpRequest, CancellationToken ct) =>
             {
+                if (httpRequest.Headers.TryGetValue("Origin", out var originValues))
+                {
+                    var origin = originValues.ToString();
+                    var allowed1 = $"http://127.0.0.1:{settings.Port}";
+                    var allowed2 = $"http://localhost:{settings.Port}";
+                    if (!string.Equals(origin, allowed1, StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals(origin, allowed2, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return Results.StatusCode(StatusCodes.Status403Forbidden);
+                    }
+                }
+
                 var req = await httpRequest.ReadFromJsonAsync<UiDdlCheckRequestDto>(UiDataService.JsonOptions, ct);
                 if (req is null)
                     return Results.BadRequest(new { error = "Invalid DDL check request." });

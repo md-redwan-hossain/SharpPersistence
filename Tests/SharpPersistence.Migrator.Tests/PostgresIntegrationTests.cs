@@ -251,7 +251,7 @@ public sealed class PostgresIntegrationTests(PostgresContainerFixture fixture)
             await managerV1.MigrateAsync(cancellationToken: ct);
 
             // Copy V1 snapshot under V2's registry name to simulate evolving the same registry
-            var stateDir = Path.Combine(tempRoot, DbMigratorOptions.DefaultSnapshotDirectory);
+            var stateDir = Path.Combine(tempRoot, DbMigratorConsts.SnapshotsDirectory);
             File.Copy(
                 Path.Combine(stateDir, $"{nameof(PgBookingRegistryV1)}.json"),
                 Path.Combine(stateDir, $"{nameof(PgBookingRegistryV2)}.json"));
@@ -306,7 +306,7 @@ public sealed class PostgresIntegrationTests(PostgresContainerFixture fixture)
             {
                 await verifyConn.OpenAsync(ct);
                 await using var checkCmd = verifyConn.CreateCommand();
-                checkCmd.CommandText = "SELECT to_regclass('\"public\".\"__db_migrator_logs\"') IS NOT NULL;";
+                checkCmd.CommandText = """SELECT to_regclass('"public"."__db_migrator_logs"') IS NOT NULL;""";
                 (await checkCmd.ExecuteScalarAsync(ct)).ShouldBe(false);
             }
 
@@ -490,7 +490,7 @@ public sealed class PostgresIntegrationTests(PostgresContainerFixture fixture)
                 c.Severity == DoctorSeverity.Error &&
                 c.Message.Contains("CREATE privilege on schema 'public'", StringComparison.Ordinal) &&
                 c.Hint != null &&
-                c.Hint.Contains("GRANT CREATE ON SCHEMA \"public\"", StringComparison.Ordinal));
+                c.Hint.Contains("""GRANT CREATE ON SCHEMA "public" """.Trim(), StringComparison.Ordinal));
 
             // 3. Grant CREATE on public + database -> MigrateAsync succeeds
             await using (var adminConn = new NpgsqlConnection(adminConnStr))
@@ -512,7 +512,7 @@ public sealed class PostgresIntegrationTests(PostgresContainerFixture fixture)
             {
                 await adminConn.OpenAsync(ct);
                 await using var cmd = adminConn.CreateCommand();
-                cmd.CommandText = $"REVOKE CREATE ON SCHEMA public FROM \"{roleName}\";";
+                cmd.CommandText = $"""REVOKE CREATE ON SCHEMA public FROM "{roleName}";""";
                 await cmd.ExecuteNonQueryAsync(ct);
             }
 

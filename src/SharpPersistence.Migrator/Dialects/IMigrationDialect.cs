@@ -59,7 +59,7 @@ internal static class MigrationDialectRegistry
     private static readonly PostgresMigrationDialect PostgresInstance = new();
 
     public static IMigrationDialect Get(DbMigratorOptions options) =>
-        Get(options.Dialect, options.OracleCompatibility);
+        Get(options.Dialect, options.Oracle.Compatibility);
 
     public static IMigrationDialect Get(
         SqlDialect dialect,

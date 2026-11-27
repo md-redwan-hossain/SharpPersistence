@@ -95,7 +95,7 @@ internal sealed class DoctorDatabaseValidator(
         {
             checks.Add(new DoctorCheckItem(
                 DoctorSeverity.Warning,
-                $"Migration history table '{options.HistoryTableName}' does not exist yet",
+                $"Migration history table '{DbMigratorConsts.HistoryTableName}' does not exist yet",
                 Hint: "Run `db-migrator migrate` to initialize it and apply pending scripts."));
             return false;
         }
@@ -119,21 +119,21 @@ internal sealed class DoctorDatabaseValidator(
             {
                 checks.Add(new DoctorCheckItem(
                     DoctorSeverity.Error,
-                    $"Migration history table '{options.HistoryTableName}' found {mismatchCount} modified script(s) after being applied.",
+                    $"Migration history table '{DbMigratorConsts.HistoryTableName}' found {mismatchCount} modified script(s) after being applied.",
                     Hint: "Run `db-migrator status` to inspect checksum mismatches."));
             }
             else if (pendingCount > 0)
             {
                 checks.Add(new DoctorCheckItem(
                     DoctorSeverity.Warning,
-                    $"Migration history table '{options.HistoryTableName}' verified ({appliedCount} applied, {pendingCount} pending)",
+                    $"Migration history table '{DbMigratorConsts.HistoryTableName}' verified ({appliedCount} applied, {pendingCount} pending)",
                     Hint: "Run `db-migrator migrate` to apply pending scripts."));
             }
             else
             {
                 checks.Add(new DoctorCheckItem(
                     DoctorSeverity.Pass,
-                    $"Migration history table '{options.HistoryTableName}' verified ({appliedCount} applied, 0 pending)"));
+                    $"Migration history table '{DbMigratorConsts.HistoryTableName}' verified ({appliedCount} applied, 0 pending)"));
             }
 
             var orderWarnings = new MigrationRunlistManager(options, scriptStore)
@@ -145,7 +145,7 @@ internal sealed class DoctorDatabaseValidator(
         {
             checks.Add(new DoctorCheckItem(
                 DoctorSeverity.Warning,
-                $"Could not verify pending scripts against '{options.HistoryTableName}': {ex.Message}",
+                $"Could not verify pending scripts against '{DbMigratorConsts.HistoryTableName}': {ex.Message}",
                 Hint: "Fix the runlist errors above or run `db-migrator runlist sync`."));
         }
 
@@ -169,13 +169,13 @@ internal sealed class DoctorDatabaseValidator(
                     .ToList();
             }
 
-            var bodies = new List<string>(scripts.Count);
+            var requirements = SqlPermissionRequirementExtractor.Create(options, dialect, historyExists);
             foreach (var (_, _, _, fullPath) in scripts)
             {
-                bodies.Add(await File.ReadAllTextAsync(fullPath, ct).ConfigureAwait(false));
+                var body = await File.ReadAllTextAsync(fullPath, ct).ConfigureAwait(false);
+                SqlPermissionRequirementExtractor.AddScript(requirements, body, dialect);
             }
 
-            var requirements = SqlPermissionRequirementExtractor.Extract(bodies, options, dialect, historyExists);
             var permissionChecks = await dialect.CheckPermissionsAsync(conn, requirements, ct).ConfigureAwait(false);
             checks.AddRange(permissionChecks);
         }

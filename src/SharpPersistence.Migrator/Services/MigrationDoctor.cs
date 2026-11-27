@@ -58,7 +58,7 @@ internal sealed class MigrationDoctor
 
         var (allTableDefinitions, evaluatedRegistries) = ScanAllRegistriesSafely(crossRegistryChecks);
 
-        var enumLookup = _options.Enums.ToDictionary(e => e.ClrTypeName, StringComparer.Ordinal);
+        var enumLookup = _options.PostgreSql.Enums.ToDictionary(e => e.ClrTypeName, StringComparer.Ordinal);
         var targetRegistryNames = targetRegistries
             .Select(r => r.GetType().Name)
             .ToHashSet(StringComparer.Ordinal);
