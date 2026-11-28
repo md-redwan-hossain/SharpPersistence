@@ -146,4 +146,58 @@ public sealed class MigratorUsageAnalyzerTests
         Assert.Contains(spm015, d => d.GetMessage().Contains("with itself"));
         Assert.Contains(spm015, d => d.GetMessage().Contains("ReadOnly = true"));
     }
+
+    [Fact]
+    public async Task Spm016_FlagsForeignConcreteEntityInRegistryConfigure_AllowsInterfacesAndOwnedEntities()
+    {
+        const string source = """
+            using SharpPersistence.Abstractions.Attributes;
+            using SharpPersistence.Migrator.Abstractions;
+            using SharpPersistence.Migrator.Attributes;
+            using SharpPersistence.Migrator.Enums;
+
+            namespace RegistryScopeDemo;
+
+            public readonly record struct AccessGroup : IEntityGroup;
+            public readonly record struct SalesGroup : IEntityGroup;
+
+            public interface ITracked { long CreatedByUserId { get; set; } }
+
+            [Entity<AccessGroup>]
+            public sealed class User : ITracked
+            {
+                public long Id { get; set; }
+                public long CreatedByUserId { get; set; }
+            }
+
+            [Entity<SalesGroup>]
+            public sealed class Invoice : ITracked
+            {
+                public long Id { get; set; }
+                public long CreatedByUserId { get; set; }
+            }
+
+            [EntityRegistry<AccessGroup>]
+            public sealed partial class AccessRegistry : IEntityRegistry
+            {
+                public void Configure(IEntityRegistryBuilder registry)
+                {
+                    registry.ConfigureEntities(ModelCreationPhase.BeforeEntityConfigClass, m =>
+                    {
+                        m.Entity<ITracked>(e => e.HasComment("tracked")); // valid: interface
+                        m.Entity<User>(e => e.ToTable("users"));          // valid: belongs to AccessGroup
+                        m.Entity<Invoice>(e => e.ToTable("invoices"));    // SPM016: belongs to SalesGroup
+                    });
+
+                    registry.Map<Invoice>(); // SPM016: belongs to SalesGroup
+                }
+            }
+            """;
+
+        var diags = await RunAnalyzerAsync(source);
+        var spm016 = diags.Where(d => d.Id == "SPM016").ToList();
+
+        Assert.Equal(2, spm016.Count);
+        Assert.All(spm016, d => Assert.Contains("Invoice", d.GetMessage()));
+    }
 }

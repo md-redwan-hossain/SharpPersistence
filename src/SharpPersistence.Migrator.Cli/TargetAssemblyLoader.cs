@@ -37,10 +37,10 @@ internal static class TargetAssemblyLoader
         var errConsole = CreateStderrConsole();
         var totalSw = Stopwatch.StartNew();
 
-        var resolvedPaths = ProjectResolutionService.Resolve(settings);
+        var resolvedProjectPath = ProjectResolutionService.Resolve(settings);
         var csprojPath = ResolveCsprojOrDirectory(
-            resolvedPaths.StartupProjectPath ?? Directory.GetCurrentDirectory(),
-            "startup");
+            resolvedProjectPath ?? Directory.GetCurrentDirectory(),
+            "migrator");
         var startupDisplayPath = Path.GetRelativePath(Directory.GetCurrentDirectory(), csprojPath);
         if (startupDisplayPath.StartsWith("..", StringComparison.Ordinal))
         {
@@ -59,9 +59,8 @@ internal static class TargetAssemblyLoader
             buildSeconds = buildSw.Elapsed.TotalSeconds;
         }
 
-        var (assemblyPath, startupDir) = LocateStartupAssembly(csprojPath);
-        var destinationRoot = ResolveDestinationDirectory(resolvedPaths.DestinationProjectPath, startupDir);
-        var outputRoot = destinationRoot;
+        var (assemblyPath, projectDir) = LocateStartupAssembly(csprojPath);
+        var outputRoot = projectDir;
 
         var hostName = Path.GetFileNameWithoutExtension(assemblyPath);
         var loadedAssemblies = new List<Assembly>();
@@ -378,7 +377,7 @@ internal static class TargetAssemblyLoader
                 0 => throw new InvalidOperationException(
                     $"No .csproj file found in '{full}'. Pass --{role}-project <path.csproj>."),
                 > 1 => throw new InvalidOperationException(
-                    $"Multiple .csproj files found in '{full}'. Pass --{role}-project <path.csproj> to specify one."),
+                    $"Multiple .csproj files found in '{full}'. Pass --project <path.csproj> to specify one."),
                 _ => files[0]
             };
         }

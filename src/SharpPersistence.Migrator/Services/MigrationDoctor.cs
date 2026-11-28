@@ -177,6 +177,9 @@ internal sealed class MigrationDoctor
             }
 
             var registrySchema = string.IsNullOrWhiteSpace(evaluated.DefaultSchema) ? null : evaluated.DefaultSchema;
+            var effectivePropConventions = SchemaScanner.CombineConventions(_options.PropertyConventions, evaluated.PropertyConventions);
+            var effectiveEntityConventions = SchemaScanner.CombineConventions(_options.EntityConventions, evaluated.EntityConventions);
+
             foreach (var (entityType, configType) in evaluated.Mappings)
             {
                 if (allTableDefinitions.TryGetValue(entityType, out var existing))
@@ -193,15 +196,14 @@ internal sealed class MigrationDoctor
                     var tableDef = SchemaScanner.BuildSingleTableDefinition(
                         entityType,
                         configType,
-                        evaluated.InlineConfigurations.TryGetValue(entityType, out var inlineActions) ? inlineActions : null,
                         registrySchema,
                         _options.Dialect,
                         _options.IdentifierCase,
-                        _options.PropertyConventions,
+                        effectivePropConventions,
                         _options.SqlExpressionOptions,
                         nullabilityContext,
                         _options.PluralizeTableNames,
-                        _options.EntityConventions,
+                        effectiveEntityConventions,
                         _options.TableNameConvention);
 
                     allTableDefinitions[entityType] = (regName, tableDef);

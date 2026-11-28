@@ -6,9 +6,9 @@ namespace SharpPersistence.Generators;
 internal readonly struct EquatableArray<T>(ImmutableArray<T> array) : IEquatable<EquatableArray<T>>, IEnumerable<T>
     where T : IEquatable<T>
 {
-    public static readonly EquatableArray<T> Empty = new(ImmutableArray<T>.Empty);
+    public static readonly EquatableArray<T> Empty = [];
 
-    private readonly ImmutableArray<T> _array = array.IsDefault ? ImmutableArray<T>.Empty : array;
+    private readonly ImmutableArray<T> _array = array.IsDefault ? [] : array;
 
     public int Length => _array.IsDefault ? 0 : _array.Length;
 
@@ -16,8 +16,8 @@ internal readonly struct EquatableArray<T>(ImmutableArray<T> array) : IEquatable
 
     public bool Equals(EquatableArray<T> other)
     {
-        var left = _array.IsDefault ? ImmutableArray<T>.Empty : _array;
-        var right = other._array.IsDefault ? ImmutableArray<T>.Empty : other._array;
+        var left = _array.IsDefault ? [] : _array;
+        var right = other._array.IsDefault ? [] : other._array;
 
         if (left.Length != right.Length)
         {
@@ -47,9 +47,9 @@ internal readonly struct EquatableArray<T>(ImmutableArray<T> array) : IEquatable
         unchecked
         {
             var hash = 17;
-            for (var i = 0; i < _array.Length; i++)
+            foreach (var t in _array)
             {
-                hash = (hash * 31) + (_array[i]?.GetHashCode() ?? 0);
+                hash = (hash * 31) + (t?.GetHashCode() ?? 0);
             }
 
             return hash;
@@ -57,11 +57,11 @@ internal readonly struct EquatableArray<T>(ImmutableArray<T> array) : IEquatable
     }
 
     public ImmutableArray<T>.Enumerator GetEnumerator() =>
-        (_array.IsDefault ? ImmutableArray<T>.Empty : _array).GetEnumerator();
+        (_array.IsDefault ? [] : _array).GetEnumerator();
 
     IEnumerator<T> IEnumerable<T>.GetEnumerator() =>
-        ((IEnumerable<T>)(_array.IsDefault ? ImmutableArray<T>.Empty : _array)).GetEnumerator();
+        ((IEnumerable<T>)(_array.IsDefault ? [] : _array)).GetEnumerator();
 
     IEnumerator IEnumerable.GetEnumerator() =>
-        ((IEnumerable)(_array.IsDefault ? ImmutableArray<T>.Empty : _array)).GetEnumerator();
+        ((IEnumerable)(_array.IsDefault ? [] : _array)).GetEnumerator();
 }

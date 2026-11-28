@@ -2,12 +2,13 @@ using System.Data.Common;
 using SharpPersistence.Enums;
 using SharpPersistence.Migrator.Abstractions;
 using SharpPersistence.Migrator.Builders;
+using SharpPersistence.Migrator.Enums;
 
 namespace SharpPersistence.Migrator.Configuration;
 
 internal sealed record PropertyConventionRule(Type TargetClrType, Action<ColumnBuilder> Configure);
 
-internal sealed record EntityConventionRule(Type TargetType, Action<TableDefinition> Apply);
+internal sealed record EntityConventionRule(ModelCreationPhase Phase, Action<TableDefinition> Apply);
 
 internal sealed class DbMigratorOptions
 {

@@ -982,6 +982,9 @@
       "sharppersistence.abstractions": {
         "type": "Project"
       },
+      "sharppersistence.abstractions.generators": {
+        "type": "Project"
+      },
       "sharppersistence.migrator": {
         "type": "Project",
         "dependencies": {
@@ -2046,6 +2049,9 @@
       "sharppersistence.abstractions": {
         "type": "Project"
       },
+      "sharppersistence.abstractions.generators": {
+        "type": "Project"
+      },
       "sharppersistence.migrator": {
         "type": "Project",
         "dependencies": {
@@ -2057,7 +2063,7 @@
         "type": "Project",
         "dependencies": {
           "Microsoft.CodeAnalysis.CSharp": "[5.6.0, )",
-          "Microsoft.EntityFrameworkCore.Relational": "[11.0.0, )",
+          "Microsoft.EntityFrameworkCore.Relational": "[10.0.15, )",
           "SharpPersistence.Migrator": "[1.0.0, )",
           "Spectre.Console.Cli": "[0.50.0, )"
         }

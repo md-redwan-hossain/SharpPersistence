@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.EntityFrameworkCore;
 using SharpPersistence.Abstractions.Attributes;
+using SharpPersistence.Abstractions.Generators;
 using SharpPersistence.Enums;
 using SharpPersistence.Migrator.Abstractions;
 using SharpPersistence.Migrator.EfCore;

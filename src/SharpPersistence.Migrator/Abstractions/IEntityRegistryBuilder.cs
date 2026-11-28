@@ -1,4 +1,5 @@
 using SharpPersistence.Migrator.Builders;
+using SharpPersistence.Migrator.Enums;
 
 namespace SharpPersistence.Migrator.Abstractions;
 
@@ -12,8 +13,11 @@ public interface IEntityRegistryBuilder
         where TEntity : class
         where TConfig : class, IEntityConfiguration<TEntity>, new();
 
-    IEntityRegistryBuilder Entity<TEntity>(Action<EntityBuilder<TEntity>> configure)
-        where TEntity : class;
+    IEntityRegistryBuilder ConfigureProperties<TProperty>(Action<ColumnBuilder> configure);
+
+    IEntityRegistryBuilder ConfigureEntities(
+        ModelCreationPhase phase,
+        Action<EntityBuilder> configure);
 
     SequenceBuilder HasSequence<T>(string name, string? schema = null);
 

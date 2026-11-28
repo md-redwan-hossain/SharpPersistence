@@ -119,7 +119,7 @@ public sealed partial class SalesRegistry : IEntityRegistry
 
 ## Global Conventions & Entity Replacements
 
-- Use `ConfigureEntities<T>` (works with interfaces and base classes) instead of reflection loops for shared FKs, keys, identity columns, and lookup indexes. It runs before `IEntityConfiguration<T>`, so per-entity configs can override a conventional FK or unnamed index without duplicates.
+- Use `ConfigureEntities(ModelCreationPhase.BeforeEntityConfigClass, m => ...)` / `ConfigureEntities(ModelCreationPhase.AfterEntityConfigClass, m => ...)` and `ConfigureProperties<T>(c => ...)` on either `DbMigratorOptionsBuilder` (global) or `IEntityRegistryBuilder` (registry-scoped, overriding global property defaults for that registry). Inside `ConfigureEntities`, narrow with `m.Entity<T>(e => ...)` or inspect via `m.ClrType`, `m.Properties`, `m.FindProperty(...)`, and `GetAnnotation<T>` / `TryGetAnnotation<T>` / `HasAnnotation`. `BeforeEntityConfigClass` runs before `IEntityConfiguration<T>` (overridable defaults); `AfterEntityConfigClass` runs after `IEntityConfiguration<T>` (reads per-entity annotations).
 - Use `MapTableNames((entityType, defaultName) => ...)` for custom table prefixes (e.g., `lk_` for lookup entities).
 - Point external FKs to local `Ref*` types (`[Entity(ReadOnly = true)]` + `References<RefUser>(u => u.Id)`) and wire `ReplaceEntityTypes(r => r.Replace<RefUser, User>())` once in the startup project so registries sort accurately and FKs target the owning table without leaking domain entities across assemblies.
 
@@ -132,6 +132,7 @@ public sealed partial class SalesRegistry : IEntityRegistry
   - `SPM008`-`SPM013`: `[BindEntityRegistry<TRegistry>]` / `[EntityRegistryItem<TEntity>]` validation (`sealed partial DbContext`, valid registry type, duplicate bindings/items, unknown item, property collision, `DatabaseModel`/`ApplySchemaToEfCore` wiring). Most `SPM` diagnostics include bundled IDE Roslyn CodeFixes.
   - `SPM014`: `.IsRequired()` inside an optional `OwnsOne(...)`.
   - `SPM015`: self-replaced or `ReadOnly = true` target in `ReplaceEntityTypes(...)`.
+  - `SPM016`: concrete entity type referenced in `[EntityRegistry]` `Configure(...)` (`registry.Map<T>()` or `m.Entity<T>(...)` inside `registry.ConfigureEntities(...)`) does not belong to that registry.
 
 ## EF Core Bridge & `DbContext` Registry Binding (`SharpPersistence.Migrator.EfCore`)
 
@@ -170,7 +171,7 @@ public sealed partial class SalesDbContext : DbContext
 
 ## `db-migrator` CLI Commands
 
-- `db-migrator config --generate | --set-default-startup <PATH> | --show` - scans the solution and writes, updates, or inspects `db-migrator-config.json` (qualifying startup projects, registry projects, and defaults for the searchable interactive project picker; pass `--ci` to disable prompts).
+- `db-migrator config --generate | --set-default [PATH] | --show` - scans the solution and writes, updates, or inspects `db-migrator-config.json` (`defaultProject`, `projects`, `otherProjects`); pass `--project <PATH>` on any command to target a migrator project directly or `--ci` to disable prompts.
 - `db-migrator ui [--port <PORT>] [--no-open]` - launches the local browser UI (Entities explorer, Table ERD, Registry Dependencies & Entity Type Replacements graph, Migrations Runlist + Dry Run diff, Doctor, and `Ctrl/Cmd+K` search).
 - `db-migrator doctor [--registry <Name>] [--check-db] [--runlist]` - validates DI wiring, entity configs, FK types, cross-registry collisions, runlist/override integrity, SQL DDL dependencies, and migration script coverage (read-only); with `--check-db`, also verifies live DB connectivity, `__db_migrator_logs`, database user permissions across all persisted scripts (applied + pending), and live schema drift.
 - `db-migrator generate --name <Name> [--registry <Name>] [--dry-run] [--ci] [--allow-empty]` - generates idempotent SQL scripts named `{guidN}_{timestamp}_{lower_snake_name}.sql` and appends their 32-char GUIDs to `db-migration-runlist.json`.
@@ -178,5 +179,5 @@ public sealed partial class SalesDbContext : DbContext
 - `db-migrator migrate [--dry-run] [--sync-ef-history] [--skip-permission-check]` - runs a read-only database permission preflight against pending scripts by default (failing fast with copy-pasteable `GRANT`/`ALTER USER` hints before any DDL runs), then applies pending scripts under distributed lock.
 - `db-migrator status` / `db-migrator pending` - inspects migration history and pending scripts.
 - `db-migrator annotate-entities --directory <DIR> [--entity-group-name <NAME> --entity-group-namespace <NAMESPACE>] [--read-only] [--dry-run]` - annotates concrete top-level entity classes in a directory with `[Entity]` or `[Entity<TGroup>]`.
-- `db-migrator translate-ef-configs --source-path <DIR> [--output-path <DIR>] [--dry-run] [--no-attribute]` - converts `IEntityTypeConfiguration<T>` to `IEntityConfiguration<T>` without overwriting originals (defaults to `<source-path>/TranslatedEfConfigs`).
+- `db-migrator translate-ef-configs --source-path <DIR> [--output-path <DIR>] [--namespace <NAMESPACE>] [--dry-run] [--no-attribute]` - converts `IEntityTypeConfiguration<T>` to `IEntityConfiguration<T>` without overwriting originals (defaults to `<source-path>/TranslatedEfConfigs`) and automatically rewrites namespaces to match the output folder.
 - `db-migrator translate-ef-migrations --source-path <DIR> [--dry-run]` & `db-migrator sync-ef-history` - translates EF Core migrations 1-to-1 and syncs `__EFMigrationsHistory`.

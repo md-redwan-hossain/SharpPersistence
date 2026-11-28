@@ -12,41 +12,36 @@ Most commands load your `IServiceProvider` (from `Program.cs`) or `IDesignTimeDb
 
 | Option | Description |
 | --- | --- |
-| `--startup-project <PATH>` | Startup `.csproj` or directory (auto-detected from CWD if omitted) |
-| `--destination-project <PATH>` | Project where `DbMigrator/Scripts` and `DbMigrator/Snapshots` live |
-| `--no-build` | Skip `dotnet build` before loading the startup assembly |
+| `--project <PATH>` | Migrator `.csproj` or directory containing `IDesignTimeDbMigratorFactory` and `DbMigrator/` (resolved from `db-migrator-config.json` if omitted) |
+| `--no-build` | Skip `dotnet build` before loading the migrator assembly |
 | `--ci`, `--non-interactive` | Disable interactive prompts (project pickers and rename prompts) |
 
 ## Commands
 
 ### `config`
 
-Scans your solution (`.slnx` / `.sln`) and generates, inspects, or updates `db-migrator-config.json` at the solution root so you don't need to pass `--startup-project` / `--destination-project` on every command.
+Scans your solution (`.slnx` / `.sln`) and generates, inspects, or updates `db-migrator-config.json` at the solution root so you don't need to pass `--project` on every command.
 
 ```powershell
 # Generate or refresh db-migrator-config.json at the solution root
 db-migrator config --generate
 
-# Update the default startup project or inspect the current config
-db-migrator config --set-default-startup src/WebApi/WebApi.csproj
+# Update the default migrator project or inspect the current config
+db-migrator config --set-default src/DbMigrator/DbMigrator.csproj
 db-migrator config --show
 ```
 
 ```json
 {
-  "defaultStartupProject": "src/WebApi/WebApi.csproj",
-  "defaultDestinationProject": "src/Infrastructure/Infrastructure.csproj",
-  "startupProjects": [
-    "src/WebApi/WebApi.csproj"
-  ],
+  "defaultProject": "src/DbMigrator/DbMigrator.csproj",
   "projects": [
-    "src/Infrastructure/Infrastructure.csproj"
+    "src/DbMigrator/DbMigrator.csproj"
   ],
   "otherProjects": []
 }
 ```
 
-- When `defaultStartupProject` or `defaultDestinationProject` is omitted and multiple projects exist, CLI commands open a searchable interactive picker (pass `--ci` in CI pipelines to fail fast instead of prompting).
+- When `defaultProject` is omitted and multiple migrator projects exist, CLI commands open a searchable interactive picker (pass `--ci` in CI pipelines to fail fast instead of prompting).
 
 ### `ui`
 
@@ -57,7 +52,7 @@ Starts a local browser UI (`http://127.0.0.1:5077`) backed by your compiled regi
 db-migrator ui
 
 # Custom port, without auto-opening a browser tab
-db-migrator ui --port 5099 --no-open --startup-project WebApi/WebApi.csproj
+db-migrator ui --port 5099 --no-open --project DbMigrator/DbMigrator.csproj
 ```
 
 Includes 5 views plus `Ctrl/Cmd + K` global search across entities, columns, indexes, foreign keys, and constraints:
@@ -73,13 +68,10 @@ Validates DI wiring, entity registries, configs, foreign key type compatibility,
 
 ```powershell
 # Offline check (CI-safe)
-db-migrator doctor --startup-project WebApi/WebApi.csproj
-
-# Focused runlist, header ID, and SQL DDL dependency check
-db-migrator doctor --runlist --startup-project WebApi/WebApi.csproj
+db-migrator doctor --project DbMigrator/DbMigrator.csproj
 
 # Single registry + live DB check
-db-migrator doctor --registry SalesRegistry --check-db --startup-project WebApi/WebApi.csproj
+db-migrator doctor --registry SalesRegistry --check-db --project DbMigrator/DbMigrator.csproj
 ```
 
 Sample output:
@@ -120,9 +112,8 @@ Compares entity configurations against your latest per-registry JSON snapshots i
 - **Registry rename & cross-registry move safety**: If you rename a registry class, `generate` detects the orphaned snapshot and interactively asks to rename it (or fails fast in `--ci` mode). Moving an entity from one registry to another in the same run aborts before writing any files so data is never dropped and recreated.
 
 ```powershell
-db-migrator generate --name Initial --startup-project WebApi/WebApi.csproj
+db-migrator generate --name Initial --project DbMigrator/DbMigrator.csproj
 db-migrator generate --name AddOrders --registry SalesRegistry --dry-run
-db-migrator generate --name EmptyHook --allow-empty --ci
 ```
 
 Options: `--name <NAME>` (required), `--registry <REGISTRY>`, `--ci`, `--non-interactive`, `--allow-empty`, `--dry-run`.
@@ -132,10 +123,8 @@ Options: `--name <NAME>` (required), `--registry <REGISTRY>`, `--ci`, `--non-int
 Applies all pending SQL migration scripts inside a distributed lock (`pg_advisory_lock` / `DBMS_LOCK`). Verifies SHA-256 checksums of already-applied scripts first and fails fast if an applied script was edited on disk.
 
 ```powershell
-db-migrator migrate --startup-project WebApi/WebApi.csproj
-db-migrator migrate --dry-run
-db-migrator migrate --sync-ef-history
-db-migrator migrate --skip-permission-check
+db-migrator migrate --project DbMigrator/DbMigrator.csproj
+db-migrator migrate --dry-run --sync-ef-history
 ```
 
 Before executing statement #1 (or creating `__db_migrator_logs`), `migrate` automatically runs a read-only catalog preflight against the pending scripts for both PostgreSQL and Oracle and aborts with copy-pasteable `GRANT` / `ALTER USER` hints if any required privilege is missing. Pass `--skip-permission-check` to opt out (e.g., in disposable integration-test containers).
@@ -187,12 +176,10 @@ Script execution order is tracked in `DbMigrator/Scripts/db-migration-runlist.js
 
 ```powershell
 # Print effective execution order (including override flags; optionally pass --recent <N>)
-db-migrator runlist show --startup-project WebApi/WebApi.csproj
-db-migrator runlist show --recent 10 --startup-project WebApi/WebApi.csproj
+db-migrator runlist show --project DbMigrator/DbMigrator.csproj
 
 # Prefix any unprefixed .sql files with a 32-char UUIDv7 and update db-migration-runlist.json
-db-migrator runlist sync --startup-project WebApi/WebApi.csproj
-db-migrator runlist sync --prune --dry-run
+db-migrator runlist sync --project DbMigrator/DbMigrator.csproj
 ```
 
 ### `status` & `pending`
@@ -201,22 +188,23 @@ Inspects applied vs. pending migration scripts against the database history tabl
 
 ```powershell
 # Table showing APPLIED / PENDING / CHECKSUM MISMATCH
-db-migrator status --startup-project WebApi/WebApi.csproj
+db-migrator status --project DbMigrator/DbMigrator.csproj
 
 # List only pending scripts
-db-migrator pending --startup-project WebApi/WebApi.csproj
+db-migrator pending --project DbMigrator/DbMigrator.csproj
 ```
 
 ### `translate-ef-configs`
 
-Translates EF Core `IEntityTypeConfiguration<T>` C# files into `IEntityConfiguration<T>` files without overwriting the originals. When `--output-path` is omitted, translated files are written into `<source-path>/TranslatedEfConfigs`.
+Translates EF Core `IEntityTypeConfiguration<T>` C# files into `IEntityConfiguration<T>` files without overwriting the originals. When `--output-path` is omitted, translated files are written into `<source-path>/TranslatedEfConfigs`. Namespaces are automatically rewritten to match the output directory (e.g., `...EntityConfigs` → `...EntityConfigs.TranslatedEfConfigs` or `...MigratorConfigs`) so translated files never collide with the original EF Core configs.
 
 ```powershell
 db-migrator translate-ef-configs --source-path Infrastructure/Configurations --dry-run
 db-migrator translate-ef-configs --source-path Infrastructure/Configurations --output-path Infrastructure/MigratorConfigs
+db-migrator translate-ef-configs --source-path Infrastructure/Configurations --namespace MyApp.Infrastructure.MigratorConfigs
 ```
 
-Options: `--source-path <DIR>` (required), `--output-path <DIR>` (optional, defaults to `<source-path>/TranslatedEfConfigs`), `--no-attribute`, `--dry-run`.
+Options: `--source-path <DIR>` (required), `--output-path <DIR>` (optional, defaults to `<source-path>/TranslatedEfConfigs`), `--namespace <NAMESPACE>` (optional root namespace override), `--no-attribute`, `--dry-run`.
 
 ### `annotate-entities`
 
@@ -240,6 +228,6 @@ Options: `--directory <DIR>` (required), `--entity-group-name <NAME>` and `--ent
 `translate-ef-migrations` converts compiled EF Core `Migration` classes in `--source-path` 1-to-1 into idempotent SQL scripts under `DbMigrator/Scripts/_translated/` and appends them to `db-migration-runlist.json`. `sync-ef-history` reads `__EFMigrationsHistory` and records matching `_translated` scripts as already applied in `__db_migrator_logs` so existing databases won't re-run historical migrations.
 
 ```powershell
-db-migrator translate-ef-migrations --source-path WebApi/Migrations --startup-project WebApi/WebApi.csproj
-db-migrator sync-ef-history --startup-project WebApi/WebApi.csproj --dry-run
+db-migrator translate-ef-migrations --source-path WebApi/Migrations --project DbMigrator/DbMigrator.csproj
+db-migrator sync-ef-history --project DbMigrator/DbMigrator.csproj --dry-run
 ```

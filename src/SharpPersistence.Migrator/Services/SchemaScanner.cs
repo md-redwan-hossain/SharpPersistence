@@ -6,6 +6,7 @@ using SharpPersistence.Migrator.Abstractions;
 using SharpPersistence.Migrator.Builders;
 using SharpPersistence.Migrator.Configuration;
 using SharpPersistence.Migrator.Dialects;
+using SharpPersistence.Migrator.Enums;
 using SharpPersistence.Migrator.Models;
 
 namespace SharpPersistence.Migrator.Services;
@@ -124,6 +125,8 @@ internal static class SchemaScanner
             var evaluated = EntityRegistryBuilder.Evaluate(registry);
             sequences.AddRange(BuildSequenceSchemas(evaluated, dialect));
             var registrySchema = string.IsNullOrWhiteSpace(evaluated.DefaultSchema) ? null : evaluated.DefaultSchema;
+            var effectivePropConventions = CombineConventions(propertyConventions, evaluated.PropertyConventions);
+            var effectiveEntityConventions = CombineConventions(entityConventions, evaluated.EntityConventions);
 
             foreach (var (entityType, configType) in evaluated.Mappings)
             {
@@ -136,15 +139,14 @@ internal static class SchemaScanner
                 var tableBuilder = BuildSingleTableDefinition(
                     entityType,
                     configType,
-                    evaluated.InlineConfigurations.TryGetValue(entityType, out var inlineActions) ? inlineActions : null,
                     registrySchema,
                     dialect,
                     identifierCase,
-                    propertyConventions,
+                    effectivePropConventions,
                     sqlExpressionOptions,
                     nullabilityContext,
                     pluralizeTableNames,
-                    entityConventions,
+                    effectiveEntityConventions,
                     tableNameConvention);
 
                 buildersByType[entityType] = tableBuilder;
@@ -154,10 +156,29 @@ internal static class SchemaScanner
         return (buildersByType, sequences);
     }
 
+    internal static IReadOnlyList<T>? CombineConventions<T>(
+        IReadOnlyList<T>? globalConventions,
+        IReadOnlyList<T>? registryConventions)
+    {
+        if (registryConventions is null or { Count: 0 })
+        {
+            return globalConventions;
+        }
+
+        if (globalConventions is null or { Count: 0 })
+        {
+            return registryConventions;
+        }
+
+        var combined = new List<T>(globalConventions.Count + registryConventions.Count);
+        combined.AddRange(globalConventions);
+        combined.AddRange(registryConventions);
+        return combined;
+    }
+
     internal static TableDefinition BuildSingleTableDefinition(
         Type entityType,
         Type? configType,
-        IReadOnlyList<Action<object>>? inlineActions,
         string? defaultSchema,
         SqlDialect dialect,
         SqlIdentifierCase identifierCase,
@@ -220,24 +241,14 @@ internal static class SchemaScanner
             }
         }
 
-        ApplyGlobalEntityConventions(entityType, tableBuilder, entityConventions);
+        ApplyGlobalEntityConventions(tableBuilder, entityConventions, ModelCreationPhase.BeforeEntityConfigClass);
 
         if (configType is not null)
         {
             InvokeEntityConfig(entityType, configType, tableBuilder);
         }
 
-        if (inlineActions is not null)
-        {
-            var entityBuilder = CreateEntityBuilder(entityType, tableBuilder);
-            if (entityBuilder is not null)
-            {
-                foreach (var action in inlineActions)
-                {
-                    action(entityBuilder);
-                }
-            }
-        }
+        ApplyGlobalEntityConventions(tableBuilder, entityConventions, ModelCreationPhase.AfterEntityConfigClass);
 
         return tableBuilder;
     }
@@ -272,9 +283,9 @@ internal static class SchemaScanner
     }
 
     private static void ApplyGlobalEntityConventions(
-        Type entityType,
         TableDefinition tableBuilder,
-        IReadOnlyList<EntityConventionRule>? conventions)
+        IReadOnlyList<EntityConventionRule>? conventions,
+        ModelCreationPhase phase)
     {
         if (conventions is null or { Count: 0 })
         {
@@ -284,7 +295,7 @@ internal static class SchemaScanner
         using var _ = tableBuilder.BeginConventionScope();
         foreach (var rule in conventions)
         {
-            if (rule.TargetType.IsAssignableFrom(entityType))
+            if (rule.Phase == phase)
             {
                 rule.Apply(tableBuilder);
             }

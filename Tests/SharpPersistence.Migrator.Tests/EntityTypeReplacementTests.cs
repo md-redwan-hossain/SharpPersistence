@@ -49,13 +49,22 @@ public sealed class EntityTypeReplacementTests
         public long CreatedByUserId { get; set; }
     }
 
+    private sealed class RefUserConfig : IEntityConfiguration<RefUser>
+    {
+        public void Configure(EntityBuilder<RefUser> builder)
+        {
+            builder.ToTable("users", "access_control");
+            builder.ExcludeFromMigrations();
+        }
+    }
+
     private sealed class AccessControlRegistry : IEntityRegistry
     {
         public void Configure(IEntityRegistryBuilder registry)
         {
             registry.HasDefaultSchema("access_control");
-            registry.Entity<User>(_ => { });
-            registry.Entity<Role>(_ => { });
+            registry.Map<User>();
+            registry.Map<Role>();
         }
     }
 
@@ -64,7 +73,7 @@ public sealed class EntityTypeReplacementTests
         public void Configure(IEntityRegistryBuilder registry)
         {
             registry.HasDefaultSchema("billing");
-            registry.Entity<Invoice>(_ => { });
+            registry.Map<Invoice>();
         }
     }
 
@@ -72,11 +81,7 @@ public sealed class EntityTypeReplacementTests
     {
         public void Configure(IEntityRegistryBuilder registry)
         {
-            registry.Entity<RefUser>(b =>
-            {
-                b.ToTable("users", "access_control");
-                b.ExcludeFromMigrations();
-            });
+            registry.Map<RefUser, RefUserConfig>();
         }
     }
 
@@ -88,10 +93,11 @@ public sealed class EntityTypeReplacementTests
             .UsePostgreSql("Host=localhost;Database=test")
             .UseNamingConvention(SqlIdentifierCase.LowerSnakeCase)
             .PluralizeTableNames()
-            .ConfigureEntities<ICreateTracking>(e =>
-                e.HasForeignKey(x => x.CreatedByUserId)
-                    .References<RefUser>(u => u.Id)
-                    .OnDelete(DbReferentialAction.Restrict))
+            .ConfigureEntities(ModelCreationPhase.BeforeEntityConfigClass, m =>
+                m.Entity<ICreateTracking>(e =>
+                    e.HasForeignKey(x => x.CreatedByUserId)
+                        .References<RefUser>(u => u.Id)
+                        .OnDelete(DbReferentialAction.Restrict)))
             .ReplaceEntityTypes(r => r.Replace<RefUser, User>())
             .AddRegistry<BillingRegistry>()
             .AddRegistry<AccessControlRegistry>();
@@ -146,10 +152,11 @@ public sealed class EntityTypeReplacementTests
             .UsePostgreSql("Host=localhost;Database=test")
             .UseNamingConvention(SqlIdentifierCase.LowerSnakeCase)
             .PluralizeTableNames()
-            .ConfigureEntities<ICreateTracking>(e =>
-                e.HasForeignKey(x => x.CreatedByUserId)
-                    .References<RefUser>(u => u.Id)
-                    .OnDelete(DbReferentialAction.Restrict))
+            .ConfigureEntities(ModelCreationPhase.BeforeEntityConfigClass, m =>
+                m.Entity<ICreateTracking>(e =>
+                    e.HasForeignKey(x => x.CreatedByUserId)
+                        .References<RefUser>(u => u.Id)
+                        .OnDelete(DbReferentialAction.Restrict)))
             .AddRegistry<BillingRegistry>()
             .AddRegistry<CommonStubRegistry>()
             .AddRegistry<AccessControlRegistry>();
@@ -195,16 +202,10 @@ public sealed class EntityTypeReplacementTests
         var validator = new DoctorCrossRegistryValidator(options, dialect);
 
         var userDef = SchemaScanner.BuildSingleTableDefinition(
-            typeof(User), null, null, "access_control",
+            typeof(User), null, "access_control",
             options.Dialect, options.IdentifierCase, options.PropertyConventions, options.SqlExpressionOptions);
         var refUserDef = SchemaScanner.BuildSingleTableDefinition(
-            typeof(RefUser), null,
-            [obj =>
-            {
-                var eb = (EntityBuilder<RefUser>)obj;
-                eb.ToTable("users", "access_control").ExcludeFromMigrations();
-            }],
-            null,
+            typeof(RefUser), typeof(RefUserConfig), null,
             options.Dialect, options.IdentifierCase, options.PropertyConventions, options.SqlExpressionOptions);
 
         var allTables = new Dictionary<Type, (string, TableDefinition)>
@@ -240,10 +241,11 @@ public sealed class EntityTypeReplacementTests
                 .UseRootPath(tempRoot)
                 .UseNamingConvention(SqlIdentifierCase.LowerSnakeCase)
                 .PluralizeTableNames()
-                .ConfigureEntities<ICreateTracking>(e =>
-                    e.HasForeignKey(x => x.CreatedByUserId)
-                        .References<RefUser>(u => u.Id)
-                        .OnDelete(DbReferentialAction.Restrict))
+                .ConfigureEntities(ModelCreationPhase.BeforeEntityConfigClass, m =>
+                    m.Entity<ICreateTracking>(e =>
+                        e.HasForeignKey(x => x.CreatedByUserId)
+                            .References<RefUser>(u => u.Id)
+                            .OnDelete(DbReferentialAction.Restrict)))
                 .ReplaceEntityTypes(r => r.Replace<RefUser, User>())
                 .AddRegistry<BillingRegistry>()
                 .AddRegistry<AccessControlRegistry>();

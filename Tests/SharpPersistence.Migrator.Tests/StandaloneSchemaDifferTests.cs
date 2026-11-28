@@ -257,19 +257,24 @@ public sealed class StandaloneSchemaDifferTests
         public bool IsDeleted { get; set; }
     }
 
+    private sealed class DualIndexEntityConfig : IEntityConfiguration<DualIndexEntity>
+    {
+        public void Configure(Builders.EntityBuilder<DualIndexEntity> b)
+        {
+            b.ToTable("dual_index_entities");
+            b.HasIndex(x => x.Email);
+            b.HasIndex(x => x.Email)
+                .IsUnique()
+                .HasDatabaseName("uq_dual_active_email")
+                .HasFilter(cc => cc.Column(x => x.IsDeleted).EqualTo(false));
+        }
+    }
+
     private sealed class DualIndexRegistry : IEntityRegistry
     {
         public void Configure(IEntityRegistryBuilder registry)
         {
-            registry.Entity<DualIndexEntity>(b =>
-            {
-                b.ToTable("dual_index_entities");
-                b.HasIndex(x => x.Email);
-                b.HasIndex(x => x.Email)
-                    .IsUnique()
-                    .HasDatabaseName("uq_dual_active_email")
-                    .HasFilter(cc => cc.Column(x => x.IsDeleted).EqualTo(false));
-            });
+            registry.Map<DualIndexEntity, DualIndexEntityConfig>();
         }
     }
 

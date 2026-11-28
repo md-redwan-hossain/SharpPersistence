@@ -178,13 +178,14 @@ public class DbMigratorOptionsBuilder
         return this;
     }
 
-    public DbMigratorOptionsBuilder ConfigureEntities<TEntity>(Action<EntityBuilder<TEntity>> configure)
-        where TEntity : class
+    public DbMigratorOptionsBuilder ConfigureEntities(
+        ModelCreationPhase phase,
+        Action<EntityBuilder> configure)
     {
         ArgumentNullException.ThrowIfNull(configure);
         State.EntityConventions.Add(new EntityConventionRule(
-            typeof(TEntity),
-            tableDef => configure(new EntityBuilder<TEntity>(tableDef))));
+            phase,
+            tableDef => configure(new EntityBuilder(tableDef))));
         return this;
     }
 

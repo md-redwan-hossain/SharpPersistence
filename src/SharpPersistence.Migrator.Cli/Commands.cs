@@ -8,16 +8,12 @@ namespace SharpPersistence.Migrator.Cli;
 
 internal class SharedSettings : CommandSettings
 {
-    [CommandOption("-s|--startup-project <PATH>")]
-    [Description("Startup .csproj file or directory containing IDesignTimeDbMigratorFactory (auto-detected from current directory if omitted).")]
-    public string? StartupProjectPath { get; init; }
-
-    [CommandOption("-d|--destination-project <PATH>")]
-    [Description("Destination .csproj file or directory where DbMigrator/Scripts and DbMigrator/Snapshots live (defaults to startup project directory).")]
-    public string? DestinationProjectPath { get; init; }
+    [CommandOption("--project <PATH>")]
+    [Description("Migrator .csproj file or directory containing IDesignTimeDbMigratorFactory and DbMigrator/ (resolved from db-migrator-config.json if omitted).")]
+    public string? ProjectPath { get; init; }
 
     [CommandOption("--no-build")]
-    [Description("Skip running 'dotnet build' on the startup project before loading it.")]
+    [Description("Skip running 'dotnet build' on the migrator project before loading it.")]
     public bool NoBuild { get; init; }
 
     [CommandOption("--ci|--non-interactive")]
@@ -130,6 +126,10 @@ internal sealed class TranslateEfConfigsSettings : CommandSettings
     [Description("Optional output directory for translated IEntityConfiguration<T> files (defaults to <source-path>/TranslatedEfConfigs).")]
     public string? OutputPath { get; init; }
 
+    [CommandOption("--namespace <NAMESPACE>")]
+    [Description("Optional root namespace for translated files (defaults to deriving from --output-path relative to --source-path).")]
+    public string? Namespace { get; init; }
+
     [CommandOption("--no-attribute")]
     [Description("Do not add [EntityConfiguration<T>] attributes to translated classes.")]
     public bool NoAttribute { get; init; }
@@ -235,7 +235,8 @@ internal sealed class TranslateEfConfigsCommand : Command<TranslateEfConfigsSett
             inputDir,
             settings.OutputPath,
             dryRun: settings.DryRun,
-            addEntityConfigurationAttribute: !settings.NoAttribute);
+            addEntityConfigurationAttribute: !settings.NoAttribute,
+            targetNamespace: settings.Namespace);
 
         if (translated.Count == 0)
         {
@@ -259,6 +260,52 @@ internal sealed class TranslateEfConfigsCommand : Command<TranslateEfConfigsSett
             {
                 AnsiConsole.WriteLine(item.TranslatedSource);
             }
+        }
+
+        var customHints = translated
+            .Where(t => t.CustomMetadataHints is { Count: > 0 })
+            .SelectMany(t => t.CustomMetadataHints!)
+            .Distinct()
+            .OrderBy(h => h.IsColumnTarget ? 0 : 1)
+            .ThenBy(h => h.MethodName, StringComparer.Ordinal)
+            .ToList();
+
+        if (customHints.Count > 0)
+        {
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("[yellow]Hint:[/] Custom .Metadata.* calls were stripped. Add these extension method(s) in your project:");
+            AnsiConsole.WriteLine("using SharpPersistence.Migrator.Builders;");
+            AnsiConsole.WriteLine();
+            AnsiConsole.WriteLine("public static class MigratorBuilderExtensions");
+            AnsiConsole.WriteLine("{");
+            foreach (var hint in customHints)
+            {
+                var extraParams = hint.ArgumentCount > 0
+                    ? ", " + string.Join(", ", Enumerable.Range(1, hint.ArgumentCount).Select(i => $"object? arg{i}"))
+                    : string.Empty;
+                var valueExpr = hint.ArgumentCount == 1 ? "arg1" : "true";
+
+                if (hint.IsColumnTarget)
+                {
+                    AnsiConsole.WriteLine(
+                        $"    public static TBuilder {hint.MethodName}<TBuilder>(this ColumnBuilderBase<TBuilder> builder{extraParams})");
+                    AnsiConsole.WriteLine(
+                        "        where TBuilder : ColumnBuilderBase<TBuilder> =>");
+                    AnsiConsole.WriteLine(
+                        $"        builder.SetAnnotation(\"{hint.MethodName}\", {valueExpr});");
+                }
+                else
+                {
+                    AnsiConsole.WriteLine(
+                        $"    public static EntityBuilder<TEntity> {hint.MethodName}<TEntity>(this EntityBuilder<TEntity> builder{extraParams})");
+                    AnsiConsole.WriteLine(
+                        "        where TEntity : class =>");
+                    AnsiConsole.WriteLine(
+                        $"        builder.SetAnnotation(\"{hint.MethodName}\", {valueExpr});");
+                }
+            }
+
+            AnsiConsole.WriteLine("}");
         }
 
         return 0;

@@ -21,9 +21,7 @@ internal sealed class MigratorCliConfig
         DefaultIgnoreCondition = JsonIgnoreCondition.Never
     };
 
-    public string? DefaultStartupProject { get; set; }
-    public string? DefaultDestinationProject { get; set; }
-    public List<string> StartupProjects { get; set; } = [];
+    public string? DefaultProject { get; set; }
     public List<string> Projects { get; set; } = [];
     public List<string> OtherProjects { get; set; } = [];
 
@@ -56,7 +54,6 @@ internal sealed class MigratorCliConfig
         var config = JsonSerializer.Deserialize<MigratorCliConfig>(json, ReadOptions)
             ?? throw new InvalidOperationException($"Invalid '{FileName}' at '{configPath}'.");
 
-        config.StartupProjects ??= [];
         config.Projects ??= [];
         config.OtherProjects ??= [];
         return config;

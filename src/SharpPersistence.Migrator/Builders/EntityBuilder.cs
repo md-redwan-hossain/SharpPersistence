@@ -55,6 +55,18 @@ public sealed class EntityBuilder<TEntity> where TEntity : class
         return this;
     }
 
+    public bool HasAnnotation(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        return Definition.Annotations.ContainsKey(name);
+    }
+
+    public TValue? GetAnnotation<TValue>(string name, TValue? defaultValue = default) =>
+        TryGetAnnotation<TValue>(name, out var value) ? value : defaultValue;
+
+    public bool TryGetAnnotation<TValue>(string name, out TValue? value) =>
+        EntityBuilder.TryGetAnnotationCore(Definition.Annotations, name, out value);
+
     public EntityBuilder<TEntity> Ignore(Expression<Func<TEntity, object?>> propertyExpression)
     {
         var propNames = ExpressionHelper.ExtractPropertyNames(propertyExpression);
@@ -152,5 +164,139 @@ public sealed class EntityBuilder<TEntity> where TEntity : class
 
         configure?.Invoke(new OwnedEntityBuilder<TEntity, TOwned>(Definition, navDef));
         return this;
+    }
+}
+
+public sealed class EntityBuilder
+{
+    internal TableDefinition Definition { get; }
+
+    internal EntityBuilder(TableDefinition tableBuilder)
+    {
+        Definition = tableBuilder;
+    }
+
+    public Type ClrType => Definition.EntityType;
+    public string TableName => Definition.TableName;
+    public string? Schema => Definition.Schema;
+
+    public EntityBuilder Entity<TEntity>(Action<EntityBuilder<TEntity>> configure)
+        where TEntity : class
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        if (typeof(TEntity).IsAssignableFrom(Definition.EntityType))
+        {
+            configure(new EntityBuilder<TEntity>(Definition));
+        }
+
+        return this;
+    }
+
+    public IReadOnlyList<ColumnBuilder> Properties =>
+        Definition.ColumnsByProp.Values
+            .Where(c => !Definition.IgnoredProperties.Contains(c.PropertyName))
+            .Select(c => new ColumnBuilder(c))
+            .ToList();
+
+    public ColumnBuilder? FindProperty(string propertyName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(propertyName);
+        if (Definition.IgnoredProperties.Contains(propertyName))
+        {
+            return null;
+        }
+
+        return Definition.ColumnsByProp.TryGetValue(propertyName, out var col)
+            ? new ColumnBuilder(col)
+            : null;
+    }
+
+    public ColumnBuilder Property(string propertyName) =>
+        FindProperty(propertyName)
+        ?? throw new InvalidOperationException(
+            $"Property '{propertyName}' is not mapped on entity '{Definition.EntityType.Name}'.");
+
+    public EntityBuilder ToTable(string tableName, string? schema = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+        Definition.TableName = tableName.Trim();
+        if (schema is not null)
+        {
+            Definition.Schema = string.IsNullOrWhiteSpace(schema) ? null : schema.Trim();
+        }
+
+        return this;
+    }
+
+    public EntityBuilder HasSchema(string? schema)
+    {
+        Definition.Schema = string.IsNullOrWhiteSpace(schema) ? null : schema.Trim();
+        return this;
+    }
+
+    public EntityBuilder HasComment(string? comment)
+    {
+        Definition.Comment = comment;
+        return this;
+    }
+
+    public EntityBuilder ExcludeFromMigrations(bool excluded = true)
+    {
+        Definition.ExcludeFromMigrations = excluded;
+        return this;
+    }
+
+    public IndexBuilder HasIndex(params string[] propertyNames)
+    {
+        ArgumentNullException.ThrowIfNull(propertyNames);
+        if (propertyNames.Length == 0)
+        {
+            throw new ArgumentException("At least one property name is required.", nameof(propertyNames));
+        }
+
+        return new IndexBuilder(Definition.AddIndex(propertyNames));
+    }
+
+    public EntityBuilder SetAnnotation<TValue>(string name, TValue? value)
+    {
+        Definition.SetAnnotation(name, value);
+        return this;
+    }
+
+    public bool HasAnnotation(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        return Definition.Annotations.ContainsKey(name);
+    }
+
+    public TValue? GetAnnotation<TValue>(string name, TValue? defaultValue = default) =>
+        TryGetAnnotation<TValue>(name, out var value) ? value : defaultValue;
+
+    public bool TryGetAnnotation<TValue>(string name, out TValue? value) =>
+        TryGetAnnotationCore(Definition.Annotations, name, out value);
+
+    internal static bool TryGetAnnotationCore<TValue>(
+        IReadOnlyDictionary<string, object?> annotations,
+        string name,
+        out TValue? value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        if (annotations.TryGetValue(name, out var raw))
+        {
+            if (raw is TValue typed)
+            {
+                value = typed;
+                return true;
+            }
+
+            if (raw is null && default(TValue) is null)
+            {
+                value = default;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
     }
 }

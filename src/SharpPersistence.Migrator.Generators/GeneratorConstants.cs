@@ -39,6 +39,7 @@ internal static class GeneratorConstants
     public const string EfCoreModelBuilderMetadataName = "Microsoft.EntityFrameworkCore.ModelBuilder";
     public const string SystemQueryableMetadataName = "System.Linq.IQueryable`1";
     public const string EntityTypeReplacementBuilderMetadataName = "SharpPersistence.Migrator.Configuration.EntityTypeReplacementBuilder";
+    public const string NonGenericEntityBuilderMetadataName = "SharpPersistence.Migrator.Builders.EntityBuilder";
     public const string EntityBuilderMetadataName = "SharpPersistence.Migrator.Builders.EntityBuilder`1";
     public const string OwnedEntityBuilderMetadataName = "SharpPersistence.Migrator.Builders.OwnedEntityBuilder`2";
     public const string ColumnBuilderBaseMetadataName = "SharpPersistence.Migrator.Builders.ColumnBuilderBase`1";
@@ -81,14 +82,6 @@ internal static class GeneratorConstants
         id: DiagnosticIds.DuplicateEntityAcrossRegistries,
         title: "Entity matched by multiple registries",
         messageFormat: "Entity '{0}' is matched by multiple [EntityRegistry] classes in this compilation: {1}",
-        category: DiagnosticCategory,
-        defaultSeverity: DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
-
-    public static readonly DiagnosticDescriptor EntityOrMarkerMustBePublic = new(
-        id: DiagnosticIds.EntityOrMarkerMustBePublic,
-        title: "Discovered entity or marker attribute must be public",
-        messageFormat: "Type '{0}' marked with '{1}' must be publicly accessible for compile-time entity manifest generation",
         category: DiagnosticCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -160,6 +153,14 @@ internal static class GeneratorConstants
     public static readonly DiagnosticDescriptor InvalidEntityReplacement = new(
         id: DiagnosticIds.InvalidEntityReplacement,
         title: "Invalid ReplaceEntityTypes mapping",
+        messageFormat: "{0}",
+        category: DiagnosticCategory,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor InvalidRegistryEntityReference = new(
+        id: DiagnosticIds.InvalidRegistryEntityReference,
+        title: "Entity type does not belong to this registry",
         messageFormat: "{0}",
         category: DiagnosticCategory,
         defaultSeverity: DiagnosticSeverity.Error,

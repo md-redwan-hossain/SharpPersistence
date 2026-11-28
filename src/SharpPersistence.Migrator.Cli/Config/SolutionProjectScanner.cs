@@ -95,22 +95,14 @@ internal static partial class SolutionProjectScanner
         var warnings = new List<string>();
         var scanned = ScanSolution(solutionRoot);
 
-        var startupProjects = scanned
+        var migratorProjects = scanned
             .Where(static p => p.IsMigratorRoot)
             .Select(static p => p.RelativePath)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(static p => p, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        var registryProjects = scanned
-            .Where(static p => p.HasEntityRegistry)
-            .Select(static p => p.RelativePath)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(static p => p, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        var startupSet = new HashSet<string>(startupProjects, StringComparer.OrdinalIgnoreCase);
-        var registrySet = new HashSet<string>(registryProjects, StringComparer.OrdinalIgnoreCase);
+        var migratorSet = new HashSet<string>(migratorProjects, StringComparer.OrdinalIgnoreCase);
 
         // Validate & preserve manual otherProjects
         var validatedOthers = new List<string>();
@@ -132,7 +124,7 @@ internal static partial class SolutionProjectScanner
                 }
 
                 var normalized = MigratorCliConfig.NormalizeRelativePath(solutionRoot, fullOther);
-                if (startupSet.Contains(normalized) || registrySet.Contains(normalized))
+                if (migratorSet.Contains(normalized))
                 {
                     warnings.Add($"Removed duplicate path from otherProjects (already discovered): '{normalized}'.");
                     continue;
@@ -145,54 +137,36 @@ internal static partial class SolutionProjectScanner
             }
         }
 
-        // Validate existing defaultStartupProject (existence + migrator-root eligibility)
-        string? defaultStartup = null;
-        if (!string.IsNullOrWhiteSpace(existingConfig?.DefaultStartupProject))
+        // Validate existing defaultProject (existence + migrator-root eligibility)
+        string? defaultProject = null;
+        if (!string.IsNullOrWhiteSpace(existingConfig?.DefaultProject))
         {
-            var rawDefault = existingConfig.DefaultStartupProject!;
+            var rawDefault = existingConfig.DefaultProject!;
             var fullDefault = MigratorCliConfig.ResolveAbsolutePath(solutionRoot, rawDefault);
             if (!File.Exists(fullDefault))
             {
-                warnings.Add($"Cleared defaultStartupProject '{rawDefault}' because the file no longer exists.");
+                warnings.Add($"Cleared defaultProject '{rawDefault}' because the file no longer exists.");
             }
             else if (!IsEligibleStartupProject(fullDefault))
             {
-                warnings.Add($"Cleared defaultStartupProject '{rawDefault}' because it is no longer an eligible migrator root project.");
+                warnings.Add($"Cleared defaultProject '{rawDefault}' because it is no longer an eligible migrator project.");
             }
             else
             {
-                defaultStartup = MigratorCliConfig.NormalizeRelativePath(solutionRoot, fullDefault);
+                defaultProject = MigratorCliConfig.NormalizeRelativePath(solutionRoot, fullDefault);
             }
         }
 
-        // Validate existing defaultDestinationProject (existence on disk)
-        string? defaultDestination = null;
-        if (!string.IsNullOrWhiteSpace(existingConfig?.DefaultDestinationProject))
+        // Auto-select defaultProject when exactly one qualified migrator project exists
+        if (string.IsNullOrWhiteSpace(defaultProject) && migratorProjects.Count == 1)
         {
-            var rawDest = existingConfig.DefaultDestinationProject!;
-            var fullDest = MigratorCliConfig.ResolveAbsolutePath(solutionRoot, rawDest);
-            if (!File.Exists(fullDest))
-            {
-                warnings.Add($"Cleared defaultDestinationProject '{rawDest}' because the file no longer exists.");
-            }
-            else
-            {
-                defaultDestination = MigratorCliConfig.NormalizeRelativePath(solutionRoot, fullDest);
-            }
-        }
-
-        // Auto-select defaultStartupProject when exactly one qualified startup project exists
-        if (string.IsNullOrWhiteSpace(defaultStartup) && startupProjects.Count == 1)
-        {
-            defaultStartup = startupProjects[0];
+            defaultProject = migratorProjects[0];
         }
 
         var config = new MigratorCliConfig
         {
-            DefaultStartupProject = defaultStartup,
-            DefaultDestinationProject = defaultDestination,
-            StartupProjects = startupProjects,
-            Projects = registryProjects,
+            DefaultProject = defaultProject,
+            Projects = migratorProjects,
             OtherProjects = validatedOthers
         };
 

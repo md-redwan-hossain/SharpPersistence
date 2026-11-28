@@ -1,62 +1,48 @@
 namespace SharpPersistence.Migrator.Cli.Config;
 
-internal sealed record ResolvedProjectPaths(
-    string? StartupProjectPath,
-    string? DestinationProjectPath);
-
 internal static class ProjectResolutionService
 {
-    public static ResolvedProjectPaths Resolve(
+    public static string Resolve(
         SharedSettings settings,
         string? startDirectory = null,
         IProjectPicker? picker = null)
     {
         var activePicker = picker ?? SpectreProjectPicker.Instance;
-        var explicitStartup = !string.IsNullOrWhiteSpace(settings.StartupProjectPath);
-        var explicitDestination = !string.IsNullOrWhiteSpace(settings.DestinationProjectPath);
 
-        // If user explicitly passed --startup-project, honor flags directly (no config required)
-        if (explicitStartup)
+        // If user explicitly passed --project, honor it directly (no config required)
+        if (!string.IsNullOrWhiteSpace(settings.ProjectPath))
         {
-            return new ResolvedProjectPaths(settings.StartupProjectPath, settings.DestinationProjectPath);
+            return settings.ProjectPath!;
         }
 
         var configPath = MigratorCliConfig.FindConfigPath(startDirectory);
         if (configPath is null)
         {
             throw new InvalidOperationException(
-                $"No --startup-project was specified and '{MigratorCliConfig.FileName}' was not found. " +
-                "Pass --startup-project <PATH> or run 'db-migrator config --generate' at the solution root.");
+                $"No --project was specified and '{MigratorCliConfig.FileName}' was not found. " +
+                "Pass --project <PATH> or run 'db-migrator config --generate' at the solution root.");
         }
 
         var configDir = Path.GetDirectoryName(configPath)!;
         var config = MigratorCliConfig.Load(configPath);
         var interactive = activePicker.IsInteractive(settings.NonInteractive);
 
-        // 1. Resolve startup project
-        var startupFullPath = ResolveStartupProject(config, configDir, interactive, activePicker);
-
-        // 2. Resolve destination project
-        var destinationFullPath = explicitDestination
-            ? settings.DestinationProjectPath
-            : ResolveDestinationProject(config, configDir, startupFullPath, interactive, activePicker);
-
-        return new ResolvedProjectPaths(startupFullPath, destinationFullPath);
+        return ResolveMigratorProject(config, configDir, interactive, activePicker);
     }
 
-    private static string ResolveStartupProject(
+    private static string ResolveMigratorProject(
         MigratorCliConfig config,
         string configDir,
         bool interactive,
         IProjectPicker picker)
     {
-        if (!string.IsNullOrWhiteSpace(config.DefaultStartupProject))
+        if (!string.IsNullOrWhiteSpace(config.DefaultProject))
         {
-            var defaultFull = MigratorCliConfig.ResolveAbsolutePath(configDir, config.DefaultStartupProject);
+            var defaultFull = MigratorCliConfig.ResolveAbsolutePath(configDir, config.DefaultProject);
             if (!File.Exists(defaultFull))
             {
                 throw new InvalidOperationException(
-                    $"defaultStartupProject '{config.DefaultStartupProject}' in '{MigratorCliConfig.FileName}' does not exist. " +
+                    $"defaultProject '{config.DefaultProject}' in '{MigratorCliConfig.FileName}' does not exist. " +
                     "Run 'db-migrator config --generate' to refresh the config.");
             }
 
@@ -65,14 +51,14 @@ internal static class ProjectResolutionService
 
         var choices = BuildChoices(
             configDir,
-            (config.StartupProjects, "startup"),
+            (config.Projects, "migrator"),
             (config.OtherProjects, "other"));
 
         if (choices.Count == 0)
         {
             throw new InvalidOperationException(
-                $"No startup projects are configured in '{MigratorCliConfig.FileName}'. " +
-                "Run 'db-migrator config --generate' or pass --startup-project <PATH>.");
+                $"No migrator projects are configured in '{MigratorCliConfig.FileName}'. " +
+                "Run 'db-migrator config --generate' or pass --project <PATH>.");
         }
 
         if (choices.Count == 1)
@@ -83,59 +69,11 @@ internal static class ProjectResolutionService
         if (!interactive)
         {
             throw new InvalidOperationException(
-                $"Multiple startup projects exist in '{MigratorCliConfig.FileName}' and no defaultStartupProject is set. " +
-                "Pass --startup-project <PATH> or run 'db-migrator config --set-default-startup <PATH>'.");
+                $"Multiple migrator projects exist in '{MigratorCliConfig.FileName}' and no defaultProject is set. " +
+                "Pass --project <PATH> or run 'db-migrator config --set-default <PATH>'.");
         }
 
-        return picker.PickProject("Select startup project", choices).FullPath;
-    }
-
-    private static string ResolveDestinationProject(
-        MigratorCliConfig config,
-        string configDir,
-        string resolvedStartupFullPath,
-        bool interactive,
-        IProjectPicker picker)
-    {
-        if (!string.IsNullOrWhiteSpace(config.DefaultDestinationProject))
-        {
-            var defaultDestFull = MigratorCliConfig.ResolveAbsolutePath(configDir, config.DefaultDestinationProject);
-            if (!File.Exists(defaultDestFull))
-            {
-                throw new InvalidOperationException(
-                    $"defaultDestinationProject '{config.DefaultDestinationProject}' in '{MigratorCliConfig.FileName}' does not exist. " +
-                    "Run 'db-migrator config --generate' to refresh the config.");
-            }
-
-            return defaultDestFull;
-        }
-
-        var choices = BuildChoices(
-            configDir,
-            (config.Projects, "registry"),
-            (config.OtherProjects, "other"));
-
-        var startupRel = MigratorCliConfig.NormalizeRelativePath(configDir, resolvedStartupFullPath);
-        if (!choices.Any(c => string.Equals(c.FullPath, resolvedStartupFullPath, StringComparison.OrdinalIgnoreCase)))
-        {
-            choices.Insert(0, new ProjectChoice(
-                Path.GetFileNameWithoutExtension(resolvedStartupFullPath),
-                startupRel,
-                resolvedStartupFullPath,
-                "startup"));
-        }
-
-        if (choices.Count == 1)
-        {
-            return choices[0].FullPath;
-        }
-
-        if (!interactive)
-        {
-            return resolvedStartupFullPath;
-        }
-
-        return picker.PickProject("Select destination project", choices).FullPath;
+        return picker.PickProject("Select migrator project", choices).FullPath;
     }
 
     private static List<ProjectChoice> BuildChoices(

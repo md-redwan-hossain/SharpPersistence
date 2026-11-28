@@ -22,7 +22,7 @@ builder.Services.AddDbMigrator(opt =>
 });
 ```
 
-Global extensions and enums are emitted into `MigrationScripts/_global/` before registry tables are created.
+Global extensions and enums are emitted into `DbMigrator/Scripts/_global/` before registry tables are created.
 
 ## Tables: Unlogged, Tablespace & Storage Parameters
 

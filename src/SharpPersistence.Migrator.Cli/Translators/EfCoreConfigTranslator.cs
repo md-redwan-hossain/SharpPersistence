@@ -5,12 +5,18 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace SharpPersistence.Migrator.Cli.Translators;
 
+internal sealed record CustomMetadataCallHint(
+    string MethodName,
+    bool IsColumnTarget,
+    int ArgumentCount);
+
 internal sealed record TranslatedEfCoreConfig(
     string SourceFilePath,
     string RelativePath,
     string EntityTypeName,
     string TranslatedSource,
-    IReadOnlyList<string> Warnings);
+    IReadOnlyList<string> Warnings,
+    IReadOnlyList<CustomMetadataCallHint>? CustomMetadataHints = null);
 
 internal static class EfCoreConfigTranslator
 {
@@ -46,7 +52,8 @@ internal static class EfCoreConfigTranslator
         string sourceCode,
         string sourceFilePath = "Configuration.cs",
         string? relativePath = null,
-        bool addEntityConfigurationAttribute = true)
+        bool addEntityConfigurationAttribute = true,
+        Func<string, string>? namespaceTransform = null)
     {
         ArgumentNullException.ThrowIfNull(sourceCode);
 
@@ -64,6 +71,11 @@ internal static class EfCoreConfigTranslator
 
         var rewriter = new EfCoreConfigSyntaxRewriter(addEntityConfigurationAttribute);
         var rewrittenRoot = (CompilationUnitSyntax)rewriter.Visit(root);
+        if (namespaceTransform is not null)
+        {
+            rewrittenRoot = RewriteNamespaces(rewrittenRoot, namespaceTransform);
+        }
+
         rewrittenRoot = RewriteUsings(rewrittenRoot, rewriter);
 
         return new TranslatedEfCoreConfig(
@@ -71,7 +83,8 @@ internal static class EfCoreConfigTranslator
             relativePath ?? Path.GetFileName(sourceFilePath),
             rewriter.PrimaryEntityTypeName ?? "Unknown",
             rewrittenRoot.ToFullString(),
-            rewriter.Warnings);
+            rewriter.Warnings,
+            rewriter.CustomMetadataHints);
     }
 
     public static string ResolveOutputDirectory(string inputDirectory, string? outputDirectory = null)
@@ -86,7 +99,8 @@ internal static class EfCoreConfigTranslator
         string inputDirectory,
         string? outputDirectory = null,
         bool dryRun = false,
-        bool addEntityConfigurationAttribute = true)
+        bool addEntityConfigurationAttribute = true,
+        string? targetNamespace = null)
     {
         var fullInput = PathGuard.EnsureReadableDirectory(inputDirectory, "--source-path");
         var rawOutput = string.IsNullOrWhiteSpace(outputDirectory)
@@ -107,7 +121,12 @@ internal static class EfCoreConfigTranslator
 
             var source = File.ReadAllText(file);
             var relative = Path.GetRelativePath(fullInput, file);
-            var translated = TranslateSource(source, file, relative, addEntityConfigurationAttribute);
+            var translated = TranslateSource(
+                source,
+                file,
+                relative,
+                addEntityConfigurationAttribute,
+                ns => ComputeTargetNamespace(ns, fullInput, fullOutput, relative, targetNamespace));
             if (translated is null)
             {
                 continue;
@@ -129,6 +148,198 @@ internal static class EfCoreConfigTranslator
         }
 
         return results;
+    }
+
+    internal static string ComputeTargetNamespace(
+        string originalNamespace,
+        string fullInputDirectory,
+        string fullOutputDirectory,
+        string relativeFilePath,
+        string? explicitRootNamespace = null)
+    {
+        var relDir = Path.GetDirectoryName(relativeFilePath) ?? string.Empty;
+        var subFolderSegments = SplitAndSanitizePathSegments(relDir);
+
+        if (!string.IsNullOrWhiteSpace(explicitRootNamespace))
+        {
+            var rootNs = explicitRootNamespace.Trim();
+            return subFolderSegments.Count == 0
+                ? rootNs
+                : $"{rootNs}.{string.Join('.', subFolderSegments)}";
+        }
+
+        var origSegments = originalNamespace
+            .Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+
+        if (origSegments.Count == 0)
+        {
+            return originalNamespace;
+        }
+
+        var baseSegments = origSegments.ToList();
+        if (subFolderSegments.Count > 0 && baseSegments.Count > subFolderSegments.Count)
+        {
+            var matchesTrailingSubFolder = true;
+            for (var i = 0; i < subFolderSegments.Count; i++)
+            {
+                if (!string.Equals(
+                        baseSegments[baseSegments.Count - subFolderSegments.Count + i],
+                        subFolderSegments[i],
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    matchesTrailingSubFolder = false;
+                    break;
+                }
+            }
+
+            if (matchesTrailingSubFolder)
+            {
+                baseSegments.RemoveRange(baseSegments.Count - subFolderSegments.Count, subFolderSegments.Count);
+            }
+        }
+
+        var relInputToOutput = Path.GetRelativePath(fullInputDirectory, fullOutputDirectory);
+        if (Path.IsPathRooted(relInputToOutput))
+        {
+            var fallback = SanitizeNamespaceSegment(
+                Path.GetFileName(fullOutputDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)));
+            if (string.IsNullOrEmpty(fallback))
+            {
+                fallback = DefaultOutputDirectoryName;
+            }
+
+            baseSegments.Add(fallback);
+            baseSegments.AddRange(subFolderSegments);
+            return string.Join('.', baseSegments);
+        }
+
+        var rawParts = relInputToOutput.Split(
+            [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+            StringSplitOptions.RemoveEmptyEntries);
+
+        var upCount = 0;
+        var downSegments = new List<string>();
+        foreach (var part in rawParts)
+        {
+            if (part == ".")
+            {
+                continue;
+            }
+
+            if (part == ".." && downSegments.Count == 0)
+            {
+                upCount++;
+            }
+            else
+            {
+                var sanitized = SanitizeNamespaceSegment(part);
+                if (!string.IsNullOrEmpty(sanitized))
+                {
+                    downSegments.Add(sanitized);
+                }
+            }
+        }
+
+        if (upCount == 0 && downSegments.Count == 0)
+        {
+            return originalNamespace;
+        }
+
+        if (upCount > 0 && upCount < baseSegments.Count)
+        {
+            baseSegments.RemoveRange(baseSegments.Count - upCount, upCount);
+        }
+        else if (upCount >= baseSegments.Count)
+        {
+            var fallback = downSegments.Count > 0 ? downSegments[^1] : DefaultOutputDirectoryName;
+            baseSegments.Add(fallback);
+            baseSegments.AddRange(subFolderSegments);
+            return string.Join('.', baseSegments);
+        }
+
+        baseSegments.AddRange(downSegments);
+        baseSegments.AddRange(subFolderSegments);
+        return string.Join('.', baseSegments);
+    }
+
+    private static List<string> SplitAndSanitizePathSegments(string relativeDir)
+    {
+        var segments = new List<string>();
+        if (string.IsNullOrWhiteSpace(relativeDir))
+        {
+            return segments;
+        }
+
+        foreach (var part in relativeDir.Split(
+                     [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+                     StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (part is "." or "..")
+            {
+                continue;
+            }
+
+            var sanitized = SanitizeNamespaceSegment(part);
+            if (!string.IsNullOrEmpty(sanitized))
+            {
+                segments.Add(sanitized);
+            }
+        }
+
+        return segments;
+    }
+
+    private static string SanitizeNamespaceSegment(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return string.Empty;
+        }
+
+        var sb = new StringBuilder(raw.Length);
+        foreach (var ch in raw.Trim())
+        {
+            sb.Append(char.IsLetterOrDigit(ch) || ch == '_' ? ch : '_');
+        }
+
+        if (sb.Length > 0 && char.IsDigit(sb[0]))
+        {
+            sb.Insert(0, '_');
+        }
+
+        return sb.ToString();
+    }
+
+    private static CompilationUnitSyntax RewriteNamespaces(
+        CompilationUnitSyntax root,
+        Func<string, string> namespaceTransform)
+    {
+        var rewriter = new NamespaceRewriter(namespaceTransform);
+        return (CompilationUnitSyntax)rewriter.Visit(root);
+    }
+
+    private sealed class NamespaceRewriter(Func<string, string> transform) : CSharpSyntaxRewriter
+    {
+        public override SyntaxNode? VisitFileScopedNamespaceDeclaration(FileScopedNamespaceDeclarationSyntax node)
+        {
+            var visited = (FileScopedNamespaceDeclarationSyntax)base.VisitFileScopedNamespaceDeclaration(node)!;
+            var oldName = visited.Name.ToString();
+            var newName = transform(oldName);
+            return string.Equals(oldName, newName, StringComparison.Ordinal)
+                ? visited
+                : visited.WithName(SyntaxFactory.ParseName(newName).WithTriviaFrom(visited.Name));
+        }
+
+        public override SyntaxNode? VisitNamespaceDeclaration(NamespaceDeclarationSyntax node)
+        {
+            var visited = (NamespaceDeclarationSyntax)base.VisitNamespaceDeclaration(node)!;
+            var oldName = visited.Name.ToString();
+            var newName = transform(oldName);
+            return string.Equals(oldName, newName, StringComparison.Ordinal)
+                ? visited
+                : visited.WithName(SyntaxFactory.ParseName(newName).WithTriviaFrom(visited.Name));
+        }
     }
 
     private static bool TryFindEfConfigEntityName(ClassDeclarationSyntax classDecl, out string entityTypeName)
@@ -295,14 +506,24 @@ internal static class EfCoreConfigTranslator
                     .Any(a => a.Name.ToString().Contains("EntityConfiguration", StringComparison.Ordinal)))
             {
                 UsesAttributes = true;
+                var originalLeadingTrivia = updated.GetLeadingTrivia();
                 var indentTrivia = GetIndentationTrivia(updated);
+
+                if (node.Parent is FileScopedNamespaceDeclarationSyntax &&
+                    !originalLeadingTrivia.Any(t => t.IsKind(SyntaxKind.EndOfLineTrivia)))
+                {
+                    originalLeadingTrivia = originalLeadingTrivia.Insert(0, SyntaxFactory.CarriageReturnLineFeed);
+                }
+
                 var attrList = SyntaxFactory.AttributeList(
                     SyntaxFactory.SingletonSeparatedList(
                         SyntaxFactory.Attribute(SyntaxFactory.ParseName($"EntityConfiguration<{entityTypeName}>"))))
-                    .WithLeadingTrivia(indentTrivia)
+                    .WithLeadingTrivia(originalLeadingTrivia)
                     .WithTrailingTrivia(SyntaxFactory.CarriageReturnLineFeed);
 
-                updated = updated.WithAttributeLists(updated.AttributeLists.Insert(0, attrList));
+                updated = updated
+                    .WithLeadingTrivia(indentTrivia)
+                    .WithAttributeLists(updated.AttributeLists.Insert(0, attrList));
             }
 
             return updated;
@@ -411,6 +632,19 @@ internal static class EfCoreConfigTranslator
                     return visited.WithExpression(newMember);
                 }
 
+                // Strip .Metadata on any custom EF Core extension call (e.g. .Property(x => x.Name).Metadata.SkipAutomatedIndexCreation())
+                if (member.Expression is MemberAccessExpressionSyntax customMetaAccess &&
+                    string.Equals(customMetaAccess.Name.Identifier.ValueText, "Metadata", StringComparison.Ordinal))
+                {
+                    var isColumnTarget = IsPropertyBuilderExpression(customMetaAccess.Expression);
+                    CustomMetadataHints.Add(new CustomMetadataCallHint(
+                        methodName,
+                        isColumnTarget,
+                        visited.ArgumentList.Arguments.Count));
+                    var newMember = member.WithExpression(customMetaAccess.Expression);
+                    return visited.WithExpression(newMember);
+                }
+
                 // Rewrite builder.ToTable("orders", "sales") -> builder.ToTable("orders").HasSchema("sales")
                 if (_activeBuilderParam is not null &&
                     string.Equals(methodName, "ToTable", StringComparison.Ordinal) &&
@@ -435,9 +669,202 @@ internal static class EfCoreConfigTranslator
                     var arg = SyntaxFactory.Argument(SyntaxFactory.ParseExpression(pgEnumExpr));
                     return visited.WithArgumentList(SyntaxFactory.ArgumentList(SyntaxFactory.SingletonSeparatedList(arg)));
                 }
+
+                // Rewrite Npgsql HasOperators(...) -> HasOperator(...)
+                if (string.Equals(methodName, "HasOperators", StringComparison.Ordinal) &&
+                    TryRewriteHasOperators(visited, member, out var rewrittenOperators))
+                {
+                    UsesPostgresExtensions = true;
+                    return rewrittenOperators;
+                }
             }
 
             return visited;
+        }
+
+        public List<CustomMetadataCallHint> CustomMetadataHints { get; } = [];
+
+        private static bool IsPropertyBuilderExpression(ExpressionSyntax expr)
+        {
+            ExpressionSyntax? current = expr;
+            while (current is InvocationExpressionSyntax inv && inv.Expression is MemberAccessExpressionSyntax ma)
+            {
+                if (string.Equals(ma.Name.Identifier.ValueText, "Property", StringComparison.Ordinal))
+                {
+                    return true;
+                }
+
+                current = ma.Expression;
+            }
+
+            return false;
+        }
+
+        private bool TryRewriteHasOperators(
+            InvocationExpressionSyntax visited,
+            MemberAccessExpressionSyntax member,
+            out ExpressionSyntax rewritten)
+        {
+            rewritten = visited;
+            var opExprs = ExtractOperatorExpressions(visited.ArgumentList);
+            if (opExprs is null || !TryExtractIndexPropertyNames(member.Expression, out var indexProps) || indexProps.Count == 0)
+            {
+                const string warning = "HasOperators(...) could not be mapped automatically; update to HasOperator(...) manually.";
+                Warnings.Add(warning);
+                return false;
+            }
+
+            var nonSkipped = new List<(int Index, ExpressionSyntax Expr)>();
+            for (var i = 0; i < opExprs.Count && i < indexProps.Count; i++)
+            {
+                if (!IsSkippedOperatorExpression(opExprs[i]))
+                {
+                    nonSkipped.Add((i, opExprs[i]));
+                }
+            }
+
+            if (nonSkipped.Count == 0)
+            {
+                rewritten = member.Expression.WithTrailingTrivia(visited.GetTrailingTrivia());
+                return true;
+            }
+
+            if (indexProps.Count == 1)
+            {
+                var arg = SyntaxFactory.Argument(nonSkipped[0].Expr.WithoutTrivia());
+                var newMember = member.WithName(SyntaxFactory.IdentifierName("HasOperator").WithTriviaFrom(member.Name));
+                rewritten = visited
+                    .WithExpression(newMember)
+                    .WithArgumentList(SyntaxFactory.ArgumentList(SyntaxFactory.SingletonSeparatedList(arg)));
+                return true;
+            }
+
+            ExpressionSyntax current = member.Expression;
+            var firstDotTrivia = member.OperatorToken.LeadingTrivia;
+            for (var n = 0; n < nonSkipped.Count; n++)
+            {
+                var (propIdx, opExpr) = nonSkipped[n];
+                var propName = indexProps[propIdx];
+                var keyArg = SyntaxFactory.Argument(SyntaxFactory.ParseExpression($"k => k.{propName}"));
+                var opArg = SyntaxFactory.Argument(opExpr.WithoutTrivia());
+                var args = SyntaxFactory.ArgumentList(SyntaxFactory.SeparatedList(
+                [
+                    keyArg,
+                    opArg
+                ],
+                [
+                    SyntaxFactory.Token(SyntaxKind.CommaToken).WithTrailingTrivia(SyntaxFactory.Space)
+                ]));
+
+                var dot = SyntaxFactory.Token(SyntaxKind.DotToken).WithLeadingTrivia(firstDotTrivia);
+                var access = SyntaxFactory.MemberAccessExpression(
+                    SyntaxKind.SimpleMemberAccessExpression,
+                    current,
+                    dot,
+                    SyntaxFactory.IdentifierName("HasOperator"));
+                current = SyntaxFactory.InvocationExpression(access, args);
+            }
+
+            rewritten = current.WithTrailingTrivia(visited.GetTrailingTrivia());
+            return true;
+        }
+
+        private static List<ExpressionSyntax>? ExtractOperatorExpressions(ArgumentListSyntax argumentList)
+        {
+            var args = argumentList.Arguments;
+            if (args.Count == 0)
+            {
+                return [];
+            }
+
+            if (args.Count == 1)
+            {
+                switch (args[0].Expression)
+                {
+                    case CollectionExpressionSyntax coll:
+                        return coll.Elements.OfType<ExpressionElementSyntax>().Select(e => e.Expression).ToList();
+                    case ImplicitArrayCreationExpressionSyntax impArr:
+                        return [.. impArr.Initializer.Expressions];
+                    case ArrayCreationExpressionSyntax arr when arr.Initializer is not null:
+                        return [.. arr.Initializer.Expressions];
+                }
+            }
+
+            return args.Select(a => a.Expression).ToList();
+        }
+
+        private static bool TryExtractIndexPropertyNames(ExpressionSyntax expr, out List<string> propertyNames)
+        {
+            propertyNames = [];
+            ExpressionSyntax? current = expr;
+            while (current is InvocationExpressionSyntax inv && inv.Expression is MemberAccessExpressionSyntax ma)
+            {
+                if (string.Equals(ma.Name.Identifier.ValueText, "HasIndex", StringComparison.Ordinal))
+                {
+                    if (inv.ArgumentList.Arguments.Count == 1 &&
+                        inv.ArgumentList.Arguments[0].Expression is LambdaExpressionSyntax lambda)
+                    {
+                        var body = lambda.ExpressionBody;
+                        if (body is MemberAccessExpressionSyntax singleMa)
+                        {
+                            propertyNames.Add(singleMa.Name.Identifier.ValueText);
+                            return true;
+                        }
+
+                        if (body is AnonymousObjectCreationExpressionSyntax anon)
+                        {
+                            foreach (var init in anon.Initializers)
+                            {
+                                if (init.Expression is MemberAccessExpressionSyntax propMa)
+                                {
+                                    propertyNames.Add(propMa.Name.Identifier.ValueText);
+                                }
+                                else if (init.NameEquals is not null)
+                                {
+                                    propertyNames.Add(init.NameEquals.Name.Identifier.ValueText);
+                                }
+                            }
+
+                            return propertyNames.Count > 0;
+                        }
+                    }
+
+                    return false;
+                }
+
+                current = ma.Expression;
+            }
+
+            return false;
+        }
+
+        private static bool IsSkippedOperatorExpression(ExpressionSyntax expr)
+        {
+            if (expr.IsKind(SyntaxKind.NullLiteralExpression))
+            {
+                return true;
+            }
+
+            if (expr is LiteralExpressionSyntax lit &&
+                lit.IsKind(SyntaxKind.StringLiteralExpression) &&
+                string.IsNullOrWhiteSpace(lit.Token.ValueText))
+            {
+                return true;
+            }
+
+            if (expr is MemberAccessExpressionSyntax ma &&
+                string.Equals(ma.Name.Identifier.ValueText, "Empty", StringComparison.Ordinal))
+            {
+                var target = ma.Expression.ToString();
+                if (string.Equals(target, "string", StringComparison.Ordinal) ||
+                    string.Equals(target, "String", StringComparison.Ordinal) ||
+                    string.Equals(target, "System.String", StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         public override SyntaxNode? VisitMemberAccessExpression(MemberAccessExpressionSyntax node)
@@ -590,12 +1017,13 @@ internal static class EfCoreConfigTranslator
             {
                 const string warning = "HasOne(...) did not specify an explicit generic type; update References<TPrincipal>(...) manually.";
                 Warnings.Add(warning);
-                sb.AppendLine($"{indent}// TODO(SharpPersistence.Migrator): {warning}");
+                sb.AppendLine($"// TODO(SharpPersistence.Migrator): {warning}");
+                sb.Append(indent);
                 principalType = "/* TPrincipal */ object";
             }
 
             var refExpr = string.IsNullOrWhiteSpace(principalKeyExpr) ? "p => p.Id" : principalKeyExpr;
-            sb.AppendLine($"{indent}{builderParam}.HasForeignKey({fkExpr})");
+            sb.AppendLine($"{builderParam}.HasForeignKey({fkExpr})");
             sb.Append($"{indent}    .References<{principalType}>({refExpr})");
 
             if (isOneToOne)
@@ -617,7 +1045,8 @@ internal static class EfCoreConfigTranslator
             }
 
             sb.AppendLine(";");
-            rewritten = SyntaxFactory.ParseStatement(sb.ToString());
+            rewritten = SyntaxFactory.ParseStatement(sb.ToString())
+                .WithLeadingTrivia(stmt.GetLeadingTrivia());
             return true;
         }
 

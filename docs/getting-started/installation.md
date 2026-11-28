@@ -6,7 +6,7 @@ SharpPersistence targets **.NET 10 (`net10.0`)** and **.NET 11 (`net11.0`)** and
 
 | Package | Layer | Purpose |
 | --- | --- | --- |
-| `SharpPersistence.Abstractions` | Domain / Application | Zero-dependency repository/UoW contracts (`IRepositoryCore<T>`, `IUnitOfWork`) and compile-time discovery attributes (`[Entity]`, `EntityMarkerAttribute`) |
+| `SharpPersistence.Abstractions` | Domain / Application | Zero-dependency repository/UoW contracts (`IRepositoryCore<T>`, `IUnitOfWork`, `IUnitOfWorkTransaction`) and compile-time discovery attributes (`[Entity]`, `[Entity<TGroup>]`, `IEntityGroup`) |
 | `SharpPersistence` | Shared / Infrastructure | Dialect-aware `SqlCheckConstraintBuilder`, `SqlParser`, and collection/queryable helpers |
 | `SharpPersistence.EfCore` | Infrastructure | EF Core implementations of `RepositoryCore<T, TDbContext>` and `UnitOfWork<TDbContext>` |
 | `SharpPersistence.Migrator` | Infrastructure | EF Core–free schema scanner, differ, DDL generators (PostgreSQL & Oracle), lock service, and migration runner |

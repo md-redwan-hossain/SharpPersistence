@@ -86,20 +86,26 @@ public sealed partial class BillingRegistry : IEntityRegistry
 | `SPM003` | Error | Multiple `[EntityConfiguration<T>]` classes target the same `TEntity` |
 | `SPM004` | Error | `[EntityRegistry]` class must declare `public void Configure(IEntityRegistryBuilder registry)` |
 | `SPM005` | Error | Same entity is matched by multiple `[EntityRegistry]` classes in the same project |
-| `SPM006` | Error | Discovered entity or custom marker attribute must be `public` |
+| `SPM006` | Error | Discovered entity or `IEntityGroup` struct must be `public` |
 | `SPM007` | Warning | `[EntityConfiguration<T>]` is not matched by any `[EntityRegistry]` in this project |
+| `SPM014` | Error | `.IsRequired()` cannot be called inside an optional `OwnsOne(...)` navigation |
+| `SPM015` | Error | `ReplaceEntityTypes` cannot replace a type with itself or with a `ReadOnly = true` target |
+| `SPM016` | Error | Concrete entity type referenced in `[EntityRegistry]` `Configure(...)` does not belong to that registry |
 
-## Manual Registration (Optional)
+## Manual Registration & Registry Conventions (Optional)
 
-You can also register entities or inline configs directly inside `Configure(IEntityRegistryBuilder registry)`:
+You can also register entities manually or apply registry-scoped rules directly inside `Configure(IEntityRegistryBuilder registry)`:
 
 ```csharp
 public void Configure(IEntityRegistryBuilder registry)
 {
     registry.HasDefaultSchema("sales");
     registry.Map<Order, OrderConfiguration>();
-    registry.Map<OrderLine>();
-    registry.Entity<Customer>(e => e.ToTable("customers"));
+    registry.Map<Customer>();
+
+    registry.ConfigureProperties<decimal>(c => c.HasPrecision(18, 6));
+    registry.ConfigureEntities(ModelCreationPhase.BeforeEntityConfigClass, m =>
+        m.Entity<Customer>(e => e.ToTable("customers")));
 }
 ```
 
@@ -146,7 +152,7 @@ builder.HasKey(x => new { x.OrderId, x.LineNumber })
 | `HasPreviousTableName(oldName, oldSchema?)` | Hints table rename during `generate` |
 | `HasComment(comment)` | Emits `COMMENT ON TABLE` |
 | `ExcludeFromMigrations(bool = true)` | Keeps entity for queries/FKs and `ApplySchemaToEfCore`, but skips migration SQL |
-| `SetAnnotation<TValue>(name, value)` | Attaches custom entity metadata (forwarded by `ApplySchemaToEfCore`) |
+| `SetAnnotation<TValue>(name, value)` / `GetAnnotation<TValue>(name)` / `HasAnnotation(name)` | Attaches or reads custom entity/column metadata (forwarded by `ApplySchemaToEfCore`) |
 | `Ignore(x => x.Prop)` | Excludes property from schema & SQL |
 | `HasQueryFilter(x => ...)` / `HasQueryFilter(key, x => ...)` | Query filters for `ApplySchemaToEfCore` |
 | `HasKey(x => x.Id)` / `HasKey(...).HasName("pk_...")` | Single or composite PK and explicit constraint name |

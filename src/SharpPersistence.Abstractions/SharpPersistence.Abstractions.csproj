@@ -13,13 +13,13 @@
     </PropertyGroup>
     
     <ItemGroup>
-        <ProjectReference Include="..\SharpPersistence.Migrator.Generators\SharpPersistence.Migrator.Generators.csproj"
+        <ProjectReference Include="..\SharpPersistence.Abstractions.Generators\SharpPersistence.Abstractions.Generators.csproj"
                           PrivateAssets="All"
                           ReferenceOutputAssembly="false" />
     </ItemGroup>
 
     <ItemGroup>
-        <None Include="..\SharpPersistence.Migrator.Generators\bin\$(Configuration)\netstandard2.0\SharpPersistence.Migrator.Generators.dll"
+        <None Include="..\SharpPersistence.Abstractions.Generators\bin\$(Configuration)\netstandard2.0\SharpPersistence.Abstractions.Generators.dll"
               Pack="true"
               PackagePath="analyzers\dotnet\cs"
               Visible="false" />

@@ -141,10 +141,44 @@ public abstract class ColumnBuilderBase<TBuilder>
         return Self;
     }
 
+    public string Name => Definition.PropertyName;
+    public Type ClrType => Definition.ClrType;
+
     public TBuilder SetAnnotation<TValue>(string name, TValue? value)
     {
         Definition.SetAnnotation(name, value);
         return Self;
+    }
+
+    public bool HasAnnotation(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        return Definition.Annotations.ContainsKey(name);
+    }
+
+    public TValue? GetAnnotation<TValue>(string name, TValue? defaultValue = default) =>
+        TryGetAnnotation<TValue>(name, out var value) ? value : defaultValue;
+
+    public bool TryGetAnnotation<TValue>(string name, out TValue? value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        if (Definition.Annotations.TryGetValue(name, out var raw))
+        {
+            if (raw is TValue typed)
+            {
+                value = typed;
+                return true;
+            }
+
+            if (raw is null && default(TValue) is null)
+            {
+                value = default;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
     }
 
     private static string FormatDefaultLiteral(object? value) => value switch

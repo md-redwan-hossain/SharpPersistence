@@ -1,4 +1,6 @@
 using SharpPersistence.Migrator.Abstractions;
+using SharpPersistence.Migrator.Configuration;
+using SharpPersistence.Migrator.Enums;
 
 namespace SharpPersistence.Migrator.Builders;
 
@@ -6,7 +8,8 @@ internal sealed class EntityRegistryBuilder : IEntityRegistryBuilder
 {
     public string? DefaultSchema { get; private set; }
     public Dictionary<Type, Type?> Mappings { get; } = [];
-    public Dictionary<Type, List<Action<object>>> InlineConfigurations { get; } = [];
+    public List<PropertyConventionRule> PropertyConventions { get; } = [];
+    public List<EntityConventionRule> EntityConventions { get; } = [];
     public List<SequenceDefinition> Sequences { get; } = [];
 
     public IEntityRegistryBuilder HasDefaultSchema(string schema)
@@ -29,19 +32,21 @@ internal sealed class EntityRegistryBuilder : IEntityRegistryBuilder
         return this;
     }
 
-    public IEntityRegistryBuilder Entity<TEntity>(Action<EntityBuilder<TEntity>> configure)
-        where TEntity : class
+    public IEntityRegistryBuilder ConfigureProperties<TProperty>(Action<ColumnBuilder> configure)
     {
-        var entityType = typeof(TEntity);
-        Mappings.TryAdd(entityType, null);
+        ArgumentNullException.ThrowIfNull(configure);
+        PropertyConventions.Add(new PropertyConventionRule(typeof(TProperty), configure));
+        return this;
+    }
 
-        if (!InlineConfigurations.TryGetValue(entityType, out var actions))
-        {
-            actions = [];
-            InlineConfigurations[entityType] = actions;
-        }
-
-        actions.Add(builderObj => configure((EntityBuilder<TEntity>)builderObj));
+    public IEntityRegistryBuilder ConfigureEntities(
+        ModelCreationPhase phase,
+        Action<EntityBuilder> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        EntityConventions.Add(new EntityConventionRule(
+            phase,
+            tableDef => configure(new EntityBuilder(tableDef))));
         return this;
     }
 

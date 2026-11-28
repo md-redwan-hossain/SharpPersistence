@@ -1,8 +1,9 @@
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using SharpPersistence.Migrator.Generators;
 
-namespace SharpPersistence.Migrator.Generators;
+namespace SharpPersistence.Abstractions.Generators;
 
 [Generator]
 public sealed class EntityManifestGenerator : IIncrementalGenerator
@@ -26,23 +27,23 @@ public sealed class EntityManifestGenerator : IIncrementalGenerator
     {
         var isDisabled = context.AnalyzerConfigOptionsProvider
             .Select(static (provider, _) =>
-                provider.GlobalOptions.TryGetValue(GeneratorConstants.DisablePropertyName, out var value) &&
+                provider.GlobalOptions.TryGetValue(ManifestGeneratorConstants.DisablePropertyName, out var value) &&
                 string.Equals(value, "true", StringComparison.OrdinalIgnoreCase));
 
         var assemblyMeta = context.CompilationProvider
             .Select(static (compilation, _) => new AssemblyManifestMeta
             {
                 AssemblyName = compilation.AssemblyName,
-                HasManifestAttribute = compilation.GetTypeByMetadataName(GeneratorConstants.EntityManifestAttributeMetadataName) is not null,
-                HasDisableAttribute = GeneratorConstants.HasAssemblyAttribute(
+                HasManifestAttribute = compilation.GetTypeByMetadataName(ManifestGeneratorConstants.EntityManifestAttributeMetadataName) is not null,
+                HasDisableAttribute = ManifestGeneratorConstants.HasAssemblyAttribute(
                     compilation,
-                    GeneratorConstants.DisableEntityDiscoveryAttributeMetadataName)
+                    ManifestGeneratorConstants.DisableEntityDiscoveryAttributeMetadataName)
             });
 
         // Stream 1: [Entity] (O(1) ForAttributeWithMetadataName)
         var defaultEntities = context.SyntaxProvider
             .ForAttributeWithMetadataName(
-                GeneratorConstants.DefaultEntityAttributeMetadataName,
+                ManifestGeneratorConstants.DefaultEntityAttributeMetadataName,
                 static (node, _) => node is ClassDeclarationSyntax,
                 static (ctx, _) => ExtractDefaultEntityEntry(ctx))
             .Where(static x => x.HasValue)
@@ -53,7 +54,7 @@ public sealed class EntityManifestGenerator : IIncrementalGenerator
         // Stream 2: [Entity<TGroup>] (O(1) ForAttributeWithMetadataName)
         var groupedEntities = context.SyntaxProvider
             .ForAttributeWithMetadataName(
-                GeneratorConstants.GenericEntityAttributeMetadataName,
+                ManifestGeneratorConstants.GenericEntityAttributeMetadataName,
                 static (node, _) => node is ClassDeclarationSyntax,
                 static (ctx, _) => ExtractGroupedEntityEntries(ctx))
             .Where(static arr => arr.Length > 0)
@@ -79,10 +80,10 @@ public sealed class EntityManifestGenerator : IIncrementalGenerator
             return null;
         }
 
-        var isPublic = GeneratorConstants.IsPubliclyAccessible(symbol);
+        var isPublic = ManifestGeneratorConstants.IsPubliclyAccessible(symbol);
         return new ManifestEntry
         {
-            GroupFullName = "global::" + GeneratorConstants.DefaultEntityAttributeMetadataName,
+            GroupFullName = "global::" + ManifestGeneratorConstants.DefaultEntityAttributeMetadataName,
             EntityFullName = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             IsPubliclyAccessible = isPublic,
             Location = isPublic ? null : SourceLocationInfo.From(classDecl.Identifier.GetLocation())
@@ -101,7 +102,7 @@ public sealed class EntityManifestGenerator : IIncrementalGenerator
 
         var builder = System.Collections.Immutable.ImmutableArray.CreateBuilder<ManifestEntry>(ctx.Attributes.Length);
         var entityFullName = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-        var entityIsPublic = GeneratorConstants.IsPubliclyAccessible(symbol);
+        var entityIsPublic = ManifestGeneratorConstants.IsPubliclyAccessible(symbol);
         SourceLocationInfo? cachedLoc = null;
 
         foreach (var attr in ctx.Attributes)
@@ -112,7 +113,7 @@ public sealed class EntityManifestGenerator : IIncrementalGenerator
                 continue;
             }
 
-            var isPublic = entityIsPublic && GeneratorConstants.IsPubliclyAccessible(groupSymbol);
+            var isPublic = entityIsPublic && ManifestGeneratorConstants.IsPubliclyAccessible(groupSymbol);
             builder.Add(new ManifestEntry
             {
                 GroupFullName = groupSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
@@ -151,14 +152,14 @@ public sealed class EntityManifestGenerator : IIncrementalGenerator
             return;
         }
 
-        var sanitizedAssembly = GeneratorConstants.SanitizeAssemblyName(meta.AssemblyName);
+        var sanitizedAssembly = ManifestGeneratorConstants.SanitizeAssemblyName(meta.AssemblyName);
         var sb = new StringBuilder();
         sb.AppendLine("// <auto-generated/>");
         sb.AppendLine("#nullable enable");
         sb.AppendLine();
-        sb.AppendLine($"namespace {GeneratorConstants.GeneratedNamespace};");
+        sb.AppendLine($"namespace {ManifestGeneratorConstants.GeneratedNamespace};");
         sb.AppendLine();
-        sb.AppendLine($"[global::{GeneratorConstants.EntityManifestAttributeMetadataName}]");
+        sb.AppendLine($"[global::{ManifestGeneratorConstants.EntityManifestAttributeMetadataName}]");
 
         foreach (var kv in entitiesByGroup.OrderBy(e => e.Key, StringComparer.Ordinal))
         {
@@ -166,10 +167,10 @@ public sealed class EntityManifestGenerator : IIncrementalGenerator
                 .OrderBy(e => e, StringComparer.Ordinal)
                 .Select(e => $"typeof({e})"));
             sb.AppendLine(
-                $"[global::{GeneratorConstants.EntityManifestEntryAttributeMetadataName}(typeof({kv.Key}), {entityTypeOfs})]");
+                $"[global::{ManifestGeneratorConstants.EntityManifestEntryAttributeMetadataName}(typeof({kv.Key}), {entityTypeOfs})]");
         }
 
-        sb.AppendLine($"public static class {GeneratorConstants.ManifestPrefix}{sanitizedAssembly}");
+        sb.AppendLine($"public static class {ManifestGeneratorConstants.ManifestPrefix}{sanitizedAssembly}");
         sb.AppendLine("{");
         sb.AppendLine("}");
 
@@ -186,10 +187,10 @@ public sealed class EntityManifestGenerator : IIncrementalGenerator
             if (!entry.IsPubliclyAccessible)
             {
                 spc.ReportDiagnostic(Diagnostic.Create(
-                    GeneratorConstants.EntityOrMarkerMustBePublic,
+                    ManifestGeneratorConstants.EntityOrMarkerMustBePublic,
                     entry.Location?.ToLocation() ?? Location.None,
-                    GeneratorConstants.StripGlobalPrefix(entry.EntityFullName),
-                    GeneratorConstants.StripGlobalPrefix(entry.GroupFullName)));
+                    ManifestGeneratorConstants.StripGlobalPrefix(entry.EntityFullName),
+                    ManifestGeneratorConstants.StripGlobalPrefix(entry.GroupFullName)));
                 continue;
             }
 

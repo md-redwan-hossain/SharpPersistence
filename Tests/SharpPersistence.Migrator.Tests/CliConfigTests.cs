@@ -63,9 +63,8 @@ public sealed class CliConfigTests
             var result = SolutionProjectScanner.GenerateOrRefresh(tempRoot, existingConfig: null);
 
             Assert.Empty(result.Warnings);
-            Assert.Equal("src/AppRoot/AppRoot.csproj", result.Config.DefaultStartupProject);
-            Assert.Equal(["src/AppRoot/AppRoot.csproj"], result.Config.StartupProjects);
-            Assert.Equal(["src/Sales.Infrastructure/Sales.Infrastructure.csproj"], result.Config.Projects);
+            Assert.Equal("src/AppRoot/AppRoot.csproj", result.Config.DefaultProject);
+            Assert.Equal(["src/AppRoot/AppRoot.csproj"], result.Config.Projects);
             Assert.Empty(result.Config.OtherProjects);
         }
         finally
@@ -110,22 +109,22 @@ public sealed class CliConfigTests
 
             var existing = new MigratorCliConfig
             {
-                // PlainLib exists on disk, but is NOT an eligible migrator root
-                DefaultStartupProject = "src/PlainLib/PlainLib.csproj",
+                // PlainLib exists on disk, but is NOT an eligible migrator project
+                DefaultProject = "src/PlainLib/PlainLib.csproj",
                 OtherProjects =
                 [
                     "src/CustomTool/CustomTool.csproj",     // valid manual entry -> preserved
                     "src/Deleted/Deleted.csproj",           // missing -> pruned with warning
-                    "src/HostA/HostA.csproj"                // duplicate of startupProjects -> pruned with warning
+                    "src/HostA/HostA.csproj"                // duplicate of projects -> pruned with warning
                 ]
             };
 
             var result = SolutionProjectScanner.GenerateOrRefresh(tempRoot, existing);
 
-            Assert.Null(result.Config.DefaultStartupProject); // cleared (ineligible) and 2 startups exist so no auto-default
+            Assert.Null(result.Config.DefaultProject); // cleared (ineligible) and 2 migrator projects exist so no auto-default
             Assert.Equal(["src/CustomTool/CustomTool.csproj"], result.Config.OtherProjects);
-            Assert.Equal(["src/HostA/HostA.csproj", "src/HostB/HostB.csproj"], result.Config.StartupProjects);
-            Assert.Contains(result.Warnings, w => w.Contains("no longer an eligible migrator root"));
+            Assert.Equal(["src/HostA/HostA.csproj", "src/HostB/HostB.csproj"], result.Config.Projects);
+            Assert.Contains(result.Warnings, w => w.Contains("no longer an eligible migrator project"));
             Assert.Contains(result.Warnings, w => w.Contains("Deleted.csproj"));
             Assert.Contains(result.Warnings, w => w.Contains("duplicate path"));
         }
@@ -154,17 +153,15 @@ public sealed class CliConfigTests
             File.WriteAllText(hostProj, "<Project Sdk=\"Microsoft.NET.Sdk.Web\" />");
             File.WriteAllText(salesProj, "<Project Sdk=\"Microsoft.NET.Sdk\" />");
 
-            // 1. No config file & no --startup-project -> fails fast with actionable message
+            // 1. No config file & no --project -> fails fast with actionable message
             var noCfgEx = Assert.Throws<InvalidOperationException>(() =>
                 ProjectResolutionService.Resolve(new SharedSettings { NonInteractive = true }, startDirectory: nestedDir));
             Assert.Contains("db-migrator config --generate", noCfgEx.Message);
 
-            // 2. Write config at solution root and resolve from nested subfolder
+            // 2. Write config with 2 migrator projects and no default -> prompts "Select migrator project"
             var config = new MigratorCliConfig
             {
-                DefaultStartupProject = "src/AppRoot/AppRoot.csproj",
-                StartupProjects = ["src/AppRoot/AppRoot.csproj"],
-                Projects = ["src/Sales/Sales.csproj"]
+                Projects = ["src/AppRoot/AppRoot.csproj", "src/Sales/Sales.csproj"]
             };
             config.Save(Path.Combine(tempRoot, MigratorCliConfig.FileName));
 
@@ -180,13 +177,12 @@ public sealed class CliConfigTests
                 startDirectory: nestedDir,
                 picker: fakePicker);
 
-            Assert.Equal(Path.GetFullPath(hostProj), resolved.StartupProjectPath);
-            Assert.Equal(Path.GetFullPath(salesProj), resolved.DestinationProjectPath);
-            Assert.Single(promptsShown); // Only destination picker shown since defaultStartupProject was set
-            Assert.Equal("Select destination project", promptsShown[0]);
+            Assert.Equal(Path.GetFullPath(salesProj), resolved);
+            Assert.Single(promptsShown);
+            Assert.Equal("Select migrator project", promptsShown[0]);
 
-            // 3. When defaultDestinationProject is set, zero prompts are shown
-            config.DefaultDestinationProject = "src/Sales/Sales.csproj";
+            // 3. When defaultProject is set, zero prompts are shown
+            config.DefaultProject = "src/AppRoot/AppRoot.csproj";
             config.Save(Path.Combine(tempRoot, MigratorCliConfig.FileName));
             promptsShown.Clear();
 
@@ -196,7 +192,16 @@ public sealed class CliConfigTests
                 picker: fakePicker);
 
             Assert.Empty(promptsShown);
-            Assert.Equal(Path.GetFullPath(salesProj), resolvedNoPrompt.DestinationProjectPath);
+            Assert.Equal(Path.GetFullPath(hostProj), resolvedNoPrompt);
+
+            // 4. Explicit --project bypasses config and prompts
+            var resolvedExplicit = ProjectResolutionService.Resolve(
+                new SharedSettings { ProjectPath = salesProj },
+                startDirectory: nestedDir,
+                picker: fakePicker);
+
+            Assert.Empty(promptsShown);
+            Assert.Equal(salesProj, resolvedExplicit);
         }
         finally
         {

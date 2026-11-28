@@ -4,6 +4,7 @@ using SharpPersistence.Migrator.Configuration;
 using SharpPersistence.Migrator.Dialects;
 using SharpPersistence.Migrator.Enums;
 using SharpPersistence.Migrator.Models;
+using SharpPersistence.Migrator.PostgreSql;
 using SharpPersistence.Migrator.Services;
 
 namespace SharpPersistence.Migrator.Tests;
@@ -68,11 +69,31 @@ public sealed class EntityConventionTests
         BankTransfer = 2
     }
 
+    private sealed class AuditLogConfig : IEntityConfiguration<AuditLog>
+    {
+        public void Configure(Builders.EntityBuilder<AuditLog> builder)
+        {
+            // Override global ICreateTracking Restrict convention for AuditLog only
+            builder.HasForeignKey(x => x.CreatedByUserId)
+                .References<User>(u => u.Id)
+                .OnDelete(DbReferentialAction.NoAction);
+        }
+    }
+
+    private sealed class CurrencyConfig : IEntityConfiguration<Currency>
+    {
+        public void Configure(Builders.EntityBuilder<Currency> builder)
+        {
+            // Customize conventional index name without creating a duplicate index
+            builder.HasIndex(x => x.Title).HasDatabaseName("uq_custom_currency_title");
+        }
+    }
+
     private sealed class IdentityRegistry : IEntityRegistry
     {
         public void Configure(IEntityRegistryBuilder registry)
         {
-            registry.Entity<User>(_ => { });
+            registry.Map<User>();
         }
     }
 
@@ -80,19 +101,9 @@ public sealed class EntityConventionTests
     {
         public void Configure(IEntityRegistryBuilder registry)
         {
-            registry.Entity<Invoice>(_ => { });
-            registry.Entity<AuditLog>(b =>
-            {
-                // Override global ICreateTracking Restrict convention for AuditLog only
-                b.HasForeignKey(x => x.CreatedByUserId)
-                    .References<User>(u => u.Id)
-                    .OnDelete(DbReferentialAction.NoAction);
-            });
-            registry.Entity<Currency>(b =>
-            {
-                // Customize conventional index name without creating a duplicate index
-                b.HasIndex(x => x.Title).HasDatabaseName("uq_custom_currency_title");
-            });
+            registry.Map<Invoice>();
+            registry.Map<AuditLog, AuditLogConfig>();
+            registry.Map<Currency, CurrencyConfig>();
         }
     }
 
@@ -108,19 +119,24 @@ public sealed class EntityConventionTests
                 typeof(ILookupEntity).IsAssignableFrom(entityType)
                     ? $"lk_{defaultName}"
                     : defaultName)
-            .ConfigureEntities<ICreateTracking>(e =>
-                e.HasForeignKey(x => x.CreatedByUserId)
-                    .References<User>(u => u.Id)
-                    .OnDelete(DbReferentialAction.Restrict))
-            .ConfigureEntities<IUpdateTracking>(e =>
-                e.HasForeignKey(x => x.UpdatedByUserId)
-                    .References<User>(u => u.Id)
-                    .OnDelete(DbReferentialAction.SetNull))
-            .ConfigureEntities<ILookupEntity>(e =>
+            .ConfigureEntities(ModelCreationPhase.BeforeEntityConfigClass, m =>
             {
-                e.HasSchema("lookup");
-                e.Property(x => x.Id).ValueGeneratedNever();
-                e.HasIndex(x => x.Title).IsUnique();
+                m.Entity<ICreateTracking>(e =>
+                    e.HasForeignKey(x => x.CreatedByUserId)
+                        .References<User>(u => u.Id)
+                        .OnDelete(DbReferentialAction.Restrict));
+
+                m.Entity<IUpdateTracking>(e =>
+                    e.HasForeignKey(x => x.UpdatedByUserId)
+                        .References<User>(u => u.Id)
+                        .OnDelete(DbReferentialAction.SetNull));
+
+                m.Entity<ILookupEntity>(e =>
+                {
+                    e.HasSchema("lookup");
+                    e.Property(x => x.Id).ValueGeneratedNever();
+                    e.HasIndex(x => x.Title).IsUnique();
+                });
             })
             .AddRegistry<BillingRegistry>()
             .AddRegistry<IdentityRegistry>();
@@ -189,16 +205,26 @@ public sealed class EntityConventionTests
         Assert.Equal(["CashOnDelivery", "BankTransfer"], pgEnum.Labels);
     }
 
+    private sealed class ExcludedViewConfig : IEntityConfiguration<ExcludedView>
+    {
+        public void Configure(Builders.EntityBuilder<ExcludedView> builder) => builder.ExcludeFromMigrations();
+    }
+
+    private sealed class BrokenComputedEntityConfig : IEntityConfiguration<BrokenComputedEntity>
+    {
+        public void Configure(Builders.EntityBuilder<BrokenComputedEntity> builder)
+        {
+            builder.Property(x => x.Total)
+                .HasComputedColumnSql(_ => throw new InvalidOperationException("broken computed expr"));
+        }
+    }
+
     private sealed class DoctorTestRegistry : IEntityRegistry
     {
         public void Configure(IEntityRegistryBuilder registry)
         {
-            registry.Entity<ExcludedView>(b => b.ExcludeFromMigrations());
-            registry.Entity<BrokenComputedEntity>(b =>
-            {
-                b.Property(x => x.Total)
-                    .HasComputedColumnSql(_ => throw new InvalidOperationException("broken computed expr"));
-            });
+            registry.Map<ExcludedView, ExcludedViewConfig>();
+            registry.Map<BrokenComputedEntity, BrokenComputedEntityConfig>();
         }
     }
 
@@ -216,8 +242,7 @@ public sealed class EntityConventionTests
 
         var excludedDef = SchemaScanner.BuildSingleTableDefinition(
             typeof(ExcludedView),
-            null,
-            [obj => ((Builders.EntityBuilder<ExcludedView>)obj).ExcludeFromMigrations()],
+            typeof(ExcludedViewConfig),
             null,
             options.Dialect,
             options.IdentifierCase,
@@ -226,10 +251,7 @@ public sealed class EntityConventionTests
 
         var brokenDef = SchemaScanner.BuildSingleTableDefinition(
             typeof(BrokenComputedEntity),
-            null,
-            [obj => ((Builders.EntityBuilder<BrokenComputedEntity>)obj)
-                .Property(x => x.Total)
-                .HasComputedColumnSql(_ => throw new InvalidOperationException("broken computed expr"))],
+            typeof(BrokenComputedEntityConfig),
             null,
             options.Dialect,
             options.IdentifierCase,
@@ -250,5 +272,92 @@ public sealed class EntityConventionTests
         var brokenItems = new List<DoctorCheckItem>();
         validator.ValidateTable(brokenDef, allTables, enumLookup, brokenItems);
         Assert.Contains(brokenItems, i => i.Severity == DoctorSeverity.Error && i.Message.Contains("broken computed expr"));
+    }
+
+    private interface IOptionalCode
+    {
+        string? Code { get; set; }
+    }
+
+    private sealed class ProductWithAutoCodeIndex : IOptionalCode
+    {
+        public long Id { get; set; }
+        public string? Code { get; set; }
+    }
+
+    private sealed class ProductSkippingCodeIndex : IOptionalCode
+    {
+        public long Id { get; set; }
+        public string? Code { get; set; }
+    }
+
+    private sealed class ProductSkippingCodeIndexConfig : IEntityConfiguration<ProductSkippingCodeIndex>
+    {
+        public void Configure(Builders.EntityBuilder<ProductSkippingCodeIndex> builder)
+        {
+            builder.Property(x => x.Code).SetAnnotation("SkipAutomatedIndexCreation", true);
+        }
+    }
+
+    private sealed class CodeAnnotationRegistry : IEntityRegistry
+    {
+        public void Configure(IEntityRegistryBuilder registry)
+        {
+            registry.ConfigureProperties<string>(c => c.HasMaxLength(75));
+            registry.Map<ProductWithAutoCodeIndex>();
+            registry.Map<ProductSkippingCodeIndex, ProductSkippingCodeIndexConfig>();
+        }
+    }
+
+    [Fact]
+    public void ConfigureEntities_AfterEntityConfig_AndRegistryConventions_ReadsAnnotationsAndOverridesProperties()
+    {
+        var optionsBuilder = new DbMigratorOptionsBuilder();
+        optionsBuilder
+            .UsePostgreSql("Host=localhost;Database=test")
+            .UseNamingConvention(SqlIdentifierCase.LowerSnakeCase)
+            .ConfigureProperties<string>(c => c.HasMaxLength(200))
+            .ConfigureEntities(ModelCreationPhase.AfterEntityConfigClass, m =>
+            {
+                m.Entity<IOptionalCode>(e =>
+                {
+                    if (!e.Property(x => x.Code).GetAnnotation<bool>("SkipAutomatedIndexCreation"))
+                    {
+                        e.HasIndex(x => x.Code)
+                            .IsUnique()
+                            .HasOperator("varchar_pattern_ops");
+                    }
+                });
+            })
+            .AddRegistry<CodeAnnotationRegistry>()
+            .AddRegistry<IdentityRegistry>();
+
+        var options = optionsBuilder.Build();
+        var schema = SchemaScanner.ScanRegistries(
+            options.Dialect,
+            options.IdentifierCase,
+            options.PropertyConventions,
+            options.PostgreSql.Enums,
+            options.SqlExpressionOptions,
+            options.PluralizeTableNames,
+            options.EntityConventions,
+            options.TableNameConvention,
+            options.EntityReplacements,
+            [.. options.Registries]);
+
+        // Registry ConfigureProperties<string>(75) overrides global 200 for CodeAnnotationRegistry only
+        var autoTable = schema.Tables.Single(t => t.TableName == "product_with_auto_code_index");
+        Assert.Equal(75, autoTable.Columns.Single(c => c.PropertyName == nameof(IOptionalCode.Code)).MaxLength);
+        var autoIdx = Assert.Single(autoTable.Indexes);
+        Assert.True(autoIdx.IsUnique);
+        Assert.Equal("varchar_pattern_ops", autoIdx.OperatorsByColumn?["code"]);
+
+        var skippedTable = schema.Tables.Single(t => t.TableName == "product_skipping_code_index");
+        Assert.Equal(75, skippedTable.Columns.Single(c => c.PropertyName == nameof(IOptionalCode.Code)).MaxLength);
+        Assert.Empty(skippedTable.Indexes);
+
+        // IdentityRegistry keeps global 200
+        var userTable = schema.Tables.Single(t => t.TableName == "user");
+        Assert.Equal(200, userTable.Columns.Single(c => c.PropertyName == nameof(User.Name)).MaxLength);
     }
 }

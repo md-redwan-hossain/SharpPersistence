@@ -146,6 +146,15 @@ public sealed class OwnsOneTests
         }
     }
 
+    private sealed class InvalidOptionalOwnedOrderConfig : IEntityConfiguration<Order>
+    {
+        public void Configure(EntityBuilder<Order> eb)
+        {
+            eb.ToTable("orders");
+            eb.OwnsOne(x => x.ShippingAddress, a => a.Property(p => p.City).IsRequired());
+        }
+    }
+
     [Fact]
     public void OptionalOwnedNavigation_WithExplicitIsRequired_ThrowsInFinalizer_AndErrorsInDoctor()
     {
@@ -171,13 +180,7 @@ public sealed class OwnsOneTests
 
         var tableDef = SchemaScanner.BuildSingleTableDefinition(
             typeof(Order),
-            null,
-            [obj =>
-            {
-                var eb = (EntityBuilder<Order>)obj;
-                eb.ToTable("orders");
-                eb.OwnsOne(x => x.ShippingAddress, a => a.Property(p => p.City).IsRequired());
-            }],
+            typeof(InvalidOptionalOwnedOrderConfig),
             null,
             options.Dialect,
             options.IdentifierCase,

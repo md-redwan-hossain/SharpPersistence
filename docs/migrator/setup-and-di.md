@@ -55,7 +55,7 @@ builder.Services.AddDbMigrator(opt =>
 | `MapTableNames(fn)` | — | Maps convention-derived table names (`(entityType, defaultName) => ...`) |
 | `UseRootPath(path)` | Working dir | Base directory for `DbMigrator/Scripts` and `DbMigrator/Snapshots` |
 | `ConfigureProperties<T>(action)` | — | Global CLR-type conventions (e.g. all `string` max length `255`, or `Enum`) |
-| `ConfigureEntities<T>(action)` | — | Global entity/interface conventions (e.g. shared audit FKs, keys, schemas) |
+| `ConfigureEntities(phase, action)` | — | Global entity/interface conventions (e.g. shared audit FKs, keys, schemas) |
 | `ReplaceEntityTypes(cfg)` | — | Replaces cross-module `Ref*` types with their owning entity (`r.Replace<RefUser, User>()`) |
 | `ConfigureSqlExpressionBuilder(cfg)` | `DelimitIdentifiers = true`, `NestedColumnSeparator = "_"` | Global defaults for typed `HasCheckConstraint`, `HasFilter`, and `HasComputedColumnSql` |
 | `AddRegistry<T>()` / `AddRegistry(reg)` | — | Manually register an `IEntityRegistry` (prefer `AddGeneratedEntityRegistries()`) |
@@ -78,10 +78,11 @@ Apply shared foreign keys, primary keys, lookup indexes, or table-naming rules a
 opt.MapTableNames((entityType, defaultName) =>
     typeof(ILookupEntity).IsAssignableFrom(entityType) ? $"lk_{defaultName}" : defaultName);
 
-opt.ConfigureEntities<ICreateTracking>(e =>
-    e.HasForeignKey(x => x.CreatedByUserId)
-        .References<RefUser>(u => u.Id)
-        .OnDelete(DbReferentialAction.Restrict));
+opt.ConfigureEntities(ModelCreationPhase.BeforeEntityConfigClass, m =>
+    m.Entity<ICreateTracking>(e =>
+        e.HasForeignKey(x => x.CreatedByUserId)
+            .References<RefUser>(u => u.Id)
+            .OnDelete(DbReferentialAction.Restrict)));
 
 opt.ReplaceEntityTypes(r =>
 {

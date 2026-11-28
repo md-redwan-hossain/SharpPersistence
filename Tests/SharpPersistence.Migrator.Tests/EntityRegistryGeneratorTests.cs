@@ -5,6 +5,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 using SharpPersistence.Abstractions;
 using SharpPersistence.Abstractions.Attributes;
+using SharpPersistence.Abstractions.Generators;
 using SharpPersistence.Migrator.Abstractions;
 using SharpPersistence.Migrator.Generators;
 

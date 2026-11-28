@@ -11,11 +11,11 @@ app.Configure(config =>
 
     config.AddCommand<DiffCommand>("generate")
         .WithDescription("Compare entity configurations against your latest migration scripts and generate SQL.")
-        .WithExample("generate", "--name", "Initial", "--startup-project", "WebApi/WebApi.csproj");
+        .WithExample("generate", "--name", "Initial", "--project", "DbMigrator/DbMigrator.csproj");
 
     config.AddCommand<MigrateCommand>("migrate")
         .WithDescription("Apply all pending SQL migration scripts to the target database.")
-        .WithExample("migrate", "--startup-project", "WebApi/WebApi.csproj");
+        .WithExample("migrate", "--project", "DbMigrator/DbMigrator.csproj");
 
     config.AddCommand<StatusCommand>("status")
         .WithDescription("Show applied, pending, and checksum-mismatched migration scripts.");
@@ -25,7 +25,7 @@ app.Configure(config =>
 
     config.AddCommand<TranslateEfMigrationCommand>("translate-ef-migrations")
         .WithDescription("Translate existing EF Core C# migrations in a folder 1-to-1 into SQL scripts.")
-        .WithExample("translate-ef-migrations", "--source-path", "WebApi/Migrations", "--startup-project", "WebApi/WebApi.csproj");
+        .WithExample("translate-ef-migrations", "--source-path", "WebApi/Migrations", "--project", "DbMigrator/DbMigrator.csproj");
 
     config.AddCommand<TranslateEfConfigsCommand>("translate-ef-configs")
         .WithDescription("Translate EF Core IEntityTypeConfiguration<T> C# files into SharpPersistence.Migrator IEntityConfiguration<T> files.")
@@ -44,21 +44,21 @@ app.Configure(config =>
         runlist.SetDescription("Inspect or sync db-migration-runlist.json and -- migration-script-id headers.");
         runlist.AddCommand<RunlistShowCommand>("show")
             .WithDescription("Print the effective migration execution order (after applying overrides).")
-            .WithExample("runlist", "show", "--startup-project", "WebApi/WebApi.csproj");
+            .WithExample("runlist", "show", "--project", "DbMigrator/DbMigrator.csproj");
         runlist.AddCommand<RunlistSyncCommand>("sync")
             .WithDescription("Stamp missing -- migration-script-id headers and generate/update db-migration-runlist.json.")
-            .WithExample("runlist", "sync", "--startup-project", "WebApi/WebApi.csproj");
+            .WithExample("runlist", "sync", "--project", "DbMigrator/DbMigrator.csproj");
     });
 
     config.AddCommand<DoctorCommand>("doctor")
         .WithDescription("Validate DI wiring, entity registries, configurations, migration script coverage, and optionally live database connectivity.")
-        .WithExample("doctor", "--startup-project", "WebApi/WebApi.csproj")
+        .WithExample("doctor", "--project", "DbMigrator/DbMigrator.csproj")
         .WithExample("doctor", "--registry", "SalesRegistry", "--check-db");
 
     config.AddCommand<ConfigCommand>("config")
         .WithDescription("Generate, inspect, or update solution-level db-migrator-config.json.")
         .WithExample("config", "--generate")
-        .WithExample("config", "--set-default-startup", "src/AppRoot/AppRoot.csproj")
+        .WithExample("config", "--set-default", "src/AppToolbox/AppToolbox.csproj")
         .WithExample("config", "--show");
 
     config.AddCommand<UiCommand>("ui")

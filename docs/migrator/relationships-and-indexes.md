@@ -36,7 +36,7 @@ builder.HasForeignKey(x => x.PrimaryAddressId)
     .IsCircular();
 ```
 
-`db-migrator generate` separates circular foreign keys into `MigrationScripts/_deferred/` so both tables are created before the circular `ALTER TABLE ... ADD CONSTRAINT` runs.
+`db-migrator generate` separates circular foreign keys into `DbMigrator/Scripts/_deferred/` so both tables are created before the circular `ALTER TABLE ... ADD CONSTRAINT` runs.
 
 ### Referential Actions (`DbReferentialAction`)
 

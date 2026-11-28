@@ -8,21 +8,21 @@
 | --- | --- |
 | `IRepositoryCore<TEntity>` | Composable, non-tracking-by-default repository (`Query()`, writes, bulk deletes) |
 | `IEntityQuery<T>` | Fluent query pipeline (`.Where`, `.OrderBy`, `.OffsetPaginate`, `.Select`, `.EnableTracking`, `.IgnoreQueryFilters`, async terminals) |
-| `IUnitOfWork` | `Save()`, `SaveAsync(ct)`, `BeginTransaction(...)`, `BeginTransactionAsync(...)`, `UseTransactionAsync(...)`, `CurrentTransaction` |
+| `IUnitOfWork` | `Save()`, `SaveAsync(ct)`, `BeginTransaction(...)`, `BeginTransactionAsync(...)` (returning `IUnitOfWorkTransaction`), `UseTransactionAsync(...)`, `CurrentTransaction` |
 | `IRepositoryBase<TEntity>` | Legacy overload-based repository interface (prefer `IRepositoryCore<TEntity>` for new code) |
 
 See [EF Core Repositories & Unit of Work](/core/efcore-repositories) for full usage examples.
 
 ## Entity Discovery Attributes
 
-`SharpPersistence.Abstractions` includes the compile-time entity discovery generator automatically for every project that references it, while keeping your domain attributes free of migration-specific names:
+`SharpPersistence.Abstractions` includes the compile-time entity discovery generator automatically for every project that references it (`using SharpPersistence.Abstractions.Attributes;`):
 
 ### Built-in `[Entity]` Marker
 
-For single-registry apps, mark domain classes with `[Entity]`:
+For single-registry apps, mark domain classes with `[Entity]` (pass `ReadOnly = true` to automatically exclude read-only reference entities or views from migrations):
 
 ```csharp
-using SharpPersistence.Abstractions;
+using SharpPersistence.Abstractions.Attributes;
 
 namespace MyApp.Domain;
 
@@ -34,27 +34,29 @@ public sealed class Invoice
 }
 ```
 
-### Custom Per-Module Marker Attributes
+### Per-Module Entity Groups (`[Entity<TGroup>]`)
 
-In a modular monolith, each module can define its own marker attribute inheriting from `EntityMarkerAttribute` and opt in via `[assembly: DiscoverEntitiesBy<TMarkerAttribute>]`:
+In a modular monolith, declare an empty `readonly record struct` implementing `IEntityGroup` and pair `[Entity<TGroup>]` 1-to-1 with `[EntityRegistry<TGroup>]`:
 
 ```csharp
-// Billing.Domain/BillingEntityAttribute.cs
-using SharpPersistence.Abstractions;
+using SharpPersistence.Abstractions.Attributes;
 
-public sealed class BillingEntityAttribute : EntityMarkerAttribute;
-
-// Billing.Domain/AssemblyInfo.cs
-using SharpPersistence.Abstractions;
-
-[assembly: DiscoverEntitiesBy<BillingEntityAttribute>]
+// Billing.Domain/BillingGroup.cs
+public readonly record struct BillingGroup : IEntityGroup;
 
 // Billing.Domain/Payment.cs
-[BillingEntity]
+[Entity<BillingGroup>]
 public sealed class Payment
 {
     public Guid Id { get; set; }
     public decimal Amount { get; set; }
+}
+
+// Read-only cross-module reference stub (excluded from migrations)
+[Entity<BillingGroup>(ReadOnly = true)]
+public sealed class RefUser
+{
+    public Guid Id { get; set; }
 }
 ```
 
@@ -64,7 +66,7 @@ If an assembly (such as a test or shared DTO project) should opt out of entity d
 
 ```csharp
 // AssemblyInfo.cs
-using SharpPersistence.Abstractions;
+using SharpPersistence.Abstractions.Attributes;
 
 [assembly: DisableEntityDiscovery]
 ```

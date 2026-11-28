@@ -7,25 +7,42 @@ namespace SharpPersistence.Migrator.PostgreSql;
 
 public static class PostgreSqlIndexBuilderExtensions
 {
-    public static IndexBuilder<TEntity, TKey> HasMethod<TEntity, TKey>(
-        this IndexBuilder<TEntity, TKey> builder,
+    public static TBuilder HasMethod<TBuilder>(
+        this IndexBuilderBase<TBuilder> builder,
         PostgresIndexMethod method)
-        where TEntity : class =>
+        where TBuilder : IndexBuilderBase<TBuilder> =>
         builder.HasMethod(method.ToSqlName());
 
-    public static IndexBuilder<TEntity, TKey> HasOperator<TEntity, TKey>(
-        this IndexBuilder<TEntity, TKey> builder,
+    public static TBuilder HasOperator<TBuilder>(
+        this IndexBuilderBase<TBuilder> builder,
         string operatorClass)
-        where TEntity : class
+        where TBuilder : IndexBuilderBase<TBuilder>
     {
         if (builder.Definition.PropertyNames.Count != 1)
         {
             throw new InvalidOperationException(
-                "Use HasOperator(k => k.Property, operatorClass) when configuring operators on a composite index.");
+                "Use HasOperator(k => k.Property, operatorClass) or HasOperator(propertyName, operatorClass) when configuring operators on a composite index.");
         }
 
         builder.Definition.OperatorsByProperty ??= new Dictionary<string, string>(StringComparer.Ordinal);
         builder.Definition.OperatorsByProperty[builder.Definition.PropertyNames[0]] = operatorClass;
+        return (TBuilder)builder;
+    }
+
+    public static IndexBuilder HasOperator(
+        this IndexBuilder builder,
+        string propertyName,
+        string operatorClass)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(propertyName);
+        if (!builder.Definition.PropertyNames.Contains(propertyName, StringComparer.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Property '{propertyName}' is not part of the index columns ({string.Join(", ", builder.Definition.PropertyNames)}).");
+        }
+
+        builder.Definition.OperatorsByProperty ??= new Dictionary<string, string>(StringComparer.Ordinal);
+        builder.Definition.OperatorsByProperty[propertyName] = operatorClass;
         return builder;
     }
 
@@ -47,27 +64,27 @@ public static class PostgreSqlIndexBuilderExtensions
         return builder;
     }
 
-    public static IndexBuilder<TEntity, TKey> UseTablespace<TEntity, TKey>(
-        this IndexBuilder<TEntity, TKey> builder,
+    public static TBuilder UseTablespace<TBuilder>(
+        this IndexBuilderBase<TBuilder> builder,
         string? tablespace)
-        where TEntity : class
+        where TBuilder : IndexBuilderBase<TBuilder>
     {
         builder.Definition.Tablespace = string.IsNullOrWhiteSpace(tablespace) ? null : tablespace.Trim();
-        return builder;
+        return (TBuilder)builder;
     }
 
-    public static IndexBuilder<TEntity, TKey> HasStorageParameter<TEntity, TKey>(
-        this IndexBuilder<TEntity, TKey> builder,
+    public static TBuilder HasStorageParameter<TBuilder>(
+        this IndexBuilderBase<TBuilder> builder,
         PostgresIndexStorageParameter parameter,
         object value)
-        where TEntity : class =>
+        where TBuilder : IndexBuilderBase<TBuilder> =>
         builder.HasStorageParameter(parameter.ToSqlName(), value);
 
-    public static IndexBuilder<TEntity, TKey> HasStorageParameter<TEntity, TKey>(
-        this IndexBuilder<TEntity, TKey> builder,
+    public static TBuilder HasStorageParameter<TBuilder>(
+        this IndexBuilderBase<TBuilder> builder,
         string name,
         object value)
-        where TEntity : class
+        where TBuilder : IndexBuilderBase<TBuilder>
     {
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -85,6 +102,6 @@ public static class PostgreSqlIndexBuilderExtensions
 
         builder.Definition.StorageParameters ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         builder.Definition.StorageParameters[name.Trim()] = formatted;
-        return builder;
+        return (TBuilder)builder;
     }
 }

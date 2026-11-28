@@ -37,7 +37,7 @@ db-migrator translate-ef-configs --source-path src/Infrastructure/Configurations
 Translate existing EF Core C# migration files 1-to-1 into `DbMigrator/Scripts/_translated/`:
 
 ```powershell
-db-migrator translate-ef-migrations --source-path src/Infrastructure/Migrations --startup-project src/Api/Api.csproj
+db-migrator translate-ef-migrations --source-path src/Infrastructure/Migrations --project src/DbMigrator/DbMigrator.csproj
 ```
 
 ## Step 3: Sync `__EFMigrationsHistory`
@@ -46,10 +46,10 @@ Mark already-applied `_translated` scripts as applied in `__db_migrator_logs` so
 
 ```powershell
 # Preview what will be synced
-db-migrator sync-ef-history --startup-project src/Api/Api.csproj --dry-run
+db-migrator sync-ef-history --project src/DbMigrator/DbMigrator.csproj --dry-run
 
 # Sync history
-db-migrator sync-ef-history --startup-project src/Api/Api.csproj
+db-migrator sync-ef-history --project src/DbMigrator/DbMigrator.csproj
 ```
 
 Finally, run `db-migrator doctor --check-db` to confirm your translated configs, registries, and live database match.
