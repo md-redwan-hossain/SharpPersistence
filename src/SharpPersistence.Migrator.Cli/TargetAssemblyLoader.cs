@@ -151,7 +151,7 @@ internal static class TargetAssemblyLoader
         // Tier 2: Resolve IHost / IServiceProvider from Program.Main via Microsoft.Extensions.Hosting DiagnosticListener
         var hostSw = Stopwatch.StartNew();
         var host = RunWithStatus(errConsole, $"Bootstrapping IDbMigrator via [cyan]{Markup.Escape(hostName)}[/] (Program.cs)...", () =>
-            ResolveHostFromEntryPoint(primaryAssembly, startupDir));
+            ResolveHostFromEntryPoint(primaryAssembly, projectDir));
         hostSw.Stop();
 
         var hostManager = host.Services.GetService<IDbMigrator>() as DbMigrator
