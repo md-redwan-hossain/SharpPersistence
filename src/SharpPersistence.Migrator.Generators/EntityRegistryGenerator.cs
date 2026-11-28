@@ -171,6 +171,11 @@ public sealed class EntityRegistryGenerator : IIncrementalGenerator
         foreach (var refAsm in compilation.SourceModule.ReferencedAssemblySymbols)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (IsFrameworkAssemblyName(refAsm.Name))
+            {
+                continue;
+            }
+
             var sanitized = GeneratorConstants.SanitizeAssemblyName(refAsm.Name);
 
             if (manifestEntryAttr is not null)
@@ -204,6 +209,14 @@ public sealed class EntityRegistryGenerator : IIncrementalGenerator
             ReferencedAggregatorRegistries = new EquatableArray<string>(aggRegistries.ToImmutable())
         };
     }
+
+    private static bool IsFrameworkAssemblyName(string? name) =>
+        string.IsNullOrWhiteSpace(name) ||
+        name!.StartsWith("System.", StringComparison.OrdinalIgnoreCase) ||
+        name.StartsWith("Microsoft.", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("System", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("netstandard", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("mscorlib", StringComparison.OrdinalIgnoreCase);
 
     private static void CollectManifestEntries(
         INamedTypeSymbol manifestType,
@@ -349,7 +362,7 @@ public sealed class EntityRegistryGenerator : IIncrementalGenerator
         var hasPublicConfigure = iBuilder is not null && symbol.GetMembers(KnownNames.Methods.Configure)
             .OfType<IMethodSymbol>()
             .Any(m => !m.IsStatic &&
-                      m.DeclaredAccessibility == Accessibility.Public &&
+                      m.ExplicitInterfaceImplementations.IsEmpty &&
                       m.ReturnsVoid &&
                       m.Parameters.Length == 1 &&
                       SymbolEqualityComparer.Default.Equals(m.Parameters[0].Type, iBuilder));
@@ -479,15 +492,6 @@ public sealed class EntityRegistryGenerator : IIncrementalGenerator
             {
                 spc.ReportDiagnostic(Diagnostic.Create(
                     GeneratorConstants.RegistryMustBeSealedPartialImplementingInterface,
-                    reg.Location?.ToLocation() ?? Location.None,
-                    GeneratorConstants.StripGlobalPrefix(reg.FullTypeName)));
-                continue;
-            }
-
-            if (!reg.HasPublicConfigure)
-            {
-                spc.ReportDiagnostic(Diagnostic.Create(
-                    GeneratorConstants.RegistryMustDeclareConfigure,
                     reg.Location?.ToLocation() ?? Location.None,
                     GeneratorConstants.StripGlobalPrefix(reg.FullTypeName)));
                 continue;
@@ -640,7 +644,11 @@ public sealed class EntityRegistryGenerator : IIncrementalGenerator
             }
         }
 
-        sb.AppendLine($"{indent}        Configure(registry);");
+        if (reg.HasPublicConfigure)
+        {
+            sb.AppendLine($"{indent}        Configure(registry);");
+        }
+
         sb.AppendLine($"{indent}    }}");
         sb.AppendLine($"{indent}}}");
 

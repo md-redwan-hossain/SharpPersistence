@@ -64,17 +64,26 @@ public sealed class MigratorUsageAnalyzer : DiagnosticAnalyzer
 
             if (registryBuilderInterface is not null && (defaultRegistryAttr is not null || genericRegistryAttr is not null))
             {
-                compilationContext.RegisterOperationBlockAction(blockCtx =>
+                compilationContext.RegisterSymbolStartAction(symbolStartCtx =>
                 {
-                    AnalyzeRegistryConfigureBlock(
-                        blockCtx,
-                        registryBuilderInterface,
-                        nonGenericEntityBuilderType,
-                        defaultRegistryAttr,
-                        genericRegistryAttr,
-                        defaultEntityAttr,
-                        genericEntityAttr);
-                });
+                    if (symbolStartCtx.Symbol is not INamedTypeSymbol registryClass ||
+                        !TryGetRegistryGroup(registryClass, defaultRegistryAttr, genericRegistryAttr, out var registryGroup))
+                    {
+                        return;
+                    }
+
+                    symbolStartCtx.RegisterOperationBlockAction(blockCtx =>
+                    {
+                        AnalyzeRegistryConfigureBlock(
+                            blockCtx,
+                            registryClass,
+                            registryGroup,
+                            registryBuilderInterface,
+                            nonGenericEntityBuilderType,
+                            defaultEntityAttr,
+                            genericEntityAttr);
+                    });
+                }, SymbolKind.NamedType);
             }
         });
     }
@@ -210,10 +219,10 @@ public sealed class MigratorUsageAnalyzer : DiagnosticAnalyzer
 
     private static void AnalyzeRegistryConfigureBlock(
         OperationBlockAnalysisContext blockCtx,
+        INamedTypeSymbol registryClass,
+        ITypeSymbol? registryGroup,
         INamedTypeSymbol registryBuilderInterface,
         INamedTypeSymbol? nonGenericEntityBuilderType,
-        INamedTypeSymbol? defaultRegistryAttr,
-        INamedTypeSymbol? genericRegistryAttr,
         INamedTypeSymbol? defaultEntityAttr,
         INamedTypeSymbol? genericEntityAttr)
     {
@@ -221,13 +230,6 @@ public sealed class MigratorUsageAnalyzer : DiagnosticAnalyzer
             method.Name != KnownNames.Methods.Configure ||
             method.Parameters.Length != 1 ||
             !SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, registryBuilderInterface))
-        {
-            return;
-        }
-
-        var registryClass = method.ContainingType;
-        if (registryClass is null ||
-            !TryGetRegistryGroup(registryClass, defaultRegistryAttr, genericRegistryAttr, out var registryGroup))
         {
             return;
         }

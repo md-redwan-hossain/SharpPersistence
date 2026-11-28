@@ -45,31 +45,10 @@ public class DbMigratorOptionsBuilder
         return ConfigurePostgreSqlDefaults();
     }
 
-    public DbMigratorOptionsBuilder UsePostgreSql(
-        string connectionString,
-        Action<PostgreSqlOptionsBuilder> configure,
-        DbProviderFactory? providerFactory = null)
-    {
-        ArgumentNullException.ThrowIfNull(configure);
-        var pg = UsePostgreSql(connectionString, providerFactory);
-        configure(pg);
-        return this;
-    }
-
     public PostgreSqlOptionsBuilder UsePostgreSql(Func<IServiceProvider, DbConnection> connectionFactory)
     {
         State.Options.ConnectionFactory = connectionFactory;
         return ConfigurePostgreSqlDefaults();
-    }
-
-    public DbMigratorOptionsBuilder UsePostgreSql(
-        Func<IServiceProvider, DbConnection> connectionFactory,
-        Action<PostgreSqlOptionsBuilder> configure)
-    {
-        ArgumentNullException.ThrowIfNull(configure);
-        var pg = UsePostgreSql(connectionFactory);
-        configure(pg);
-        return this;
     }
 
     public OracleOptionsBuilder UseOracle(
@@ -81,31 +60,10 @@ public class DbMigratorOptionsBuilder
         return ConfigureOracleDefaults();
     }
 
-    public DbMigratorOptionsBuilder UseOracle(
-        string connectionString,
-        Action<OracleOptionsBuilder> configure,
-        DbProviderFactory? providerFactory = null)
-    {
-        ArgumentNullException.ThrowIfNull(configure);
-        var oracle = UseOracle(connectionString, providerFactory);
-        configure(oracle);
-        return this;
-    }
-
     public OracleOptionsBuilder UseOracle(Func<IServiceProvider, DbConnection> connectionFactory)
     {
         State.Options.ConnectionFactory = connectionFactory;
         return ConfigureOracleDefaults();
-    }
-
-    public DbMigratorOptionsBuilder UseOracle(
-        Func<IServiceProvider, DbConnection> connectionFactory,
-        Action<OracleOptionsBuilder> configure)
-    {
-        ArgumentNullException.ThrowIfNull(configure);
-        var oracle = UseOracle(connectionFactory);
-        configure(oracle);
-        return this;
     }
 
     private PostgreSqlOptionsBuilder ConfigurePostgreSqlDefaults()
@@ -168,6 +126,13 @@ public class DbMigratorOptionsBuilder
     public DbMigratorOptionsBuilder UseRootPath(string rootPath)
     {
         State.Options.RootPath = rootPath;
+        return this;
+    }
+
+    public DbMigratorOptionsBuilder UseCommandTimeout(int seconds)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(seconds);
+        State.Options.CommandTimeoutSeconds = seconds;
         return this;
     }
 

@@ -1,8 +1,14 @@
 # Setup, DI & Runtime Execution
 
-`SharpPersistence.Migrator` is configured once in your startup project through `AddDbMigrator(...)`, which registers `IDbMigrator` so both your application and the `db-migrator` CLI share the exact same configuration.
+## Philosophy: Dedicated Migrator Console App
 
-> **Prerequisite:** Add `[assembly: EntityRegistryRoot]` to your startup project's `AssemblyInfo.cs` so `.AddGeneratedEntityRegistries()` is generated for you.
+`SharpPersistence.Migrator` follows the **DbUp-style** single-project model: keep migrations in a **small, dedicated console project** (e.g., `src/DbMigrator` or `src/AppToolbox`) rather than embedding migration scripts in your Web API or splitting startup and destination projects.
+
+- **One home for migrations:** That console project holds `[assembly: EntityRegistryRoot]`, `AddDbMigrator(...)` (or `IDesignTimeDbMigratorFactory`), references your module assemblies, and owns `DbMigrator/` (`Scripts/`, `Snapshots/`, `db-migration-runlist.json`).
+- **Clean runtime hosts & CI/CD:** Your Web API stays focused on serving traffic, while deployments, CI pipelines, and local dev run migrations from the lightweight console app (or via `db-migrator --project <PATH>`).
+- **Single-project CLI:** `db-migrator` targets this single migrator project directly (saved as `defaultProject` in `db-migrator-config.json`), with no separate startup vs. destination split.
+
+> **Prerequisite:** Add `[assembly: EntityRegistryRoot]` to your migrator project's `AssemblyInfo.cs` (or `<EntityRegistryRoot>true</EntityRegistryRoot>` in its `.csproj`) so `.AddGeneratedEntityRegistries()` is generated for you.
 
 ## Basic DI Setup
 
@@ -54,6 +60,7 @@ builder.Services.AddDbMigrator(opt =>
 | `UseHistorySchema(schema)` | `public` (PG) / current user (Oracle) | Customizes the schema for the fixed `__db_migrator_logs` tracking table |
 | `MapTableNames(fn)` | — | Maps convention-derived table names (`(entityType, defaultName) => ...`) |
 | `UseRootPath(path)` | Working dir | Base directory for `DbMigrator/Scripts` and `DbMigrator/Snapshots` |
+| `UseCommandTimeout(seconds)` | `300` | Per-statement DDL execution timeout in seconds (`0` for unlimited) |
 | `ConfigureProperties<T>(action)` | — | Global CLR-type conventions (e.g. all `string` max length `255`, or `Enum`) |
 | `ConfigureEntities(phase, action)` | — | Global entity/interface conventions (e.g. shared audit FKs, keys, schemas) |
 | `ReplaceEntityTypes(cfg)` | — | Replaces cross-module `Ref*` types with their owning entity (`r.Replace<RefUser, User>()`) |

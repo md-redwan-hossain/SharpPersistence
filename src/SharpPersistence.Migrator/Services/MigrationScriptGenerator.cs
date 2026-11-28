@@ -32,12 +32,13 @@ internal sealed class MigrationScriptGenerator(
             Directory.CreateDirectory(sqlRootDir);
         }
 
-        var sortedRegistries = RegistryDependencyResolver.SortTopologically(options);
+        var sortedScanned = RegistryDependencyResolver.SortAndScanTopologically(options);
+        var sortedRegistries = sortedScanned.Select(static s => s.Registry).ToList();
 
         var targets = string.IsNullOrWhiteSpace(registryFilter)
-            ? sortedRegistries
-            : sortedRegistries.Where(r =>
-                string.Equals(r.GetType().Name, registryFilter, StringComparison.OrdinalIgnoreCase)).ToList();
+            ? sortedScanned
+            : sortedScanned.Where(s =>
+                string.Equals(s.Registry.GetType().Name, registryFilter, StringComparison.OrdinalIgnoreCase)).ToList();
 
         if (targets.Count == 0)
         {
@@ -62,14 +63,12 @@ internal sealed class MigrationScriptGenerator(
         var orphanedSnapshots = await LoadOrphanedSnapshotsAsync(stateDir, sortedRegistries, ct).ConfigureAwait(false);
         var planned = new List<(string RegistryName, string SnapshotPath, string? RenamedFromPath, SchemaDiffResult Diff)>(targets.Count);
 
-        foreach (var registry in targets)
+        foreach (var (registry, currentSchema) in targets)
         {
             var registryName = registry.GetType().Name;
             var snapshotPath = Path.Combine(stateDir, $"{registryName}.json");
             string? previousJson = null;
             string? renamedFromPath = null;
-
-            var currentSchema = SchemaScanner.ScanRegistry(registry, options, sortedRegistries);
 
             if (File.Exists(snapshotPath))
             {

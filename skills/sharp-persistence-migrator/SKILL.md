@@ -11,6 +11,12 @@ description: >-
 
 Use `SharpPersistence.Migrator` (plus `SharpPersistence.Migrator.EfCore` when bridging to `DbContext`) for C#-first schema definitions, idempotent SQL migration scripts, and compile-time entity discovery across PostgreSQL and Oracle.
 
+## Project Philosophy (DbUp-Style Dedicated Console App)
+
+- **One small dedicated console app owns migrations** (e.g., `src/DbMigrator` or `src/AppToolbox`)—do **not** split into separate startup vs. destination projects or embed migration scripts in a Web API host unless explicitly requested.
+- That single migrator console project holds `[assembly: EntityRegistryRoot]` (or `<EntityRegistryRoot>true</EntityRegistryRoot>`), `AddDbMigrator(...)` / `IDesignTimeDbMigratorFactory`, references all module assemblies, and owns `DbMigrator/` (`Scripts/`, `Snapshots/`, `db-migration-runlist.json`).
+- `db-migrator` targets this single project via `db-migrator-config.json` (`defaultProject`) or `--project <PATH>`.
+
 ## DI & Setup (`AddDbMigrator`)
 
 ```csharp
@@ -126,9 +132,9 @@ public sealed partial class SalesRegistry : IEntityRegistry
 ## Compile-Time Discovery Attributes & Diagnostics
 
 - **Domain (`SharpPersistence.Abstractions`):** `[Entity]` (default ungrouped) and `[Entity<TGroup>]` where `TGroup : struct, IEntityGroup` (e.g., `public readonly record struct SalesGroup : IEntityGroup;`) — both support `ReadOnly = true` to auto-exclude stub/view entities from migrations; `[assembly: DisableEntityDiscovery]` (or `<DisableEntityDiscovery>true</DisableEntityDiscovery>`).
-- **Migrator (`SharpPersistence.Migrator`):** `[EntityRegistry]`, `[EntityRegistry<TGroup>]`, `[EntityConfiguration<TEntity>]`, `[assembly: EntityRegistryRoot]` (or `<EntityRegistryRoot>true</EntityRegistryRoot>`).
+- **Migrator (`SharpPersistence.Migrator`):** `[EntityRegistry]`, `[EntityRegistry<TGroup>]` (`Configure(IEntityRegistryBuilder)` is optional—empty registries can be a single line `public sealed partial class SalesRegistry : IEntityRegistry;`), `[EntityConfiguration<TEntity>]`, `[assembly: EntityRegistryRoot]` (or `<EntityRegistryRoot>true</EntityRegistryRoot>`).
 - **Diagnostics:**
-  - `SPM001`-`SPM007`: registry/configuration declaration, duplicate config, missing `Configure`, duplicate entity across registries, non-public entity/marker, orphan config warning.
+  - `SPM001`-`SPM007`: registry/configuration declaration, duplicate config, duplicate entity across registries, non-public entity/marker, orphan config warning (`SPM006` ships in `SharpPersistence.Abstractions`).
   - `SPM008`-`SPM013`: `[BindEntityRegistry<TRegistry>]` / `[EntityRegistryItem<TEntity>]` validation (`sealed partial DbContext`, valid registry type, duplicate bindings/items, unknown item, property collision, `DatabaseModel`/`ApplySchemaToEfCore` wiring). Most `SPM` diagnostics include bundled IDE Roslyn CodeFixes.
   - `SPM014`: `.IsRequired()` inside an optional `OwnsOne(...)`.
   - `SPM015`: self-replaced or `ReadOnly = true` target in `ReplaceEntityTypes(...)`.

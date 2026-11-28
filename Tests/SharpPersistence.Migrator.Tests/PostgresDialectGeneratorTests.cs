@@ -363,12 +363,12 @@ public sealed class PostgresDialectGeneratorTests
     }
 
     [Fact]
-    public void UsePostgreSql_CallbackOverload_PreservesFluentChainAndConfiguresOptions()
+    public void UsePostgreSql_FluentChain_ConfiguresOptionsAndNamingConvention()
     {
         var options = new DbMigratorOptionsBuilder()
-            .UsePostgreSql("Host=localhost;Database=test", pg => pg
-                .HasPostgresExtension("btree_gist")
-                .HasPostgresEnum<BookingStatus>())
+            .UsePostgreSql("Host=localhost;Database=test")
+            .HasPostgresExtension("btree_gist")
+            .HasPostgresEnum<BookingStatus>()
             .UseNamingConvention(SqlIdentifierCase.LowerSnakeCase)
             .Build();
 

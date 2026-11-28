@@ -262,6 +262,7 @@ internal sealed class DbMigrator : IDbMigrator
 
                             await using var execCmd = conn.CreateCommand();
                             execCmd.Transaction = tx;
+                            execCmd.CommandTimeout = _options.CommandTimeoutSeconds;
                             execCmd.CommandText = stmt;
                             await execCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
                         }
@@ -285,6 +286,7 @@ internal sealed class DbMigrator : IDbMigrator
                         }
 
                         await using var execCmd = conn.CreateCommand();
+                        execCmd.CommandTimeout = _options.CommandTimeoutSeconds;
                         execCmd.CommandText = stmt;
                         await execCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
                     }
@@ -342,8 +344,14 @@ internal sealed class DbMigrator : IDbMigrator
         }
 
         var (conn, ownsConnection) = await _connectionOpener.OpenAsync(ct).ConfigureAwait(false);
+        IAsyncDisposable? migrationLock = null;
         try
         {
+            if (!dryRun)
+            {
+                migrationLock = await _dialect.AcquireLockAsync(conn, _options, ct).ConfigureAwait(false);
+            }
+
             await _historyStore.EnsureHistoryTableAsync(conn, ct).ConfigureAwait(false);
             var efAppliedIds = await _historyStore.ReadEfCoreMigrationIdsAsync(conn, ct).ConfigureAwait(false);
             if (efAppliedIds.Count == 0)
@@ -381,6 +389,11 @@ internal sealed class DbMigrator : IDbMigrator
         }
         finally
         {
+            if (migrationLock is not null)
+            {
+                await migrationLock.DisposeAsync().ConfigureAwait(false);
+            }
+
             if (ownsConnection)
             {
                 await conn.DisposeAsync().ConfigureAwait(false);

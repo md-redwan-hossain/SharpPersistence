@@ -309,7 +309,7 @@ public sealed class EntityRegistryGeneratorTests
         Assert.Contains("SPM001", ids);
         Assert.Contains("SPM002", ids);
         Assert.Contains("SPM003", ids);
-        Assert.Contains("SPM004", ids);
+        Assert.DoesNotContain("SPM004", ids);
         Assert.Contains("SPM005", ids);
     }
 
@@ -482,5 +482,37 @@ public sealed class EntityRegistryGeneratorTests
                     output.Reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged,
                     $"Expected Cached/Unchanged for {genResult.Generator.GetGeneratorType().Name}, got {output.Reason}"));
         }
+    }
+
+    [Fact]
+    public void OneLineEntityRegistry_WithoutConfigureMethod_CompilesCleanlyAndMapsEntities()
+    {
+        const string source = """
+            using SharpPersistence.Abstractions.Attributes;
+            using SharpPersistence.Migrator.Abstractions;
+            using SharpPersistence.Migrator.Attributes;
+
+            namespace OneLineDemo;
+
+            public readonly record struct AccessGroup : IEntityGroup;
+
+            [Entity<AccessGroup>]
+            public sealed class User { public Guid Id { get; set; } }
+
+            [EntityRegistry<AccessGroup>]
+            public sealed partial class AccessRegistry : IEntityRegistry;
+            """;
+
+        var (outComp, diags, result) = RunGenerators("OneLineDemo", source);
+
+        Assert.Empty(diags);
+        var compileErrors = outComp.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+        Assert.Empty(compileErrors);
+
+        var generated = string.Join("\n", result.GeneratedTrees.Select(t => t.ToString()));
+        Assert.Contains("registry.Map<global::OneLineDemo.User>();", generated);
+        Assert.DoesNotContain("Configure(registry);", generated);
     }
 }

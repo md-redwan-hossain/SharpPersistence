@@ -6,8 +6,7 @@ namespace SharpPersistence.Migrator.Cli.Config;
 internal sealed record ScannedProjectInfo(
     string RelativePath,
     string FullPath,
-    bool IsMigratorRoot,
-    bool HasEntityRegistry);
+    bool IsMigratorRoot);
 
 internal sealed record ConfigGenerationResult(
     MigratorCliConfig Config,
@@ -68,8 +67,7 @@ internal static partial class SolutionProjectScanner
             results.Add(new ScannedProjectInfo(
                 relPath,
                 fullPath,
-                classification.IsMigratorRoot,
-                classification.HasEntityRegistry));
+                classification.IsMigratorRoot));
         }
 
         return results
@@ -267,14 +265,13 @@ internal static partial class SolutionProjectScanner
         }
     }
 
-    private static (bool IsTestProject, bool IsMigratorRoot, bool HasEntityRegistry) ClassifyProject(string csprojPath)
+    private static (bool IsTestProject, bool IsMigratorRoot) ClassifyProject(string csprojPath)
     {
         var fileName = Path.GetFileName(csprojPath);
         var isTest = fileName.EndsWith(".Tests.csproj", StringComparison.OrdinalIgnoreCase) ||
                      fileName.EndsWith(".Test.csproj", StringComparison.OrdinalIgnoreCase);
 
         var isMigratorRoot = false;
-        var hasEntityRegistry = false;
 
         try
         {
@@ -310,7 +307,7 @@ internal static partial class SolutionProjectScanner
 
             if (isTest || isToolOrAnalyzer)
             {
-                return (true, false, false);
+                return (true, false);
             }
 
             var rootProp = doc.Descendants()
@@ -326,20 +323,25 @@ internal static partial class SolutionProjectScanner
             // Continue with source scan if XML parsing fails
         }
 
+        if (isMigratorRoot)
+        {
+            return (false, true);
+        }
+
         var projectDir = Path.GetDirectoryName(csprojPath);
         if (!string.IsNullOrWhiteSpace(projectDir) && Directory.Exists(projectDir))
         {
-            ScanProjectSourceFiles(projectDir, ref isMigratorRoot, ref hasEntityRegistry);
+            ScanProjectSourceFiles(projectDir, ref isMigratorRoot);
         }
 
-        return (false, isMigratorRoot, hasEntityRegistry);
+        return (false, isMigratorRoot);
     }
 
-    private static void ScanProjectSourceFiles(string dir, ref bool isMigratorRoot, ref bool hasEntityRegistry)
+    private static void ScanProjectSourceFiles(string dir, ref bool isMigratorRoot)
     {
         foreach (var csFile in Directory.EnumerateFiles(dir, "*.cs", SearchOption.TopDirectoryOnly))
         {
-            if (isMigratorRoot && hasEntityRegistry)
+            if (isMigratorRoot)
             {
                 return;
             }
@@ -348,7 +350,7 @@ internal static partial class SolutionProjectScanner
             {
                 foreach (var rawLine in File.ReadLines(csFile))
                 {
-                    if (isMigratorRoot && hasEntityRegistry)
+                    if (isMigratorRoot)
                     {
                         return;
                     }
@@ -359,21 +361,13 @@ internal static partial class SolutionProjectScanner
                         continue;
                     }
 
-                    if (!isMigratorRoot &&
-                        (line.Contains("[assembly: EntityRegistryRoot", StringComparison.Ordinal) ||
-                         line.Contains(".AddDbMigrator(", StringComparison.Ordinal) ||
-                         line.Contains(": IDesignTimeDbMigratorFactory", StringComparison.Ordinal) ||
-                         line.Contains(", IDesignTimeDbMigratorFactory", StringComparison.Ordinal)))
+                    if (line.Contains("[assembly: EntityRegistryRoot", StringComparison.Ordinal) ||
+                        line.Contains(".AddDbMigrator(", StringComparison.Ordinal) ||
+                        line.Contains(": IDesignTimeDbMigratorFactory", StringComparison.Ordinal) ||
+                        line.Contains(", IDesignTimeDbMigratorFactory", StringComparison.Ordinal))
                     {
                         isMigratorRoot = true;
-                    }
-
-                    if (!hasEntityRegistry &&
-                        (line.Contains("[EntityRegistry", StringComparison.Ordinal) ||
-                         line.Contains(": IEntityRegistry", StringComparison.Ordinal) ||
-                         line.Contains(", IEntityRegistry", StringComparison.Ordinal)))
-                    {
-                        hasEntityRegistry = true;
+                        return;
                     }
                 }
             }
@@ -385,7 +379,7 @@ internal static partial class SolutionProjectScanner
 
         foreach (var subDir in Directory.EnumerateDirectories(dir))
         {
-            if (isMigratorRoot && hasEntityRegistry)
+            if (isMigratorRoot)
             {
                 return;
             }
@@ -396,7 +390,7 @@ internal static partial class SolutionProjectScanner
                 continue;
             }
 
-            ScanProjectSourceFiles(subDir, ref isMigratorRoot, ref hasEntityRegistry);
+            ScanProjectSourceFiles(subDir, ref isMigratorRoot);
         }
     }
 

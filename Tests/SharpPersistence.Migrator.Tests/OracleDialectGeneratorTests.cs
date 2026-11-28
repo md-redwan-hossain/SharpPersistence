@@ -154,11 +154,11 @@ public sealed class OracleDialectGeneratorTests
     }
 
     [Fact]
-    public void UseOracle_CallbackOverload_PreservesFluentChainAndConfiguresCompatibility()
+    public void UseOracle_FluentChain_ConfiguresCompatibilityAndNamingConvention()
     {
         var options = new DbMigratorOptionsBuilder()
-            .UseOracle("Data Source=localhost/XEPDB1", oracle => oracle
-                .UseSqlCompatibility(OracleDbCompatibility.Oracle23))
+            .UseOracle("Data Source=localhost/XEPDB1")
+            .UseSqlCompatibility(OracleDbCompatibility.Oracle23)
             .UseNamingConvention(SqlIdentifierCase.UpperSnakeCase)
             .Build();
 

@@ -39,8 +39,7 @@ internal static class TargetAssemblyLoader
 
         var resolvedProjectPath = ProjectResolutionService.Resolve(settings);
         var csprojPath = ResolveCsprojOrDirectory(
-            resolvedProjectPath ?? Directory.GetCurrentDirectory(),
-            "migrator");
+            resolvedProjectPath ?? Directory.GetCurrentDirectory());
         var startupDisplayPath = Path.GetRelativePath(Directory.GetCurrentDirectory(), csprojPath);
         if (startupDisplayPath.StartsWith("..", StringComparison.Ordinal))
         {
@@ -345,23 +344,7 @@ internal static class TargetAssemblyLoader
         }
     }
 
-    private static string ResolveDestinationDirectory(string? destinationArg, string fallbackDir)
-    {
-        if (string.IsNullOrWhiteSpace(destinationArg))
-        {
-            return fallbackDir;
-        }
-
-        var full = Path.GetFullPath(destinationArg);
-        if (full.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
-        {
-            return Path.GetDirectoryName(full)!;
-        }
-
-        return full;
-    }
-
-    private static string ResolveCsprojOrDirectory(string pathOrDir, string role)
+    private static string ResolveCsprojOrDirectory(string pathOrDir)
     {
         var full = Path.GetFullPath(pathOrDir);
         if (File.Exists(full) && full.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
@@ -375,7 +358,7 @@ internal static class TargetAssemblyLoader
             return files.Length switch
             {
                 0 => throw new InvalidOperationException(
-                    $"No .csproj file found in '{full}'. Pass --{role}-project <path.csproj>."),
+                    $"No .csproj file found in '{full}'. Pass --project <path.csproj>."),
                 > 1 => throw new InvalidOperationException(
                     $"Multiple .csproj files found in '{full}'. Pass --project <path.csproj> to specify one."),
                 _ => files[0]

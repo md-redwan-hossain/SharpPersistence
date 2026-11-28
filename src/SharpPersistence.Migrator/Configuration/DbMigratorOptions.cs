@@ -21,6 +21,7 @@ internal sealed class DbMigratorOptions
     public Func<IServiceProvider, DbConnection>? ConnectionFactory { get; internal set; }
     public string? HistorySchema { get; internal set; }
     public string? RootPath { get; internal set; }
+    public int CommandTimeoutSeconds { get; internal set; } = 300;
     public IReadOnlyList<IEntityRegistry> Registries { get; internal set; } = [];
     public IReadOnlyList<PropertyConventionRule> PropertyConventions { get; internal set; } = [];
     public IReadOnlyList<EntityConventionRule> EntityConventions { get; internal set; } = [];

@@ -106,6 +106,122 @@ internal static class SchemaScanner
         return SchemaFinalizer.FinalizeSchema(buildersByType, ownedTypes, ownedSequences, pgEnums, entityReplacements);
     }
 
+    public static IReadOnlyList<(IEntityRegistry Registry, DatabaseModel Model)> ScanAllByRegistry(
+        DbMigratorOptions options,
+        IReadOnlyList<IEntityRegistry> allRegistries,
+        IReadOnlyList<IEntityRegistry>? targetRegistries = null) =>
+        ScanAllByRegistry(
+            allRegistries,
+            options.Dialect,
+            options.IdentifierCase,
+            targetRegistries,
+            options.PropertyConventions,
+            options.PostgreSql.Enums,
+            options.SqlExpressionOptions,
+            options.PluralizeTableNames,
+            options.EntityConventions,
+            options.TableNameConvention,
+            options.EntityReplacements);
+
+    public static IReadOnlyList<(IEntityRegistry Registry, DatabaseModel Model)> ScanAllByRegistry(
+        IReadOnlyList<IEntityRegistry> allRegistries,
+        SqlDialect dialect,
+        SqlIdentifierCase identifierCase,
+        IReadOnlyList<IEntityRegistry>? targetRegistries = null,
+        IReadOnlyList<PropertyConventionRule>? propertyConventions = null,
+        IReadOnlyList<PostgresEnumSchema>? pgEnums = null,
+        SqlExpressionBuilderOptions? sqlExpressionOptions = null,
+        bool pluralizeTableNames = false,
+        IReadOnlyList<EntityConventionRule>? entityConventions = null,
+        Func<Type, string, string>? tableNameConvention = null,
+        IReadOnlyDictionary<Type, Type>? entityReplacements = null)
+    {
+        var targets = targetRegistries ?? allRegistries;
+        if (targets.Count == 0)
+        {
+            return [];
+        }
+
+        var (buildersByType, evaluatedByRegistry) = BuildTableBuildersWithRegistryMap(
+            allRegistries,
+            dialect,
+            identifierCase,
+            propertyConventions,
+            sqlExpressionOptions,
+            pluralizeTableNames,
+            entityConventions,
+            tableNameConvention);
+
+        var results = new List<(IEntityRegistry, DatabaseModel)>(targets.Count);
+        foreach (var registry in targets)
+        {
+            var evaluated = evaluatedByRegistry.TryGetValue(registry, out var cached)
+                ? cached
+                : EntityRegistryBuilder.Evaluate(registry);
+            var ownedTypes = evaluated.Mappings.Keys.ToHashSet();
+            var ownedSequences = BuildSequenceSchemas(evaluated, dialect);
+            var model = SchemaFinalizer.FinalizeSchema(
+                buildersByType,
+                ownedTypes,
+                ownedSequences,
+                pgEnums,
+                entityReplacements);
+            results.Add((registry, model));
+        }
+
+        return results;
+    }
+
+    private static (Dictionary<Type, TableDefinition> Builders, Dictionary<IEntityRegistry, EntityRegistryBuilder> Evaluated) BuildTableBuildersWithRegistryMap(
+        IReadOnlyList<IEntityRegistry> registries,
+        SqlDialect dialect,
+        SqlIdentifierCase identifierCase,
+        IReadOnlyList<PropertyConventionRule>? propertyConventions,
+        SqlExpressionBuilderOptions? sqlExpressionOptions,
+        bool pluralizeTableNames,
+        IReadOnlyList<EntityConventionRule>? entityConventions,
+        Func<Type, string, string>? tableNameConvention)
+    {
+        var buildersByType = new Dictionary<Type, TableDefinition>();
+        var evaluatedByRegistry = new Dictionary<IEntityRegistry, EntityRegistryBuilder>(registries.Count);
+        var nullabilityContext = new NullabilityInfoContext();
+
+        foreach (var registry in registries)
+        {
+            var evaluated = EntityRegistryBuilder.Evaluate(registry);
+            evaluatedByRegistry[registry] = evaluated;
+            var registrySchema = string.IsNullOrWhiteSpace(evaluated.DefaultSchema) ? null : evaluated.DefaultSchema;
+            var effectivePropConventions = CombineConventions(propertyConventions, evaluated.PropertyConventions);
+            var effectiveEntityConventions = CombineConventions(entityConventions, evaluated.EntityConventions);
+
+            foreach (var (entityType, configType) in evaluated.Mappings)
+            {
+                if (buildersByType.ContainsKey(entityType))
+                {
+                    throw new InvalidOperationException(
+                        $"Entity '{entityType.FullName ?? entityType.Name}' is mapped in multiple registries.");
+                }
+
+                var tableBuilder = BuildSingleTableDefinition(
+                    entityType,
+                    configType,
+                    registrySchema,
+                    dialect,
+                    identifierCase,
+                    effectivePropConventions,
+                    sqlExpressionOptions,
+                    nullabilityContext,
+                    pluralizeTableNames,
+                    effectiveEntityConventions,
+                    tableNameConvention);
+
+                buildersByType[entityType] = tableBuilder;
+            }
+        }
+
+        return (buildersByType, evaluatedByRegistry);
+    }
+
     private static (Dictionary<Type, TableDefinition> Builders, List<SequenceSchema> Sequences) BuildTableBuilders(
         IReadOnlyList<IEntityRegistry> registries,
         SqlDialect dialect,

@@ -12,8 +12,12 @@
 
 1. **Domain:** Mark entities with `[Entity]` (ungrouped) or `[Entity<TGroup>]` (with a `readonly record struct ... : IEntityGroup` tag).
 2. **Infrastructure:** Add `[EntityConfiguration<T>]` classes and a `sealed partial` `[EntityRegistry]` class.
-3. **Startup (`AssemblyInfo.cs`):** Add `[assembly: EntityRegistryRoot]` in `AssemblyInfo.cs`, then call `.AddGeneratedEntityRegistries()` in `Program.cs`.
+3. **Migrator console project (`AssemblyInfo.cs`):** Add `[assembly: EntityRegistryRoot]` in `AssemblyInfo.cs`, then call `.AddGeneratedEntityRegistries()` in `Program.cs`.
 4. **Build & Run:** The source generator pairs every entity with its config, wires your registries, and catches mistakes (`SPM001`–`SPM007`) at compile time.
+
+::: info Optional `Configure(IEntityRegistryBuilder)`
+For `[EntityRegistry]` and `[EntityRegistry<TGroup>]` classes, implementing `Configure(IEntityRegistryBuilder registry)` is **optional**. If your registry doesn't need a custom default schema, sequences, or registry-level conventions, declare it on a single line (`public sealed partial class BillingRegistry : IEntityRegistry;`).
+:::
 
 ::: tip Put Assembly Attributes in `AssemblyInfo.cs`
 Keep `[assembly: EntityRegistryRoot]` and `[assembly: DisableEntityDiscovery]` in each project's `AssemblyInfo.cs` so they are easy to find instead of buried in `Program.cs` or entity files.
@@ -57,14 +61,11 @@ public readonly record struct BillingGroup : IEntityGroup;
 [Entity<BillingGroup>]
 public sealed class Invoice { public Guid Id { get; set; } }
 
-// Billing.Infrastructure/BillingRegistry.cs
+// Billing.Infrastructure/BillingRegistry.cs (no Configure needed when defaults suffice)
 [EntityRegistry<BillingGroup>]
-public sealed partial class BillingRegistry : IEntityRegistry
-{
-    public void Configure(IEntityRegistryBuilder registry) => registry.HasDefaultSchema("billing");
-}
+public sealed partial class BillingRegistry : IEntityRegistry;
 
-// App.Api/AssemblyInfo.cs
+// DbMigrator/AssemblyInfo.cs
 [assembly: EntityRegistryRoot]
 ```
 
@@ -74,17 +75,16 @@ public sealed partial class BillingRegistry : IEntityRegistry
 
 | Goal | `AssemblyInfo.cs` *(Recommended)* | `.csproj` Property |
 | --- | --- | --- |
-| Mark startup project | `[assembly: EntityRegistryRoot]` | `<EntityRegistryRoot>true</EntityRegistryRoot>` |
+| Mark migrator root project | `[assembly: EntityRegistryRoot]` | `<EntityRegistryRoot>true</EntityRegistryRoot>` |
 | Disable discovery | `[assembly: DisableEntityDiscovery]` | `<DisableEntityDiscovery>true</DisableEntityDiscovery>` |
 
-## Build-Time Diagnostics (`SPM001`–`SPM007`)
+## Build-Time Diagnostics (`SPM001`–`SPM016`)
 
 | Code | Severity | Meaning |
 | --- | --- | --- |
 | `SPM001` | Error | `[EntityRegistry]` class (and enclosing types) must be `sealed`, `partial`, and implement `IEntityRegistry` |
 | `SPM002` | Error | `[EntityConfiguration<T>]` class must be `sealed`, have a public parameterless constructor, and implement `IEntityConfiguration<T>` |
 | `SPM003` | Error | Multiple `[EntityConfiguration<T>]` classes target the same `TEntity` |
-| `SPM004` | Error | `[EntityRegistry]` class must declare `public void Configure(IEntityRegistryBuilder registry)` |
 | `SPM005` | Error | Same entity is matched by multiple `[EntityRegistry]` classes in the same project |
 | `SPM006` | Error | Discovered entity or `IEntityGroup` struct must be `public` |
 | `SPM007` | Warning | `[EntityConfiguration<T>]` is not matched by any `[EntityRegistry]` in this project |

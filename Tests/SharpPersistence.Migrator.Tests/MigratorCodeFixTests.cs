@@ -78,20 +78,6 @@ public sealed class MigratorCodeFixTests
     }
 
     [Fact]
-    public async Task Spm004_AddsConfigureMethod()
-    {
-        const string source = """
-            [EntityRegistry]
-            public sealed partial class SalesRegistry : IEntityRegistry
-            {
-            }
-            """;
-
-        var result = await ApplyCodeFixAsync(new EntityRegistryCodeFixProvider(), source, "SPM004", "SalesRegistry");
-        result.ShouldContain("public void Configure(IEntityRegistryBuilder registry)");
-    }
-
-    [Fact]
     public async Task Spm006_MakesEntityAndContainingClassPublic()
     {
         const string source = """

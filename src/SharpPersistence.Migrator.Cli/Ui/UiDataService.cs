@@ -23,15 +23,13 @@ internal sealed class UiDataService
     {
         _loaded = loaded;
         var options = loaded.Manager.Options;
-        var sortedRegistries = RegistryDependencyResolver.SortTopologically(options);
-
-        var scanned = new List<(string, DatabaseModel)>(sortedRegistries.Count);
+        var scannedByRegistry = RegistryDependencyResolver.SortAndScanTopologically(options);
+        var scanned = new List<(string, DatabaseModel)>(scannedByRegistry.Count);
         var lookup = new Dictionary<(string, string), TableSchema>(TupleKeyComparer.Instance);
 
-        foreach (var registry in sortedRegistries)
+        foreach (var (registry, model) in scannedByRegistry)
         {
             var registryName = registry.GetType().Name;
-            var model = SchemaScanner.ScanRegistry(registry, options, sortedRegistries);
             scanned.Add((registryName, model));
 
             foreach (var table in model.Tables)

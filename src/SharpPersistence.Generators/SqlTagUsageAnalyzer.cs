@@ -23,6 +23,14 @@ public sealed class SqlTagUsageAnalyzer : DiagnosticAnalyzer
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [UnknownSqlTag];
 
+    private static bool IsFrameworkAssemblyName(string? name) =>
+        string.IsNullOrWhiteSpace(name) ||
+        name!.StartsWith("System.", StringComparison.OrdinalIgnoreCase) ||
+        name.StartsWith("Microsoft.", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("System", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("netstandard", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("mscorlib", StringComparison.OrdinalIgnoreCase);
+
     public override void Initialize(AnalysisContext context)
     {
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
@@ -56,6 +64,7 @@ public sealed class SqlTagUsageAnalyzer : DiagnosticAnalyzer
                 foreach (var reference in compilation.References)
                 {
                     if (compilation.GetAssemblyOrModuleSymbol(reference) is IAssemblySymbol asm &&
+                        !IsFrameworkAssemblyName(asm.Name) &&
                         CollectAssemblySqlTags(asm, asmMetaAttr, knownTags))
                     {
                         hasAnySqlSource = true;

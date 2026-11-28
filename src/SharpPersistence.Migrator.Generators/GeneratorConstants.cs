@@ -70,14 +70,6 @@ internal static class GeneratorConstants
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
-    public static readonly DiagnosticDescriptor RegistryMustDeclareConfigure = new(
-        id: DiagnosticIds.RegistryMustDeclareConfigure,
-        title: "Missing Configure(IEntityRegistryBuilder) method",
-        messageFormat: "Type '{0}' decorated with [EntityRegistry] must declare 'public void Configure(IEntityRegistryBuilder registry)'",
-        category: DiagnosticCategory,
-        defaultSeverity: DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
-
     public static readonly DiagnosticDescriptor DuplicateEntityAcrossRegistries = new(
         id: DiagnosticIds.DuplicateEntityAcrossRegistries,
         title: "Entity matched by multiple registries",

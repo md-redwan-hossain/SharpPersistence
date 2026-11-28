@@ -18,7 +18,6 @@ public sealed class EntityRegistryCodeFixProvider : CodeFixProvider
     [
         DiagnosticIds.RegistryMustBeSealedPartialImplementingInterface,
         DiagnosticIds.ConfigurationInvalid,
-        DiagnosticIds.RegistryMustDeclareConfigure,
         DiagnosticIds.EntityOrMarkerMustBePublic
     ];
 
@@ -71,15 +70,6 @@ public sealed class EntityRegistryCodeFixProvider : CodeFixProvider
                             title: "Fix [EntityConfiguration] declaration",
                             createChangedDocument: ct => FixConfigurationDeclarationAsync(context.Document, classDecl, ct),
                             equivalenceKey: $"{DiagnosticIds.ConfigurationInvalid}_FixConfigurationDeclaration"),
-                        diagnostic);
-                    break;
-
-                case DiagnosticIds.RegistryMustDeclareConfigure:
-                    context.RegisterCodeFix(
-                        CodeAction.Create(
-                            title: "Add Configure(IEntityRegistryBuilder registry) method",
-                            createChangedDocument: ct => AddConfigureMethodAsync(context.Document, classDecl, ct),
-                            equivalenceKey: $"{DiagnosticIds.RegistryMustDeclareConfigure}_AddConfigureMethod"),
                         diagnostic);
                     break;
             }
@@ -141,33 +131,6 @@ public sealed class EntityRegistryCodeFixProvider : CodeFixProvider
             updated = updated.WithMembers(updated.Members.Insert(0, ctor));
         }
 
-        var newRoot = root.ReplaceNode(classDecl, updated);
-        newRoot = CodeFixSyntaxHelpers.EnsureUsing(newRoot, KnownNames.Namespaces.MigratorAbstractions);
-        return document.WithSyntaxRoot(newRoot);
-    }
-
-    private static async Task<Document> AddConfigureMethodAsync(
-        Document document,
-        ClassDeclarationSyntax classDecl,
-        CancellationToken cancellationToken)
-    {
-        var root = await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
-        if (root is null)
-        {
-            return document;
-        }
-
-        var method = SyntaxFactory.MethodDeclaration(
-                SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.VoidKeyword)),
-                KnownNames.Methods.Configure)
-            .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
-            .AddParameterListParameters(
-                SyntaxFactory.Parameter(SyntaxFactory.Identifier("registry"))
-                    .WithType(SyntaxFactory.ParseTypeName(KnownNames.Types.EntityRegistryBuilderInterface)))
-            .WithBody(SyntaxFactory.Block())
-            .WithAdditionalAnnotations(Formatter.Annotation);
-
-        var updated = classDecl.AddMembers(method);
         var newRoot = root.ReplaceNode(classDecl, updated);
         newRoot = CodeFixSyntaxHelpers.EnsureUsing(newRoot, KnownNames.Namespaces.MigratorAbstractions);
         return document.WithSyntaxRoot(newRoot);
