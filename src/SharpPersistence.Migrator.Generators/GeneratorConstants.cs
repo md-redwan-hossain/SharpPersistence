@@ -10,22 +10,20 @@ internal static class GeneratorConstants
     public const string RootPropertyName = "build_property.EntityRegistryRoot";
 
     public const string GeneratedNamespace = "SharpPersistence.Migrator.Generated";
-    public const string ManifestPrefix = "EntityManifest_";
-    public const string AggregatorPrefix = "EntityRegistryAggregator_";
+    public const string EntityIndexPrefix = "EntityIndex_";
+    public const string EntityRegistryIndexPrefix = "EntityRegistryIndex_";
 
     public const string EntityGroupInterfaceMetadataName = "SharpPersistence.Abstractions.Attributes.IEntityGroup";
     public const string DefaultEntityAttributeMetadataName = "SharpPersistence.Abstractions.Attributes.EntityAttribute";
     public const string GenericEntityAttributeMetadataName = "SharpPersistence.Abstractions.Attributes.EntityAttribute`1";
     public const string DisableEntityDiscoveryAttributeMetadataName = "SharpPersistence.Abstractions.Attributes.DisableEntityDiscoveryAttribute";
-    public const string EntityManifestAttributeMetadataName = "SharpPersistence.Abstractions.Attributes.EntityManifestAttribute";
-    public const string EntityManifestEntryAttributeMetadataName = "SharpPersistence.Abstractions.Attributes.EntityManifestEntryAttribute";
+    public const string EntityIndexAttributeMetadataName = "SharpPersistence.Abstractions.Attributes.EntityIndexAttribute";
 
     public const string EntityRegistryAttributeMetadataName = "SharpPersistence.Migrator.Attributes.EntityRegistryAttribute";
     public const string GenericEntityRegistryAttributeMetadataName = "SharpPersistence.Migrator.Attributes.EntityRegistryAttribute`1";
     public const string EntityConfigurationAttributeMetadataName = "SharpPersistence.Migrator.Attributes.EntityConfigurationAttribute`1";
     public const string EntityRegistryRootAttributeMetadataName = "SharpPersistence.Migrator.Attributes.EntityRegistryRootAttribute";
-    public const string EntityRegistryAggregatorAttributeMetadataName = "SharpPersistence.Migrator.Attributes.EntityRegistryAggregatorAttribute";
-    public const string EntityRegistryAggregatorEntryAttributeMetadataName = "SharpPersistence.Migrator.Attributes.EntityRegistryAggregatorEntryAttribute";
+    public const string EntityRegistryIndexAttributeMetadataName = "SharpPersistence.Migrator.Attributes.EntityRegistryIndexAttribute";
 
     public const string IEntityRegistryMetadataName = "SharpPersistence.Migrator.Abstractions.IEntityRegistry";
     public const string IEntityRegistryBuilderMetadataName = "SharpPersistence.Migrator.Abstractions.IEntityRegistryBuilder";

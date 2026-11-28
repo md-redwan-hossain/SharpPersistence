@@ -71,7 +71,7 @@ public sealed class EntityRegistryGeneratorTests
             refs,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
-        IIncrementalGenerator[] generators = [new EntityManifestGenerator(), new EntityRegistryGenerator()];
+        IIncrementalGenerator[] generators = [new EntityIndexGenerator(), new EntityRegistryGenerator()];
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             generators: generators.Select(GeneratorExtensions.AsSourceGenerator),
             parseOptions: parseOptions,
@@ -451,7 +451,7 @@ public sealed class EntityRegistryGeneratorTests
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             generators:
             [
-                new EntityManifestGenerator().AsSourceGenerator(),
+                new EntityIndexGenerator().AsSourceGenerator(),
                 new EntityRegistryGenerator().AsSourceGenerator()
             ],
             parseOptions: parseOptions,

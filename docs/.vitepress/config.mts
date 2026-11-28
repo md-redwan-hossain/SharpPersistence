@@ -45,7 +45,8 @@ export default defineConfig({
           { text: 'Relationships & Indexes', link: '/migrator/relationships-and-indexes' },
           { text: 'Constraints & Sequences', link: '/migrator/constraints-and-sequences' },
           { text: 'PostgreSQL Features', link: '/migrator/postgresql' },
-          { text: 'Oracle Features', link: '/migrator/oracle' }
+          { text: 'Oracle Features', link: '/migrator/oracle' },
+          { text: 'Implementation Details', link: '/migrator/implementation-details' }
         ]
       },
       {

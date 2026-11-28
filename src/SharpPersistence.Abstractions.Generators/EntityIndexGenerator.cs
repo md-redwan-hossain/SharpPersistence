@@ -6,9 +6,9 @@ using SharpPersistence.Migrator.Generators;
 namespace SharpPersistence.Abstractions.Generators;
 
 [Generator]
-public sealed class EntityManifestGenerator : IIncrementalGenerator
+public sealed class EntityIndexGenerator : IIncrementalGenerator
 {
-    private readonly record struct ManifestEntry
+    private readonly record struct IndexEntry
     {
         public required string GroupFullName { get; init; }
         public required string EntityFullName { get; init; }
@@ -16,10 +16,10 @@ public sealed class EntityManifestGenerator : IIncrementalGenerator
         public required SourceLocationInfo? Location { get; init; }
     }
 
-    private readonly record struct AssemblyManifestMeta
+    private readonly record struct AssemblyIndexMeta
     {
         public required string? AssemblyName { get; init; }
-        public required bool HasManifestAttribute { get; init; }
+        public required bool HasIndexAttribute { get; init; }
         public required bool HasDisableAttribute { get; init; }
     }
 
@@ -27,50 +27,50 @@ public sealed class EntityManifestGenerator : IIncrementalGenerator
     {
         var isDisabled = context.AnalyzerConfigOptionsProvider
             .Select(static (provider, _) =>
-                provider.GlobalOptions.TryGetValue(ManifestGeneratorConstants.DisablePropertyName, out var value) &&
+                provider.GlobalOptions.TryGetValue(EntityIndexGeneratorConstants.DisablePropertyName, out var value) &&
                 string.Equals(value, "true", StringComparison.OrdinalIgnoreCase));
 
         var assemblyMeta = context.CompilationProvider
-            .Select(static (compilation, _) => new AssemblyManifestMeta
+            .Select(static (compilation, _) => new AssemblyIndexMeta
             {
                 AssemblyName = compilation.AssemblyName,
-                HasManifestAttribute = compilation.GetTypeByMetadataName(ManifestGeneratorConstants.EntityManifestAttributeMetadataName) is not null,
-                HasDisableAttribute = ManifestGeneratorConstants.HasAssemblyAttribute(
+                HasIndexAttribute = compilation.GetTypeByMetadataName(EntityIndexGeneratorConstants.EntityIndexAttributeMetadataName) is not null,
+                HasDisableAttribute = EntityIndexGeneratorConstants.HasAssemblyAttribute(
                     compilation,
-                    ManifestGeneratorConstants.DisableEntityDiscoveryAttributeMetadataName)
+                    EntityIndexGeneratorConstants.DisableEntityDiscoveryAttributeMetadataName)
             });
 
         // Stream 1: [Entity] (O(1) ForAttributeWithMetadataName)
         var defaultEntities = context.SyntaxProvider
             .ForAttributeWithMetadataName(
-                ManifestGeneratorConstants.DefaultEntityAttributeMetadataName,
+                EntityIndexGeneratorConstants.DefaultEntityAttributeMetadataName,
                 static (node, _) => node is ClassDeclarationSyntax,
                 static (ctx, _) => ExtractDefaultEntityEntry(ctx))
             .Where(static x => x.HasValue)
             .Select(static (x, _) => x!.Value)
             .Collect()
-            .Select(static (arr, _) => new EquatableArray<ManifestEntry>(arr));
+            .Select(static (arr, _) => new EquatableArray<IndexEntry>(arr));
 
         // Stream 2: [Entity<TGroup>] (O(1) ForAttributeWithMetadataName)
         var groupedEntities = context.SyntaxProvider
             .ForAttributeWithMetadataName(
-                ManifestGeneratorConstants.GenericEntityAttributeMetadataName,
+                EntityIndexGeneratorConstants.GenericEntityAttributeMetadataName,
                 static (node, _) => node is ClassDeclarationSyntax,
                 static (ctx, _) => ExtractGroupedEntityEntries(ctx))
             .Where(static arr => arr.Length > 0)
             .SelectMany(static (arr, _) => arr)
             .Collect()
-            .Select(static (arr, _) => new EquatableArray<ManifestEntry>(arr));
+            .Select(static (arr, _) => new EquatableArray<IndexEntry>(arr));
 
         var pipeline = assemblyMeta
             .Combine(defaultEntities)
             .Combine(groupedEntities)
             .Combine(isDisabled);
 
-        context.RegisterSourceOutput(pipeline, static (spc, input) => EmitManifest(spc, input.Left.Left.Left, input.Left.Left.Right, input.Left.Right, input.Right));
+        context.RegisterSourceOutput(pipeline, static (spc, input) => EmitEntityIndex(spc, input.Left.Left.Left, input.Left.Left.Right, input.Left.Right, input.Right));
     }
 
-    private static ManifestEntry? ExtractDefaultEntityEntry(GeneratorAttributeSyntaxContext ctx)
+    private static IndexEntry? ExtractDefaultEntityEntry(GeneratorAttributeSyntaxContext ctx)
     {
         if (ctx.TargetSymbol is not INamedTypeSymbol symbol ||
             ctx.TargetNode is not ClassDeclarationSyntax classDecl ||
@@ -80,29 +80,29 @@ public sealed class EntityManifestGenerator : IIncrementalGenerator
             return null;
         }
 
-        var isPublic = ManifestGeneratorConstants.IsPubliclyAccessible(symbol);
-        return new ManifestEntry
+        var isPublic = EntityIndexGeneratorConstants.IsPubliclyAccessible(symbol);
+        return new IndexEntry
         {
-            GroupFullName = "global::" + ManifestGeneratorConstants.DefaultEntityAttributeMetadataName,
+            GroupFullName = "global::" + EntityIndexGeneratorConstants.DefaultEntityAttributeMetadataName,
             EntityFullName = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             IsPubliclyAccessible = isPublic,
             Location = isPublic ? null : SourceLocationInfo.From(classDecl.Identifier.GetLocation())
         };
     }
 
-    private static EquatableArray<ManifestEntry> ExtractGroupedEntityEntries(GeneratorAttributeSyntaxContext ctx)
+    private static EquatableArray<IndexEntry> ExtractGroupedEntityEntries(GeneratorAttributeSyntaxContext ctx)
     {
         if (ctx.TargetSymbol is not INamedTypeSymbol symbol ||
             ctx.TargetNode is not ClassDeclarationSyntax classDecl ||
             symbol.IsAbstract ||
             symbol.TypeParameters.Length > 0)
         {
-            return EquatableArray<ManifestEntry>.Empty;
+            return EquatableArray<IndexEntry>.Empty;
         }
 
-        var builder = System.Collections.Immutable.ImmutableArray.CreateBuilder<ManifestEntry>(ctx.Attributes.Length);
+        var builder = System.Collections.Immutable.ImmutableArray.CreateBuilder<IndexEntry>(ctx.Attributes.Length);
         var entityFullName = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-        var entityIsPublic = ManifestGeneratorConstants.IsPubliclyAccessible(symbol);
+        var entityIsPublic = EntityIndexGeneratorConstants.IsPubliclyAccessible(symbol);
         SourceLocationInfo? cachedLoc = null;
 
         foreach (var attr in ctx.Attributes)
@@ -113,8 +113,8 @@ public sealed class EntityManifestGenerator : IIncrementalGenerator
                 continue;
             }
 
-            var isPublic = entityIsPublic && ManifestGeneratorConstants.IsPubliclyAccessible(groupSymbol);
-            builder.Add(new ManifestEntry
+            var isPublic = entityIsPublic && EntityIndexGeneratorConstants.IsPubliclyAccessible(groupSymbol);
+            builder.Add(new IndexEntry
             {
                 GroupFullName = groupSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                 EntityFullName = entityFullName,
@@ -123,17 +123,17 @@ public sealed class EntityManifestGenerator : IIncrementalGenerator
             });
         }
 
-        return new EquatableArray<ManifestEntry>(builder.ToImmutable());
+        return new EquatableArray<IndexEntry>(builder.ToImmutable());
     }
 
-    private static void EmitManifest(
+    private static void EmitEntityIndex(
         SourceProductionContext spc,
-        AssemblyManifestMeta meta,
-        EquatableArray<ManifestEntry> defaultEntries,
-        EquatableArray<ManifestEntry> groupedEntries,
+        AssemblyIndexMeta meta,
+        EquatableArray<IndexEntry> defaultEntries,
+        EquatableArray<IndexEntry> groupedEntries,
         bool isDisabled)
     {
-        if (isDisabled || !meta.HasManifestAttribute || meta.HasDisableAttribute)
+        if (isDisabled || !meta.HasIndexAttribute || meta.HasDisableAttribute)
         {
             return;
         }
@@ -152,34 +152,36 @@ public sealed class EntityManifestGenerator : IIncrementalGenerator
             return;
         }
 
-        var sanitizedAssembly = ManifestGeneratorConstants.SanitizeAssemblyName(meta.AssemblyName);
+        var sanitizedAssembly = EntityIndexGeneratorConstants.SanitizeAssemblyName(meta.AssemblyName);
         var sb = new StringBuilder();
         sb.AppendLine("// <auto-generated/>");
         sb.AppendLine("#nullable enable");
         sb.AppendLine();
-        sb.AppendLine($"namespace {ManifestGeneratorConstants.GeneratedNamespace};");
+        sb.AppendLine($"namespace {EntityIndexGeneratorConstants.GeneratedNamespace};");
         sb.AppendLine();
-        sb.AppendLine($"[global::{ManifestGeneratorConstants.EntityManifestAttributeMetadataName}]");
 
         foreach (var kv in entitiesByGroup.OrderBy(e => e.Key, StringComparer.Ordinal))
         {
-            var entityTypeOfs = string.Join(", ", kv.Value
-                .OrderBy(e => e, StringComparer.Ordinal)
-                .Select(e => $"typeof({e})"));
-            sb.AppendLine(
-                $"[global::{ManifestGeneratorConstants.EntityManifestEntryAttributeMetadataName}(typeof({kv.Key}), {entityTypeOfs})]");
+            var orderedEntities = kv.Value.OrderBy(e => e, StringComparer.Ordinal).ToList();
+            sb.AppendLine($"[global::{EntityIndexGeneratorConstants.EntityIndexAttributeMetadataName}(");
+            sb.AppendLine($"    typeof({kv.Key}),");
+            for (var i = 0; i < orderedEntities.Count; i++)
+            {
+                var suffix = i < orderedEntities.Count - 1 ? "," : ")]";
+                sb.AppendLine($"    typeof({orderedEntities[i]}){suffix}");
+            }
         }
 
-        sb.AppendLine($"public static class {ManifestGeneratorConstants.ManifestPrefix}{sanitizedAssembly}");
+        sb.AppendLine($"public static class {EntityIndexGeneratorConstants.EntityIndexPrefix}{sanitizedAssembly}");
         sb.AppendLine("{");
         sb.AppendLine("}");
 
-        spc.AddSource("SharpPersistence.Migrator.EntityManifest.g.cs", sb.ToString());
+        spc.AddSource("SharpPersistence.Migrator.EntityIndex.g.cs", sb.ToString());
     }
 
     private static void AddEntries(
         SourceProductionContext spc,
-        EquatableArray<ManifestEntry> entries,
+        EquatableArray<IndexEntry> entries,
         Dictionary<string, HashSet<string>> entitiesByGroup)
     {
         foreach (var entry in entries)
@@ -187,10 +189,10 @@ public sealed class EntityManifestGenerator : IIncrementalGenerator
             if (!entry.IsPubliclyAccessible)
             {
                 spc.ReportDiagnostic(Diagnostic.Create(
-                    ManifestGeneratorConstants.EntityOrMarkerMustBePublic,
+                    EntityIndexGeneratorConstants.EntityOrMarkerMustBePublic,
                     entry.Location?.ToLocation() ?? Location.None,
-                    ManifestGeneratorConstants.StripGlobalPrefix(entry.EntityFullName),
-                    ManifestGeneratorConstants.StripGlobalPrefix(entry.GroupFullName)));
+                    EntityIndexGeneratorConstants.StripGlobalPrefix(entry.EntityFullName),
+                    EntityIndexGeneratorConstants.StripGlobalPrefix(entry.GroupFullName)));
                 continue;
             }
 

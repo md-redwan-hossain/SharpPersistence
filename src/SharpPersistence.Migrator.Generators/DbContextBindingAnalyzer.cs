@@ -712,7 +712,7 @@ internal static class DbContextBindingAnalyzer
             return byGroup;
         }
 
-        var manifestEntryAttr = compilation.GetTypeByMetadataName(GeneratorConstants.EntityManifestEntryAttributeMetadataName);
+        var manifestEntryAttr = compilation.GetTypeByMetadataName(GeneratorConstants.EntityIndexAttributeMetadataName);
         if (manifestEntryAttr is null)
         {
             return byGroup;
@@ -722,7 +722,7 @@ internal static class DbContextBindingAnalyzer
         {
             cancellationToken.ThrowIfCancellationRequested();
             var manifestMetadataName =
-                $"{GeneratorConstants.GeneratedNamespace}.{GeneratorConstants.ManifestPrefix}{GeneratorConstants.SanitizeAssemblyName(refAsm.Name)}";
+                $"{GeneratorConstants.GeneratedNamespace}.{GeneratorConstants.EntityIndexPrefix}{GeneratorConstants.SanitizeAssemblyName(refAsm.Name)}";
             var manifestType = refAsm.GetTypeByMetadataName(manifestMetadataName);
             if (manifestType is null)
             {

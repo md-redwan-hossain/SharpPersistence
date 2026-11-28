@@ -35,18 +35,11 @@ public sealed class EntityConfigurationAttribute<TEntity> : Attribute
 public sealed class EntityRegistryRootAttribute : Attribute;
 
 /// <summary>
-/// Marks a compiler-generated registry aggregator class for O(1) cross-assembly root discovery.
+/// Records discovered entity registry types on a compiler-generated entity registry index class.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
-public sealed class EntityRegistryAggregatorAttribute : Attribute;
-
-/// <summary>
-/// Records discovered entity registry types on a generated registry aggregator class.
-/// </summary>
-[EditorBrowsable(EditorBrowsableState.Never)]
-[AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
-public sealed class EntityRegistryAggregatorEntryAttribute(params Type[] registryTypes) : Attribute
+public sealed class EntityRegistryIndexAttribute(params Type[] registryTypes) : Attribute
 {
     public Type[] RegistryTypes { get; } = registryTypes;
 }

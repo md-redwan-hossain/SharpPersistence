@@ -165,8 +165,8 @@ public sealed class EntityRegistryGenerator : IIncrementalGenerator
         var manifestEntries = ImmutableArray.CreateBuilder<EntityGroupEntry>();
         var aggRegistries = ImmutableArray.CreateBuilder<string>();
 
-        var manifestEntryAttr = compilation.GetTypeByMetadataName(GeneratorConstants.EntityManifestEntryAttributeMetadataName);
-        var aggEntryAttr = compilation.GetTypeByMetadataName(GeneratorConstants.EntityRegistryAggregatorEntryAttributeMetadataName);
+        var manifestEntryAttr = compilation.GetTypeByMetadataName(GeneratorConstants.EntityIndexAttributeMetadataName);
+        var aggEntryAttr = compilation.GetTypeByMetadataName(GeneratorConstants.EntityRegistryIndexAttributeMetadataName);
 
         foreach (var refAsm in compilation.SourceModule.ReferencedAssemblySymbols)
         {
@@ -181,7 +181,7 @@ public sealed class EntityRegistryGenerator : IIncrementalGenerator
             if (manifestEntryAttr is not null)
             {
                 var manifestType = refAsm.GetTypeByMetadataName(
-                    $"{GeneratorConstants.GeneratedNamespace}.{GeneratorConstants.ManifestPrefix}{sanitized}");
+                    $"{GeneratorConstants.GeneratedNamespace}.{GeneratorConstants.EntityIndexPrefix}{sanitized}");
                 if (manifestType is not null)
                 {
                     CollectManifestEntries(manifestType, manifestEntryAttr, manifestEntries);
@@ -191,7 +191,7 @@ public sealed class EntityRegistryGenerator : IIncrementalGenerator
             if (aggEntryAttr is not null)
             {
                 var aggType = refAsm.GetTypeByMetadataName(
-                    $"{GeneratorConstants.GeneratedNamespace}.{GeneratorConstants.AggregatorPrefix}{sanitized}");
+                    $"{GeneratorConstants.GeneratedNamespace}.{GeneratorConstants.EntityRegistryIndexPrefix}{sanitized}");
                 if (aggType is not null)
                 {
                     CollectAggregatorRegistries(aggType, aggEntryAttr, aggRegistries);
@@ -674,19 +674,23 @@ public sealed class EntityRegistryGenerator : IIncrementalGenerator
         sb.AppendLine();
         sb.AppendLine($"namespace {GeneratorConstants.GeneratedNamespace};");
         sb.AppendLine();
-        sb.AppendLine($"[global::{GeneratorConstants.EntityRegistryAggregatorAttributeMetadataName}]");
 
-        var regTypeOfs = string.Join(", ", validRegistries
+        var orderedRegs = validRegistries
             .OrderBy(r => r.FullTypeName, StringComparer.Ordinal)
-            .Select(r => $"typeof({r.FullTypeName})"));
-        sb.AppendLine(
-            $"[global::{GeneratorConstants.EntityRegistryAggregatorEntryAttributeMetadataName}({regTypeOfs})]");
+            .ToList();
 
-        sb.AppendLine($"public static class {GeneratorConstants.AggregatorPrefix}{sanitized}");
+        sb.AppendLine($"[global::{GeneratorConstants.EntityRegistryIndexAttributeMetadataName}(");
+        for (var i = 0; i < orderedRegs.Count; i++)
+        {
+            var suffix = i < orderedRegs.Count - 1 ? "," : ")]";
+            sb.AppendLine($"    typeof({orderedRegs[i].FullTypeName}){suffix}");
+        }
+
+        sb.AppendLine($"public static class {GeneratorConstants.EntityRegistryIndexPrefix}{sanitized}");
         sb.AppendLine("{");
         sb.AppendLine("}");
 
-        spc.AddSource("SharpPersistence.Migrator.EntityRegistryAggregator.g.cs", sb.ToString());
+        spc.AddSource("SharpPersistence.Migrator.EntityRegistryIndex.g.cs", sb.ToString());
     }
 
     private static void EmitRootExtension(

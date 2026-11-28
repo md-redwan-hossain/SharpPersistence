@@ -53,18 +53,11 @@ public sealed class EntityAttribute<TGroup> : Attribute, IEntityAttributeMetadat
 public sealed class DisableEntityDiscoveryAttribute : Attribute;
 
 /// <summary>
-/// Marks a compiler-generated entity manifest class for O(1) cross-assembly lookup.
-/// </summary>
-[EditorBrowsable(EditorBrowsableState.Never)]
-[AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
-public sealed class EntityManifestAttribute : Attribute;
-
-/// <summary>
-/// Records discovered entities grouped by their group type on a generated entity manifest class.
+/// Records discovered entities grouped by their group type on a compiler-generated entity index class.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = true)]
-public sealed class EntityManifestEntryAttribute(Type groupType, params Type[] entityTypes) : Attribute
+public sealed class EntityIndexAttribute(Type groupType, params Type[] entityTypes) : Attribute
 {
     public Type GroupType { get; } = groupType;
     public Type[] EntityTypes { get; } = entityTypes;

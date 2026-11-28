@@ -23,25 +23,24 @@ internal sealed record SourceLocationInfo(string FilePath, TextSpan TextSpan, Li
     public Location ToLocation() => Location.Create(FilePath, TextSpan, LineSpan);
 }
 
-internal static class ManifestGeneratorConstants
+internal static class EntityIndexGeneratorConstants
 {
     public const string DisablePropertyName = "build_property.DisableEntityDiscovery";
 
     public const string GeneratedNamespace = "SharpPersistence.Migrator.Generated";
-    public const string ManifestPrefix = "EntityManifest_";
+    public const string EntityIndexPrefix = "EntityIndex_";
 
     public const string DefaultEntityAttributeMetadataName = "SharpPersistence.Abstractions.Attributes.EntityAttribute";
     public const string GenericEntityAttributeMetadataName = "SharpPersistence.Abstractions.Attributes.EntityAttribute`1";
     public const string DisableEntityDiscoveryAttributeMetadataName = "SharpPersistence.Abstractions.Attributes.DisableEntityDiscoveryAttribute";
-    public const string EntityManifestAttributeMetadataName = "SharpPersistence.Abstractions.Attributes.EntityManifestAttribute";
-    public const string EntityManifestEntryAttributeMetadataName = "SharpPersistence.Abstractions.Attributes.EntityManifestEntryAttribute";
+    public const string EntityIndexAttributeMetadataName = "SharpPersistence.Abstractions.Attributes.EntityIndexAttribute";
 
     public const string DiagnosticCategory = "SharpPersistence.Migrator";
 
     public static readonly DiagnosticDescriptor EntityOrMarkerMustBePublic = new(
         id: "SPM006",
         title: "Discovered entity or marker attribute must be public",
-        messageFormat: "Type '{0}' marked with '{1}' must be publicly accessible for compile-time entity manifest generation",
+        messageFormat: "Type '{0}' marked with '{1}' must be publicly accessible for compile-time entity index generation",
         category: DiagnosticCategory,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);

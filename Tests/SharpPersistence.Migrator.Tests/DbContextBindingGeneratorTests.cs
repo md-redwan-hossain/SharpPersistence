@@ -58,7 +58,7 @@ public sealed class DbContextBindingGeneratorTests
 
         IIncrementalGenerator[] generators =
         [
-            new EntityManifestGenerator(),
+            new EntityIndexGenerator(),
             new EntityRegistryGenerator(),
             new DbContextBindingGenerator()
         ];
