@@ -1,29 +1,35 @@
 # Quick Start: Database Migrator
 
-Set up C#-first SQL migrations with compile-time entity discovery, validate your setup with `db-migrator doctor`, and apply your first migration in 5 minutes.
+This article shows you how to configure `SharpPersistence.Migrator`, validate your schema offline, and generate and apply your first SQL migration script using a dedicated migrator console project.
 
-## Why Use This?
+## Prerequisites
 
-Managing database schemas with EF Core's runtime model builder adds startup overhead and ties your migrations to EF Core's internals. `SharpPersistence.Migrator` lets you configure tables in plain C# classes, generates readable, safe-to-re-run `.sql` scripts you can review in pull requests, and checks everything before runtime with `db-migrator doctor`.
+- .NET 10 or .NET 11 SDK
+- A PostgreSQL or Oracle database instance
+- The `db-migrator` CLI tool
 
-## 1. Install Packages
+## 1. Install the Packages and CLI Tool
+
+Install `SharpPersistence.Abstractions` in your domain project, `SharpPersistence.Migrator` and a database driver in your infrastructure and migrator console projects, and the `SharpPersistence.Migrator.Cli` tool:
 
 ```powershell
-# Domain project (entities only)
 dotnet add MyApp.Domain package SharpPersistence.Abstractions
-
-# Infrastructure project (configurations & registries)
 dotnet add MyApp.Infrastructure package SharpPersistence.Migrator
-dotnet add MyApp.Infrastructure package Npgsql # or Oracle.ManagedDataAccess.Core
-
-# CLI tool
-dotnet tool install -g SharpPersistence.Migrator.Cli
+dotnet add MyApp.DbMigrator package SharpPersistence.Migrator
+dotnet add MyApp.DbMigrator package Npgsql
+dotnet tool install --global SharpPersistence.Migrator.Cli
 ```
 
-## 2. Mark Entities in Domain
+::: info
+Use `Oracle.ManagedDataAccess.Core` instead of `Npgsql` when targeting Oracle Database.
+:::
+
+## 2. Mark Entities in the Domain Project
+
+Decorate entity classes in `MyApp.Domain` with `[Entity]` (or `[Entity<TGroup>]` for modular solutions):
 
 ```csharp
-using SharpPersistence.Abstractions;
+using SharpPersistence.Abstractions.Attributes;
 
 namespace MyApp.Domain;
 
@@ -44,9 +50,9 @@ public sealed class TodoItem
 }
 ```
 
-## 3. Configure Entities & Create a Registry
+## 3. Configure Entities and Declare a Registry
 
-In `MyApp.Infrastructure`:
+In `MyApp.Infrastructure`, create `IEntityConfiguration<T>` classes and a `sealed partial` `[EntityRegistry]` class:
 
 ```csharp
 using SharpPersistence.Migrator.Abstractions;
@@ -76,18 +82,12 @@ public sealed class TodoItemConfiguration : IEntityConfiguration<TodoItem>
 }
 
 [EntityRegistry]
-public sealed partial class AppEntityRegistry : IEntityRegistry
-{
-    public void Configure(IEntityRegistryBuilder registry)
-    {
-        registry.HasDefaultSchema("public");
-    }
-}
+public sealed partial class AppEntityRegistry : IEntityRegistry;
 ```
 
-## 4. Mark `AssemblyInfo.cs` & Wire DI
+## 4. Configure the Dedicated Migrator Console Project
 
-In `MyApp.Api/AssemblyInfo.cs` (using `AssemblyInfo.cs` keeps assembly-level attributes in one predictable place across your solution):
+In `MyApp.DbMigrator/AssemblyInfo.cs`, mark the assembly as the migrator root so `AddGeneratedEntityRegistries()` is generated at compile time:
 
 ```csharp
 using SharpPersistence.Migrator.Attributes;
@@ -95,35 +95,43 @@ using SharpPersistence.Migrator.Attributes;
 [assembly: EntityRegistryRoot]
 ```
 
-In `MyApp.Api/Program.cs`:
+In `MyApp.DbMigrator/Program.cs`, register `AddDbMigrator(...)` with your database provider:
 
 ```csharp
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using SharpPersistence.Migrator.Configuration;
 using SharpPersistence.Migrator.Generated;
 
-var builder = WebApplication.CreateBuilder(args);
+var builder = Host.CreateApplicationBuilder(args);
 
 builder.Services.AddDbMigrator(opt =>
 {
     opt.UsePostgreSql(builder.Configuration.GetConnectionString("Default")!)
         .AddGeneratedEntityRegistries();
 });
+
+using var host = builder.Build();
 ```
 
-## 5. Validate, Generate & Apply
+## 5. Validate, Generate, and Apply Migrations
 
-*(If you installed `SharpPersistence.Migrator.Cli` as a local tool, prefix each command with `dotnet `.)*
+Run `db-migrator` against `MyApp.DbMigrator`:
 
 ```powershell
-# 1. Check DI configuration, entity configs, and foreign key types offline
-db-migrator doctor --startup-project MyApp.Api/MyApp.Api.csproj
+# Validate DI wiring, entity configurations, and foreign key types offline
+db-migrator doctor --project MyApp.DbMigrator/MyApp.DbMigrator.csproj
 
-# 2. Generate safe-to-re-run SQL migration scripts
-db-migrator generate --name Initial --startup-project MyApp.Api/MyApp.Api.csproj
+# Generate idempotent SQL scripts and update DbMigrator/Snapshots
+db-migrator generate --name Initial --project MyApp.DbMigrator/MyApp.DbMigrator.csproj
 
-# 3. Check the live database and apply pending scripts
-db-migrator doctor --check-db --startup-project MyApp.Api/MyApp.Api.csproj
-db-migrator migrate --startup-project MyApp.Api/MyApp.Api.csproj
+# Verify live database connectivity and apply pending scripts
+db-migrator doctor --check-db --project MyApp.DbMigrator/MyApp.DbMigrator.csproj
+db-migrator migrate --project MyApp.DbMigrator/MyApp.DbMigrator.csproj
 ```
 
-Next: [Entities and Configurations](/migrator/entities-and-configurations)
+## See Also
+
+- [Setup, DI & Runtime Execution](/migrator/setup-and-di)
+- [Entities and Configurations](/migrator/entities-and-configurations)
+- [`db-migrator` CLI Reference](/cli/commands)

@@ -8,7 +8,7 @@ dotnet tool install --global SharpPersistence.Migrator.Cli
 
 ## Shared Options
 
-Following the **DbUp-style** single-project philosophy, migrations live in one small dedicated console app (e.g., `src/DbMigrator` or `src/AppToolbox`) that hosts `AddDbMigrator(...)` / `IDesignTimeDbMigratorFactory` and owns `DbMigrator/` (`Scripts/`, `Snapshots/`, `db-migration-runlist.json`). All commands target that single project via `db-migrator-config.json` or `--project <PATH>`:
+`db-migrator` targets a dedicated migrator console project (such as `src/MyApp.DbMigrator`) that hosts `AddDbMigrator(...)` or `IDesignTimeDbMigratorFactory` and owns `DbMigrator/` (`Scripts/`, `Snapshots/`, `db-migration-runlist.json`). All commands resolve this project through `db-migrator-config.json` or `--project <PATH>`:
 
 | Option | Description |
 | --- | --- |

@@ -58,7 +58,7 @@ app.Configure(config =>
     config.AddCommand<ConfigCommand>("config")
         .WithDescription("Generate, inspect, or update solution-level db-migrator-config.json.")
         .WithExample("config", "--generate")
-        .WithExample("config", "--set-default", "src/AppToolbox/AppToolbox.csproj")
+        .WithExample("config", "--set-default", "src/DbMigrator/DbMigrator.csproj")
         .WithExample("config", "--show");
 
     config.AddCommand<UiCommand>("ui")

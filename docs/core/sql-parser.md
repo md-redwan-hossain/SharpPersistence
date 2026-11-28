@@ -2,9 +2,9 @@
 
 `SqlParser` (in `SharpPersistence`) and `IParsedSqlStorage` (in `SharpPersistence.Abstractions`) let you keep complex hand-written SQL queries in real `.sql` files—with full IDE SQL syntax highlighting—and load them safely by tag at runtime.
 
-## Why Use This?
+## Overview
 
-Embedding long multi-line SQL strings inside C# files (`"""SELECT ..."""`) makes queries hard to read, format, and test in a SQL client. Putting them in `.sql` files with `-- #start# <tag>` / `-- #end# <tag>` markers lets you edit and run them directly in DataGrip, pgAdmin, or SQL Developer, while `SqlParser` validates every tag once at startup and exposes them through `IParsedSqlStorage`.
+`SqlParser` validates every `-- #start# <tag>` / `-- #end# <tag>` block once at startup and exposes the parsed queries through `IParsedSqlStorage` and generated strongly-typed extension methods, while keeping your queries in `.sql` files with full IDE syntax highlighting.
 
 ## 1. Write Tagged `.sql` Files
 
@@ -38,7 +38,7 @@ sharp_persistence_sql_files/<AssemblyName>/<RelativePath>/<File>.sql
 
 You do **not** need to configure `Directory.Build.props` or set `CopyToOutputDirectory` on individual `.sql` files.
 
-- **Migrator coexistence:** `MigrationScripts/` and any folder containing `db-migration-runlist.json` are automatically excluded so migration scripts are not copied into `sharp_persistence_sql_files/`.
+- **Migrator coexistence:** `DbMigrator/Scripts/` and any folder containing `db-migration-runlist.json` are automatically excluded so migration scripts are not copied into `sharp_persistence_sql_files/`.
 - **Embedded resources:** `.sql` files explicitly marked as `<EmbeddedResource>` are left untouched.
 - **Customization / opt-out:** Set MSBuild properties in your `.csproj` or `Directory.Build.props` if you need to override the defaults:
 

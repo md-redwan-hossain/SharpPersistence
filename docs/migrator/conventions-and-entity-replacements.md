@@ -101,7 +101,7 @@ builder.HasForeignKey(x => x.ApprovedByUserId)
     .References<RefUser>(u => u.Id)
     .OnDelete(DbReferentialAction.SetNull);
 
-// App.Api (Startup): replace Ref* types with owning entities once
+// MyApp.DbMigrator: replace Ref* types with owning entities once
 builder.Services.AddDbMigrator(opt =>
 {
     opt.UsePostgreSql(connectionString)

@@ -11,10 +11,10 @@ description: >-
 
 Use `SharpPersistence.Migrator` (plus `SharpPersistence.Migrator.EfCore` when bridging to `DbContext`) for C#-first schema definitions, idempotent SQL migration scripts, and compile-time entity discovery across PostgreSQL and Oracle.
 
-## Project Philosophy (DbUp-Style Dedicated Console App)
+## Dedicated Migrator Project Architecture
 
-- **One small dedicated console app owns migrations** (e.g., `src/DbMigrator` or `src/AppToolbox`)—do **not** split into separate startup vs. destination projects or embed migration scripts in a Web API host unless explicitly requested.
-- That single migrator console project holds `[assembly: EntityRegistryRoot]` (or `<EntityRegistryRoot>true</EntityRegistryRoot>`), `AddDbMigrator(...)` / `IDesignTimeDbMigratorFactory`, references all module assemblies, and owns `DbMigrator/` (`Scripts/`, `Snapshots/`, `db-migration-runlist.json`).
+- **Single dedicated migrator console project** (e.g., `src/MyApp.DbMigrator`)—do **not** split into separate startup vs. destination projects or embed migration scripts in an application host unless explicitly requested.
+- That migrator project declares `[assembly: EntityRegistryRoot]` (or `<EntityRegistryRoot>true</EntityRegistryRoot>`), configures `AddDbMigrator(...)` or `IDesignTimeDbMigratorFactory`, references all module assemblies, and owns `DbMigrator/` (`Scripts/`, `Snapshots/`, `db-migration-runlist.json`).
 - `db-migrator` targets this single project via `db-migrator-config.json` (`defaultProject`) or `--project <PATH>`.
 
 ## DI & Setup (`AddDbMigrator`)

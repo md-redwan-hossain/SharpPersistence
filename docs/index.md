@@ -21,7 +21,7 @@ features:
     details: Write type-safe, dialect-aware SQL check constraints, index filters, and computed columns in C# for PostgreSQL, Oracle, SQL Server, MySQL, and SQLite.
     link: /getting-started/quick-start-expressions
   - title: Tagged SQL File Parser
-    details: Keep raw SQL queries in .sql files with --@tag markers, parse and validate them once via SqlParser, and look them up by tag through IParsedSqlStorage.
+    details: Keep raw SQL queries in .sql files with -- #start# / -- #end# markers, parse and validate them once via SqlParser, and look them up by tag through IParsedSqlStorage.
     link: /core/sql-parser
   - title: C#-First Database Migrator
     details: Define tables in plain C# with compile-time entity discovery, generate safe-to-re-run SQL scripts for PostgreSQL & Oracle, validate with db-migrator doctor, and bridge to EF Core.
