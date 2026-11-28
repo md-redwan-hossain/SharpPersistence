@@ -4,15 +4,11 @@ using Spectre.Console.Cli;
 
 namespace SharpPersistence.Migrator.Cli.Translators;
 
-internal sealed class AnnotateDbContextEntitiesSettings : CommandSettings
+internal sealed class AnnotateEntitiesSettings : CommandSettings
 {
-    [CommandOption("--dbcontext <PATH>")]
-    [Description("Path to an EF Core DbContext .cs file or directory containing DbContext files.")]
-    public string DbContextPath { get; init; } = string.Empty;
-
-    [CommandOption("--search-directory <DIR>")]
-    [Description("Directory to recursively search for matching entity .cs files.")]
-    public string SearchDirectory { get; init; } = string.Empty;
+    [CommandOption("-d|--directory <DIR>")]
+    [Description("Directory to recursively scan for entity .cs files.")]
+    public string Directory { get; init; } = string.Empty;
 
     [CommandOption("--entity-group-name <NAME>")]
     [Description("Optional IEntityGroup struct name to emit [Entity<TGroup>]. Defaults to [Entity].")]
@@ -32,25 +28,28 @@ internal sealed class AnnotateDbContextEntitiesSettings : CommandSettings
 
     public override ValidationResult Validate()
     {
-        if (string.IsNullOrWhiteSpace(DbContextPath))
-            return ValidationResult.Error("--dbcontext <PATH> is required.");
-        if (string.IsNullOrWhiteSpace(SearchDirectory))
-            return ValidationResult.Error("--search-directory <DIR> is required.");
+        if (string.IsNullOrWhiteSpace(Directory))
+        {
+            return ValidationResult.Error("--directory <DIR> is required.");
+        }
+
         var hasGroupName = !string.IsNullOrWhiteSpace(EntityGroupName);
         var hasGroupNs = !string.IsNullOrWhiteSpace(EntityGroupNamespace);
         if (hasGroupName != hasGroupNs)
+        {
             return ValidationResult.Error("--entity-group-name and --entity-group-namespace must be specified together.");
+        }
+
         return ValidationResult.Success();
     }
 }
 
-internal sealed class AnnotateDbContextEntitiesCommand : Command<AnnotateDbContextEntitiesSettings>
+internal sealed class AnnotateEntitiesCommand : Command<AnnotateEntitiesSettings>
 {
-    public override int Execute(CommandContext context, AnnotateDbContextEntitiesSettings settings)
+    public override int Execute(CommandContext context, AnnotateEntitiesSettings settings)
     {
-        var result = EfCoreEntityAnnotator.AnnotateDirectory(
-            settings.DbContextPath,
-            settings.SearchDirectory,
+        var result = EntityAnnotator.AnnotateDirectory(
+            settings.Directory,
             settings.EntityGroupName,
             settings.EntityGroupNamespace,
             settings.ReadOnly,
@@ -68,7 +67,9 @@ internal sealed class AnnotateDbContextEntitiesCommand : Command<AnnotateDbConte
         AnsiConsole.MarkupLine($"{prefix}Marker attribute: [cyan]{Markup.Escape(attrDisplay)}[/]{nsInfo}");
 
         foreach (var warning in result.Warnings)
+        {
             AnsiConsole.MarkupLine($"[yellow]Warning:[/] {Markup.Escape(warning)}");
+        }
 
         if (result.Items.Count > 0)
         {
@@ -80,21 +81,15 @@ internal sealed class AnnotateDbContextEntitiesCommand : Command<AnnotateDbConte
                     : settings.DryRun ? "[yellow]would annotate[/]" : "[green]annotated[/]";
                 table.AddRow(Markup.Escape(item.EntityName), Markup.Escape(item.RelativePath), status);
             }
-            AnsiConsole.Write(table);
-        }
 
-        if (result.UnmatchedEntityNames.Count > 0)
-        {
-            AnsiConsole.MarkupLine(
-                $"[yellow]Unmatched DbContext entities ({result.UnmatchedEntityNames.Count}):[/] " +
-                Markup.Escape(string.Join(", ", result.UnmatchedEntityNames)));
+            AnsiConsole.Write(table);
         }
 
         var modifiedCount = result.Items.Count(i => i.Modified);
         var skippedCount = result.Items.Count(i => i.AlreadyAnnotated);
         var verb = settings.DryRun ? "Would annotate" : "Annotated";
         AnsiConsole.MarkupLine(
-            $"{prefix}{verb} [green]{modifiedCount}[/] entity class(es), skipped [grey]{skippedCount}[/] already annotated, [yellow]{result.UnmatchedEntityNames.Count}[/] unmatched.");
+            $"{prefix}{verb} [green]{modifiedCount}[/] entity class(es), skipped [grey]{skippedCount}[/] already annotated.");
 
         return 0;
     }

@@ -124,7 +124,7 @@ internal sealed class ConfigCommand : Command<ConfigSettings>
             {
                 AnsiConsole.MarkupLine(
                     $"[red]Error:[/] '{Markup.Escape(rawArg)}' is not an eligible migrator root project " +
-                    "(requires <EntityRegistryRoot>true</EntityRegistryRoot>, [assembly: EntityRegistryRoot], AddDbMigrator, or IDesignTimeMigrationFactory).");
+                    "(requires <EntityRegistryRoot>true</EntityRegistryRoot>, [[assembly: EntityRegistryRoot]], AddDbMigrator, or IDesignTimeDbMigratorFactory).");
                 return 1;
             }
         }

@@ -19,6 +19,9 @@ internal sealed class SpectreProjectPicker : IProjectPicker
         !Console.IsInputRedirected &&
         AnsiConsole.Profile.Capabilities.Interactive;
 
+    internal static string FormatChoice(ProjectChoice c) =>
+        $"{Markup.Escape(c.DisplayName)} [cyan]({Markup.Escape(c.Tag)})[/] [grey]{Markup.Escape(c.RelativePath)}[/]";
+
     public ProjectChoice PickProject(string title, IReadOnlyList<ProjectChoice> choices)
     {
         var prompt = new SelectionPrompt<ProjectChoice>()
@@ -28,11 +31,10 @@ internal sealed class SpectreProjectPicker : IProjectPicker
             .SearchPlaceholderText("[grey]Type to search...[/]")
             .MoreChoicesText("[grey](Move up and down to reveal more projects)[/]")
             .HighlightStyle(new Style(Color.Green, decoration: Decoration.Bold))
-            .UseConverter(static c =>
-                $"{Markup.Escape(c.DisplayName)} [cyan][[{Markup.Escape(c.Tag)}]][/] [grey]({Markup.Escape(c.RelativePath)})[/]")
+            .UseConverter(FormatChoice)
             .AddChoices(choices);
 
-        AnsiConsole.MarkupLine("[grey]↑/↓ to select • Enter: confirm • Type: to search[/]");
+        AnsiConsole.MarkupLine("[grey]Up/Down: select | Enter: confirm | Type: to search[/]");
         return AnsiConsole.Prompt(prompt);
     }
 }

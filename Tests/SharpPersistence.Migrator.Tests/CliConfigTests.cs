@@ -207,6 +207,30 @@ public sealed class CliConfigTests
         }
     }
 
+    [Fact]
+    public void SpectreProjectPicker_FormatChoice_SurvivesSearchMarkupRoundTrip()
+    {
+        var choices = new[]
+        {
+            new ProjectChoice("AppRoot", "src/AppRoot/AppRoot.csproj", @"D:\repo\src\AppRoot\AppRoot.csproj", "startup"),
+            new ProjectChoice("Sales", "src/Sales/Sales.csproj", @"D:\repo\src\Sales\Sales.csproj", "registry"),
+            new ProjectChoice("Tools", "src/Tools/Tools.csproj", @"D:\repo\src\Tools\Tools.csproj", "other")
+        };
+
+        foreach (var choice in choices)
+        {
+            var formatted = SpectreProjectPicker.FormatChoice(choice);
+            var initial = new Spectre.Console.Markup(formatted);
+            Assert.NotNull(initial);
+
+            // Spectre.Console's SelectionPrompt.EnableSearch() strips markup via Markup.Remove()
+            // and re-parses the resulting string as Markup when highlighting search matches.
+            var stripped = Spectre.Console.Markup.Remove(formatted);
+            var reparsed = new Spectre.Console.Markup(stripped);
+            Assert.NotNull(reparsed);
+        }
+    }
+
     private sealed class FakeProjectPicker(Func<string, IReadOnlyList<ProjectChoice>, ProjectChoice> pick) : IProjectPicker
     {
         public bool IsInteractive(bool nonInteractiveFlag) => !nonInteractiveFlag;

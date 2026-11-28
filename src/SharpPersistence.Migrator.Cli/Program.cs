@@ -32,9 +32,9 @@ app.Configure(config =>
         .WithExample("translate-ef-configs", "--source-path", "Infrastructure/Configurations", "--dry-run")
         .WithExample("translate-ef-configs", "--source-path", "Infrastructure/Configurations", "--output-path", "Infrastructure/MigratorConfigs");
 
-    config.AddCommand<AnnotateDbContextEntitiesCommand>("annotate-dbcontext-entities")
-        .WithDescription("Annotate entity classes referenced by an EF Core DbContext with a SharpPersistence entity marker attribute.")
-        .WithExample("annotate-dbcontext-entities", "--dbcontext", "Infrastructure/AppDbContext.cs", "--search-directory", "Domain/Entities", "--dry-run");
+    config.AddCommand<AnnotateEntitiesCommand>("annotate-entities")
+        .WithDescription("Annotate entity classes in a directory with a SharpPersistence entity marker attribute.")
+        .WithExample("annotate-entities", "--directory", "Domain/Entities", "--dry-run");
 
     config.AddCommand<SyncEfCoreHistoryCommand>("sync-ef-history")
         .WithDescription("Mark _translated scripts already present in __EFMigrationsHistory as applied.");

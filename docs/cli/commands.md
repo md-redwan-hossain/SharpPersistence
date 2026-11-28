@@ -3,7 +3,7 @@
 Install as a global or local .NET tool:
 
 ```powershell
-dotnet tool install -g SharpPersistence.Migrator.Cli
+dotnet tool install --global SharpPersistence.Migrator.Cli
 ```
 
 ## Shared Options
@@ -12,8 +12,8 @@ Most commands load your `IServiceProvider` (from `Program.cs`) or `IDesignTimeDb
 
 | Option | Description |
 | --- | --- |
-| `-s`, `--startup-project <PATH>` | Startup `.csproj` or directory (auto-detected from CWD if omitted) |
-| `-d`, `--destination-project <PATH>` | Project where `DbMigrator/Scripts` and `DbMigrator/Snapshots` live |
+| `--startup-project <PATH>` | Startup `.csproj` or directory (auto-detected from CWD if omitted) |
+| `--destination-project <PATH>` | Project where `DbMigrator/Scripts` and `DbMigrator/Snapshots` live |
 | `--no-build` | Skip `dotnet build` before loading the startup assembly |
 | `--ci`, `--non-interactive` | Disable interactive prompts (project pickers and rename prompts) |
 
@@ -21,7 +21,7 @@ Most commands load your `IServiceProvider` (from `Program.cs`) or `IDesignTimeDb
 
 ### `config`
 
-Scans your solution (`.slnx` / `.sln`) and generates, inspects, or updates `db-migrator-config.json` at the solution root so you don't need to pass `-s` / `-d` on every command.
+Scans your solution (`.slnx` / `.sln`) and generates, inspects, or updates `db-migrator-config.json` at the solution root so you don't need to pass `--startup-project` / `--destination-project` on every command.
 
 ```powershell
 # Generate or refresh db-migrator-config.json at the solution root
@@ -125,7 +125,7 @@ db-migrator generate --name AddOrders --registry SalesRegistry --dry-run
 db-migrator generate --name EmptyHook --allow-empty --ci
 ```
 
-Options: `-n|--name <NAME>` (required), `-r|--registry <REGISTRY>`, `--ci|--non-interactive`, `--allow-empty`, `--dry-run`.
+Options: `--name <NAME>` (required), `--registry <REGISTRY>`, `--ci`, `--non-interactive`, `--allow-empty`, `--dry-run`.
 
 ### `migrate`
 
@@ -216,25 +216,28 @@ db-migrator translate-ef-configs --source-path Infrastructure/Configurations --d
 db-migrator translate-ef-configs --source-path Infrastructure/Configurations --output-path Infrastructure/MigratorConfigs
 ```
 
-Options: `-s|--source-path <DIR>` (required), `-o|--output-path <DIR>` (optional, defaults to `<source-path>/TranslatedEfConfigs`), `--no-attribute`, `--dry-run`.
+Options: `--source-path <DIR>` (required), `--output-path <DIR>` (optional, defaults to `<source-path>/TranslatedEfConfigs`), `--no-attribute`, `--dry-run`.
 
-### `annotate-dbcontext-entities`
+### `annotate-entities`
 
-Annotates entity classes referenced by an EF Core `DbContext` (`DbSet<T>` properties and `modelBuilder.Entity<T>()` calls) with `[Entity]` (default) or `[Entity<TGroup>]` when `--entity-group-name` is provided.
+Annotates concrete top-level entity classes in a directory with `[Entity]` (default) or `[Entity<TGroup>]` when `--entity-group-name` is provided (skipping `abstract`, `static`, generic, and nested classes).
 
 ```powershell
 # Built-in ungrouped [Entity]
-db-migrator annotate-dbcontext-entities --dbcontext Infrastructure/AppDbContext.cs --search-directory Domain/Entities --dry-run
+db-migrator annotate-entities --directory Domain/Entities --dry-run
 
 # Grouped [Entity<SalesGroup>] with its namespace
-db-migrator annotate-dbcontext-entities --dbcontext Modules/Sales/Infra/SalesDbContext.cs --search-directory Modules/Sales/Domain/Entities --entity-group-name SalesGroup --entity-group-namespace MyApp.Sales.Domain
+db-migrator annotate-entities --directory Modules/Sales/Domain/Entities --entity-group-name SalesGroup --entity-group-namespace MyApp.Sales.Domain
+
+# Read-only stub entities
+db-migrator annotate-entities --directory Modules/Sales/Domain/Entities/Ref --read-only
 ```
 
-Options: `--dbcontext <PATH>` (required), `--search-directory <DIR>` (required), `--entity-group-name <NAME>` and `--entity-group-namespace <NAMESPACE>` (optional, must be provided together), `--read-only`, `--dry-run`.
+Options: `--directory <DIR>` (required), `--entity-group-name <NAME>` and `--entity-group-namespace <NAMESPACE>` (optional, must be provided together), `--read-only`, `--dry-run`.
 
 ### `translate-ef-migrations` & `sync-ef-history`
 
-`translate-ef-migrations` converts compiled EF Core `Migration` classes in `--source-path` 1-to-1 into idempotent SQL scripts under `DbMigrator/Scripts/_translated/` and appends them to `db-migration-runlist.json`. `sync-ef-history` reads `__EFMigrationsHistory` and records matching `_translated` scripts as already applied in `__db_migration_logs` so existing databases won't re-run historical migrations.
+`translate-ef-migrations` converts compiled EF Core `Migration` classes in `--source-path` 1-to-1 into idempotent SQL scripts under `DbMigrator/Scripts/_translated/` and appends them to `db-migration-runlist.json`. `sync-ef-history` reads `__EFMigrationsHistory` and records matching `_translated` scripts as already applied in `__db_migrator_logs` so existing databases won't re-run historical migrations.
 
 ```powershell
 db-migrator translate-ef-migrations --source-path WebApi/Migrations --startup-project WebApi/WebApi.csproj
